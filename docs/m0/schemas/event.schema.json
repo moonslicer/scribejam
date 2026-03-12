@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scribejam.local/m0/event.schema.json",
+  "title": "M0 Event Record",
+  "type": "object",
+  "required": [
+    "ts_iso",
+    "run_id",
+    "scenario_id",
+    "event_type",
+    "source",
+    "message"
+  ],
+  "properties": {
+    "ts_iso": { "type": "string", "format": "date-time" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "scenario_id": { "type": "string", "minLength": 1 },
+    "event_type": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "string",
+      "enum": ["system", "mic", "mixer", "stt", "app"]
+    },
+    "seq": { "type": "integer", "minimum": 0 },
+    "lag_ms": { "type": "number", "minimum": 0 },
+    "buffer_depth": { "type": "integer", "minimum": 0 },
+    "message": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

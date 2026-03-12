@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scribejam.local/m0/metadata.schema.json",
+  "title": "M0 Run Metadata",
+  "type": "object",
+  "required": [
+    "run_id",
+    "timestamp_start_iso",
+    "timestamp_end_iso",
+    "scenario_id",
+    "config_id",
+    "config",
+    "environment"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "timestamp_start_iso": { "type": "string", "format": "date-time" },
+    "timestamp_end_iso": { "type": "string", "format": "date-time" },
+    "scenario_id": { "type": "string", "minLength": 1 },
+    "config_id": { "type": "string", "minLength": 1 },
+    "config": {
+      "type": "object",
+      "required": ["frame_size_ms", "mix_cadence_ms", "sample_rate_hz", "channels", "format"],
+      "properties": {
+        "frame_size_ms": { "type": "number", "minimum": 1 },
+        "mix_cadence_ms": { "type": "number", "minimum": 1 },
+        "sample_rate_hz": { "type": "integer", "minimum": 8000 },
+        "channels": { "type": "integer", "minimum": 1 },
+        "format": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "macos_version",
+        "hardware_model",
+        "architecture",
+        "node_version",
+        "electron_version",
+        "audioteejs_version",
+        "deepgram_mode"
+      ],
+      "properties": {
+        "macos_version": { "type": "string" },
+        "hardware_model": { "type": "string" },
+        "architecture": { "type": "string" },
+        "node_version": { "type": "string" },
+        "electron_version": { "type": "string" },
+        "audioteejs_version": { "type": "string" },
+        "deepgram_mode": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "operator": { "type": "string" },
+    "commit_ref": { "type": "string" },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false
+}
