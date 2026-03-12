@@ -1,60 +1,107 @@
-<p align="center"><code>npm i -g @openai/codex</code><br />or <code>brew install --cask codex</code></p>
-<p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
-<p align="center">
-  <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
-</p>
-</br>
-If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="https://developers.openai.com/codex/ide">install in your IDE.</a>
-</br>If you want the desktop app experience, run <code>codex app</code> or visit <a href="https://chatgpt.com/codex?app-landing-page=true">the Codex App page</a>.
-</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, go to <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
+# Scribejam
 
----
+Scribejam is a notepad-first AI meeting assistant for macOS.
 
-## Quickstart
+Core product rules:
+- no meeting bot joins your calls
+- system audio + mic capture happen locally on device
+- raw audio is in-memory only (not written to disk)
+- human notes stay the anchor; AI augments later
 
-### Installing and running Codex CLI
+Authoritative docs:
+- product and invariants: [AGENTS.md](./AGENTS.md)
+- milestone plan: [PLAN.md](./PLAN.md)
+- M0 evidence and report: [docs/m0](./docs/m0), [docs/m0-spike-report.md](./docs/m0-spike-report.md)
+- M1 implementation handoff: [docs/m1-implementation-plan.md](./docs/m1-implementation-plan.md)
+- M1 closure evidence: [docs/m1/validation](./docs/m1/validation), [docs/m1-exit-report.md](./docs/m1-exit-report.md)
 
-Install globally with your preferred package manager:
+## Current Repo Status
 
-```shell
-# Install using npm
-npm install -g @openai/codex
+The repository now contains:
+- M0 technical spike harness under `spike/m0-harness/`
+- M1 Electron scaffold in `src/` with typed IPC, audio capture shell, settings shell, and smoke/unit tests
+
+M1 closure details and verification are documented in `docs/m1-exit-report.md`.
+
+## Prerequisites
+
+- macOS (Apple Silicon tested)
+- Node.js `v22+`
+- npm
+- optional for real STT runs: `DEEPGRAM_API_KEY`
+- optional for real system capture runs: macOS "System Audio Recording" permission
+
+## Build and Run (M0 Harness)
+
+### 1) Install harness dependencies
+
+```bash
+cd spike/m0-harness
+npm install
 ```
 
-```shell
-# Install using Homebrew
-brew install --cask codex
+### 2) Build harness
+
+```bash
+npm run build
 ```
 
-Then simply run `codex` to get started.
+### 3) Run one harness scenario
 
-<details>
-<summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
+```bash
+npm start -- \
+  --run-id m0-local-s3-cfg-b \
+  --scenario S3_mixed_10m \
+  --duration-sec 120 \
+  --frame-size-ms 20 \
+  --mix-cadence-ms 100 \
+  --system-capture-mode mock \
+  --mic-capture-mode mock \
+  --stt-mode mock
+```
 
-Each GitHub Release contains many executables, but in practice, you likely want one of these:
+Run artifacts are written to:
+- `docs/m0/runs/<run-id>/metadata.json`
+- `docs/m0/runs/<run-id>/metrics.json`
+- `docs/m0/runs/<run-id>/events.ndjson`
+- `docs/m0/runs/<run-id>/notes.md`
 
-- macOS
-  - Apple Silicon/arm64: `codex-aarch64-apple-darwin.tar.gz`
-  - x86_64 (older Mac hardware): `codex-x86_64-apple-darwin.tar.gz`
-- Linux
-  - x86_64: `codex-x86_64-unknown-linux-musl.tar.gz`
-  - arm64: `codex-aarch64-unknown-linux-musl.tar.gz`
+### 4) Verify artifacts
 
-Each archive contains a single entry with the platform baked into the name (e.g., `codex-x86_64-unknown-linux-musl`), so you likely want to rename it to `codex` after extracting it.
+From repo root:
 
-</details>
+```bash
+node scripts/m0/verify-run.mjs docs/m0/runs/<run-id>
+```
 
-### Using Codex with your ChatGPT plan
+## Run Matrix Helpers
 
-Run `codex` and select **Sign in with ChatGPT**. We recommend signing into your ChatGPT account to use Codex as part of your Plus, Pro, Team, Edu, or Enterprise plan. [Learn more about what's included in your ChatGPT plan](https://help.openai.com/en/articles/11369540-codex-in-chatgpt).
+From repo root:
 
-You can also use Codex with an API key, but this requires [additional setup](https://developers.openai.com/codex/auth#sign-in-with-an-api-key).
+Quick sanity matrix:
 
-## Docs
+```bash
+node scripts/m0/run-matrix.mjs --mode quick --config CFG-B
+```
 
-- [**Codex Documentation**](https://developers.openai.com/codex)
-- [**Contributing**](./docs/contributing.md)
-- [**Installing & building**](./docs/install.md)
-- [**Open source fund**](./docs/open-source-fund.md)
+Full-duration mock matrix:
 
-This repository is licensed under the [Apache-2.0 License](LICENSE).
+```bash
+node scripts/m0/run-matrix.mjs --mode full --config CFG-B
+```
+
+Real-provider matrix (requires key + macOS permission):
+
+```bash
+DEEPGRAM_API_KEY=<key> node scripts/m0/run-matrix.mjs --mode full --config CFG-B --capture real --stt deepgram
+```
+
+## Build Philosophy
+
+Scribejam prioritizes:
+- reliability over cleverness
+- explicit typed contracts between renderer/main
+- graceful degradation (mic-only fallback, resilient state handling)
+- privacy by default
+
+See [AGENTS.md](./AGENTS.md) for full constraints.

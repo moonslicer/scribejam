@@ -16,15 +16,7 @@ Decision: `GO (WAIVED)`
 
 ## Environment
 
-- Date: `2026-03-11` to `2026-03-12`
-- Operator: `hao`
-- Machine: `redacted`
-- CPU architecture: `arm64`
-- macOS: `redacted`
-- Node: `redacted`
-- Electron: not integrated in harness
-- Deepgram SDK: `@deepgram/sdk v5.0.0`
-- Commit/snapshot: local workspace
+Environment-specific details are intentionally omitted per security policy.
 
 ## Scenarios Executed
 

@@ -19,13 +19,13 @@ No M0 claim is valid without the evidence artifacts listed here.
 
 Record the following in every run artifact:
 
-- macOS version
-- hardware model + CPU architecture
-- Node.js version
+- OS family only (no exact local OS/build version)
+- host/runtime profile as `redacted` (no hardware model, hostname, or architecture fingerprint)
+- toolchain profile as `redacted` (no local Node/runtime version fingerprint)
 - Electron version (if used in harness)
 - `audioteejs` version
 - Deepgram SDK/API mode used
-- Git commit or working snapshot identifier
+- Git commit or working snapshot identifier (no local absolute paths)
 
 ## Required Metrics and Thresholds
 

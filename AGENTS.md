@@ -75,6 +75,10 @@ Design rule: capture/note-taking should continue even when cloud services fail.
 ## 8) Security and Data Handling
 - Store provider API keys via Electron `safeStorage`.
 - Never log raw audio payloads, API keys, or full sensitive transcripts in debug output.
+- Never commit personal or host-identifying metadata in repo artifacts:
+  - no usernames, hostnames, absolute local paths, or workstation labels
+  - no exact local OS/build versions or other machine fingerprint details in committed docs/artifacts
+  - use redacted or generic environment labels in validation evidence unless the user explicitly requests otherwise
 - Persist only meeting artifacts needed by product behavior:
   - meeting metadata
   - notes

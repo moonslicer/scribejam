@@ -42,17 +42,17 @@
         "deepgram_mode"
       ],
       "properties": {
-        "macos_version": { "type": "string" },
-        "hardware_model": { "type": "string" },
-        "architecture": { "type": "string" },
-        "node_version": { "type": "string" },
+        "macos_version": { "type": "string", "description": "Use redacted or generic value; do not include exact local OS/build version." },
+        "hardware_model": { "type": "string", "description": "Use redacted value; do not include hostnames or workstation labels." },
+        "architecture": { "type": "string", "description": "Use redacted value in committed artifacts to avoid fingerprinting." },
+        "node_version": { "type": "string", "description": "Use redacted value in committed artifacts to avoid fingerprinting." },
         "electron_version": { "type": "string" },
         "audioteejs_version": { "type": "string" },
         "deepgram_mode": { "type": "string" }
       },
       "additionalProperties": false
     },
-    "operator": { "type": "string" },
+    "operator": { "type": "string", "description": "Use redacted value; do not include personal identifiers." },
     "commit_ref": { "type": "string" },
     "notes": { "type": "string" }
   },

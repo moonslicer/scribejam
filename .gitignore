@@ -9,3 +9,7 @@ coverage/
 
 spike/m0-harness/node_modules/
 spike/m0-harness/dist/
+
+# Local generated M0 run artifacts (tracked baseline fixtures are unaffected)
+docs/m0/runs/batch-*.json
+docs/m0/runs/m0-20*/

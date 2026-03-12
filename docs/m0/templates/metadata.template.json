@@ -12,15 +12,15 @@
     "format": "PCM16"
   },
   "environment": {
-    "macos_version": "",
-    "hardware_model": "",
-    "architecture": "",
-    "node_version": "",
+    "macos_version": "redacted",
+    "hardware_model": "redacted",
+    "architecture": "redacted",
+    "node_version": "redacted",
     "electron_version": "",
     "audioteejs_version": "",
     "deepgram_mode": ""
   },
-  "operator": "",
+  "operator": "redacted",
   "commit_ref": "",
   "notes": ""
 }

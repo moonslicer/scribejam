@@ -1,6 +1,6 @@
 # M1 Detailed Implementation Plan (Junior Handoff)
 
-Status: `Ready`
+Status: `Completed (2026-03-12)`
 Milestone: `M1 - Project Scaffold & Audio Capture`
 Source of truth: `AGENTS.md` + `PLAN.md`
 
