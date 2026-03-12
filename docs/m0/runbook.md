@@ -46,11 +46,21 @@ node scripts/m0/run-matrix.mjs --mode quick --config CFG-B
 
 Quick mode is a harness sanity pass only; it is not a substitute for full M0 gate evidence.
 
-Full-duration scripted matrix:
+Full-duration scripted matrix (mock capture + STT, no provider keys):
 
 ```bash
 node scripts/m0/run-matrix.mjs --mode full --config CFG-B
 ```
+
+Real-provider gating matrix (requires macOS 14.2+, System Audio Recording permission, `DEEPGRAM_API_KEY`):
+
+```bash
+DEEPGRAM_API_KEY=<key> node scripts/m0/run-matrix.mjs --mode full --config CFG-B --capture real --stt deepgram
+```
+
+`--capture real` activates the `audiotee` system audio adapter.
+`--stt deepgram` activates the Deepgram v2 WebSocket adapter.
+Both flags are independent — e.g. `--capture real --stt mock` validates audio capture in isolation.
 
 ## Required Event Fields
 

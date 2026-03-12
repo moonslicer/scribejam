@@ -9,6 +9,11 @@ const harnessDir = path.join(repoRoot, "spike", "m0-harness");
 const runsRoot = path.join(repoRoot, "docs", "m0", "runs");
 
 const args = parseArgs(process.argv.slice(2));
+// --capture real --stt deepgram requires DEEPGRAM_API_KEY in environment
+if (args.sttMode === "deepgram" && !process.env.DEEPGRAM_API_KEY) {
+  process.stderr.write("Error: DEEPGRAM_API_KEY environment variable is required for --stt deepgram\n");
+  process.exit(1);
+}
 const batchId = `batch-${timestampTag()}`;
 const summary = {
   batch_id: batchId,
@@ -23,7 +28,7 @@ fs.mkdirSync(runsRoot, { recursive: true });
 runCommand("npm", ["run", "build"], { cwd: harnessDir });
 
 const durations = args.mode === "full" ? fullDurations() : quickDurations();
-const scenarios = scenarioPlan(args.configId, durations);
+const scenarios = scenarioPlan(args.configId, durations, args.captureMode, args.sttMode);
 
 for (const scenario of scenarios) {
   const runId = makeRunId(scenario.scenarioId, scenario.configId, batchId);
@@ -87,20 +92,24 @@ function parseArgs(argv) {
 
   const mode = toEnum(map.get("--mode"), ["quick", "full"], "quick");
   const configId = toEnum(map.get("--config"), ["CFG-A", "CFG-B", "CFG-C"], "CFG-B");
-  return { mode, configId };
+  const captureMode = toEnum(map.get("--capture"), ["mock", "real"], "mock");
+  const sttMode = toEnum(map.get("--stt"), ["mock", "deepgram"], "mock");
+  return { mode, configId, captureMode, sttMode };
 }
 
-function scenarioPlan(configId, durations) {
+function scenarioPlan(configId, durations, captureMode, sttMode) {
   const cfg = configToFrames(configId);
+  const sys = captureMode === "real" ? "audioteejs" : "mock";
+  const stt = sttMode;
   return [
     {
       scenarioId: "S1_system_only_10m",
       configId,
       durationSec: durations.S1_system_only_10m,
       ...cfg,
-      systemCaptureMode: "mock",
+      systemCaptureMode: sys,
       micCaptureMode: "mock",
-      sttMode: "mock"
+      sttMode: stt
     },
     {
       scenarioId: "S2_mic_only_10m",
@@ -109,34 +118,34 @@ function scenarioPlan(configId, durations) {
       ...cfg,
       systemCaptureMode: "unavailable",
       micCaptureMode: "mock",
-      sttMode: "mock"
+      sttMode: stt
     },
     {
       scenarioId: "S3_mixed_10m",
       configId,
       durationSec: durations.S3_mixed_10m,
       ...cfg,
-      systemCaptureMode: "mock",
+      systemCaptureMode: sys,
       micCaptureMode: "mock",
-      sttMode: "mock"
+      sttMode: stt
     },
     {
       scenarioId: "S4_mixed_soak_30m",
       configId,
       durationSec: durations.S4_mixed_soak_30m,
       ...cfg,
-      systemCaptureMode: "mock",
+      systemCaptureMode: sys,
       micCaptureMode: "mock",
-      sttMode: "mock"
+      sttMode: stt
     },
     {
       scenarioId: "S5_network_drop",
       configId,
       durationSec: durations.S5_network_drop,
       ...cfg,
-      systemCaptureMode: "mock",
+      systemCaptureMode: sys,
       micCaptureMode: "mock",
-      sttMode: "mock"
+      sttMode: stt
     },
     {
       scenarioId: "S6_system_unavailable",
@@ -145,7 +154,7 @@ function scenarioPlan(configId, durations) {
       ...cfg,
       systemCaptureMode: "unavailable",
       micCaptureMode: "mock",
-      sttMode: "mock"
+      sttMode: stt
     }
   ];
 }
