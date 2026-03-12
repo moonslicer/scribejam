@@ -17,7 +17,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "smoke": "node scripts/smoke/startup-smoke.mjs",
-    "smoke:playwright": "playwright test tests/smoke --reporter=line",
+    "smoke:playwright": "npm run build && playwright test tests/smoke --reporter=line",
     "rebuild-native": "electron-rebuild -f",
     "postinstall": "npm run rebuild-native || echo 'native rebuild skipped'"
   },

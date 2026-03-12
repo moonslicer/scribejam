@@ -43,6 +43,11 @@ export class SystemCapture {
   }
 
   public async start(callbacks: SystemCaptureCallbacks): Promise<void> {
+    if (process.env.SCRIBEJAM_FORCE_SYSTEM_UNAVAILABLE === '1') {
+      callbacks.onUnavailable();
+      return;
+    }
+
     const Ctor = await this.resolveAudioTeeCtor();
     if (!Ctor) {
       callbacks.onUnavailable();

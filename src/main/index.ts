@@ -1,8 +1,15 @@
 import { app, BrowserWindow } from 'electron';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createMainServices, registerIpcHandlers } from './ipc-handlers';
 
 let mainWindow: BrowserWindow | null = null;
+
+const userDataOverride = process.env.SCRIBEJAM_USER_DATA_DIR;
+if (userDataOverride) {
+  mkdirSync(userDataOverride, { recursive: true });
+  app.setPath('userData', userDataOverride);
+}
 
 async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
@@ -25,7 +32,6 @@ async function createWindow(): Promise<void> {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
     await mainWindow.loadURL(devServerUrl);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     await mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
@@ -51,7 +57,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.env.SCRIBEJAM_TEST_MODE === '1' || process.platform !== 'darwin') {
     app.quit();
   }
 });

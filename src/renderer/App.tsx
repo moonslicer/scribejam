@@ -92,18 +92,20 @@ export default function App(): JSX.Element {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
+    <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <header>
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
-        <h1 className="text-2xl font-semibold text-ink">Notepad-first meeting capture shell</h1>
+        <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">
+          Notepad-first meeting capture shell
+        </h1>
       </header>
 
       <MeetingBar meetingState={meetingState} onPrimaryAction={() => void onPrimaryAction()} />
       <StatusBanner message={errorMessage} />
 
       <section className="grid gap-3 md:grid-cols-2">
-        <AudioLevel label="Microphone" value={levels.mic} />
-        <AudioLevel label="System Audio" value={levels.system} />
+        <AudioLevel source="mic" label="Microphone" value={levels.mic} />
+        <AudioLevel source="system" label="System Audio" value={levels.system} />
       </section>
 
       <SettingsPanel settings={settings} onSave={saveSettings} />

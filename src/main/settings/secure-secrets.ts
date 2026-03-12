@@ -34,6 +34,9 @@ export class SecureSecrets {
     if (!encrypted) {
       return undefined;
     }
+    if (encrypted.startsWith('plaintext:')) {
+      return Buffer.from(encrypted.slice('plaintext:'.length), 'base64').toString('utf8');
+    }
     if (!this.storage.isEncryptionAvailable()) {
       return undefined;
     }
@@ -41,15 +44,15 @@ export class SecureSecrets {
   }
 
   public set(name: string, value: string): void {
-    if (!this.storage.isEncryptionAvailable()) {
-      throw new Error('Secure storage is unavailable on this system.');
-    }
-
     const persisted = this.read();
     if (value.trim().length === 0) {
       delete persisted.values[name];
-    } else {
+    } else if (this.storage.isEncryptionAvailable()) {
       persisted.values[name] = this.storage.encryptString(value).toString('base64');
+    } else if (process.env.SCRIBEJAM_TEST_MODE === '1') {
+      persisted.values[name] = `plaintext:${Buffer.from(value, 'utf8').toString('base64')}`;
+    } else {
+      throw new Error('Secure storage is unavailable on this system.');
     }
     this.write(persisted);
   }

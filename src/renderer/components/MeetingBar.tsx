@@ -20,15 +20,21 @@ const statusTone: Record<MeetingState, string> = {
 
 export function MeetingBar({ meetingState, onPrimaryAction, disabled = false }: MeetingBarProps): JSX.Element {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/85 p-4 shadow-sm backdrop-blur">
+    <div
+      data-testid="meeting-bar"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/85 p-4 shadow-sm backdrop-blur"
+    >
       <div className="flex items-center gap-3">
         <span className={`h-2.5 w-2.5 rounded-full ${statusTone[meetingState]}`} />
         <div>
           <p className="text-xs uppercase tracking-wide text-zinc-500">Meeting State</p>
-          <p className="text-sm font-semibold text-ink">{meetingState}</p>
+          <p data-testid="meeting-state-value" className="text-sm font-semibold text-ink">
+            {meetingState}
+          </p>
         </div>
       </div>
       <button
+        data-testid="meeting-primary-action"
         type="button"
         disabled={disabled}
         onClick={onPrimaryAction}
