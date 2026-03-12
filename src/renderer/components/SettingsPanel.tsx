@@ -18,7 +18,6 @@ export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Ele
     setSaving(true);
     try {
       await onSave({
-        firstRunAcknowledged: true,
         deepgramApiKey,
         openaiApiKey,
         anthropicApiKey
@@ -33,7 +32,7 @@ export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Ele
 
   return (
     <section data-testid="settings-panel" className="rounded-xl border border-zinc-200 bg-white/90 p-4 shadow-sm">
-      <h2 className="mb-1 text-sm font-semibold text-ink">Settings (M1 Shell)</h2>
+      <h2 className="mb-1 text-sm font-semibold text-ink">Settings</h2>
       <p className="mb-3 text-xs text-slate">API values are stored via Electron safeStorage.</p>
 
       <div className="grid gap-2 text-xs text-zinc-600">

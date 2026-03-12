@@ -84,7 +84,19 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
       throw new Error('Failed to create meeting id.');
     }
     await services.audioManager.startRecording();
-    await services.transcriptionService.start();
+    const currentSettings = services.settingsStore.getSettings();
+    if (currentSettings.firstRunAcknowledged && currentSettings.deepgramApiKeySet) {
+      await services.transcriptionService.start();
+    } else {
+      context.window.webContents.send(IPC_CHANNELS.transcriptionStatus, {
+        status: 'paused',
+        detail: 'Transcription paused — complete first-run setup.'
+      });
+      context.window.webContents.send(IPC_CHANNELS.errorDisplay, {
+        message: 'Transcription is paused until first-run setup is complete.',
+        action: 'open-settings'
+      });
+    }
     emitMeetingState(context.window, {
       state: snapshot.state,
       meetingId: snapshot.meetingId
