@@ -56,6 +56,10 @@ Run IDs must match this matrix naming pattern: `m0-<date>-<scenario>-<config-id>
 5. `S5_network_drop`: mixed session + network interruption drill
 6. `S6_system_unavailable`: `audioteejs` unavailable/failure drill (expect mic-only degradation)
 
+Scenario semantics are strict:
+- `S1_system_only_10m` must run with mic capture disabled (`--mic-capture-mode none`).
+- `S3_mixed_10m` and `S4_mixed_soak_30m` must include both mic and system frames.
+
 ## Evidence Requirements
 
 Each scenario must produce:
@@ -120,5 +124,7 @@ No raw PCM/audio files may be written under `docs/m0/runs/`.
 ## Decision Policy
 
 - `GO` for M1 requires all required scenarios completed and thresholds met.
+- A gate-eligible batch must be full duration and real provider mode: `--mode full --capture real --stt deepgram`.
+- `S3_mixed_10m` and `S4_mixed_soak_30m` must be satisfied by real mixed-input runs.
 - `NO-GO` is mandatory if any threshold fails or evidence is incomplete.
 - Any waived check must include explicit rationale and owner in `docs/m0-spike-report.md`.

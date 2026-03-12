@@ -1,6 +1,6 @@
 export type AudioSource = "system" | "mic" | "mixed";
 export type CaptureMode = "mock" | "audioteejs" | "unavailable";
-export type MicMode = "mock" | "ipc";
+export type MicMode = "mock" | "ipc" | "none";
 export type SttMode = "mock" | "deepgram";
 
 export interface AudioFrame {

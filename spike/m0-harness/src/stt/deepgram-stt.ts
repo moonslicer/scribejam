@@ -20,7 +20,8 @@ export class DeepgramSttAdapter implements SttAdapter {
     | null = null;
   private socket: V2SocketLike | null = null;
   private lastSendMs = 0;
-  private openCount = 0;
+  private pendingReconnect = false;
+  private stopping = false;
   private readonly apiKey: string;
 
   public constructor() {
@@ -32,6 +33,8 @@ export class DeepgramSttAdapter implements SttAdapter {
   }
 
   public async start(): Promise<void> {
+    this.stopping = false;
+    this.pendingReconnect = false;
     const client = new DeepgramClient({ apiKey: this.apiKey });
     // CustomDeepgramClient creates the socket with startClosed:true — register
     // handlers first, then call socket.connect() to initiate the connection.
@@ -43,16 +46,17 @@ export class DeepgramSttAdapter implements SttAdapter {
     })) as unknown as V2SocketLike;
 
     socket.on("open", () => {
-      this.openCount++;
-      if (this.openCount === 1) {
+      if (this.pendingReconnect) {
         this.connectionHandler?.("reconnect_success");
-      } else {
-        // Second+ open = reconnected after a drop
-        this.connectionHandler?.("reconnect_success");
+        this.pendingReconnect = false;
       }
     });
 
     socket.on("close", () => {
+      if (this.stopping) {
+        return;
+      }
+      this.pendingReconnect = true;
       this.connectionHandler?.("disconnect");
       this.connectionHandler?.("reconnect_attempt");
     });
@@ -87,6 +91,8 @@ export class DeepgramSttAdapter implements SttAdapter {
   }
 
   public async stop(): Promise<void> {
+    this.stopping = true;
+    this.pendingReconnect = false;
     this.socket?.close();
     this.socket = null;
   }

@@ -16,11 +16,13 @@ This harness is the executable bootstrap for `M0-04` in `docs/m0/task-breakdown.
 ## Modes
 
 - `--system-capture-mode mock|audioteejs|unavailable`
-- `--mic-capture-mode mock|ipc`
+- `--mic-capture-mode mock|ipc|none`
 - `--stt-mode mock|deepgram`
 
 `audioteejs` and Deepgram paths are bootstrap boundaries in this task.
 Concrete provider wiring is expected during live M0 execution on target Mac.
+
+`none` is used for true system-only scenarios where mic input must be disabled.
 
 ## Usage
 

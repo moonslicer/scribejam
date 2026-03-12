@@ -18,6 +18,7 @@ const batchId = `batch-${timestampTag()}`;
 const summary = {
   batch_id: batchId,
   mode: args.mode,
+  gate_eligible: args.mode === "full" && args.captureMode === "real" && args.sttMode === "deepgram",
   started_at_iso: new Date().toISOString(),
   runs: []
 };
@@ -108,7 +109,7 @@ function scenarioPlan(configId, durations, captureMode, sttMode) {
       durationSec: durations.S1_system_only_10m,
       ...cfg,
       systemCaptureMode: sys,
-      micCaptureMode: "mock",
+      micCaptureMode: "none",
       sttMode: stt
     },
     {

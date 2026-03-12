@@ -62,6 +62,10 @@ DEEPGRAM_API_KEY=<key> node scripts/m0/run-matrix.mjs --mode full --config CFG-B
 `--stt deepgram` activates the Deepgram v2 WebSocket adapter.
 Both flags are independent — e.g. `--capture real --stt mock` validates audio capture in isolation.
 
+For strict scenario semantics:
+- `S1_system_only_10m` disables mic input automatically (`mic-capture-mode none`).
+- Quick mode output is non-gating and should only be used as a harness sanity check.
+
 ## Required Event Fields
 
 Every line in `events.ndjson` should include:

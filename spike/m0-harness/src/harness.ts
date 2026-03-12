@@ -77,15 +77,17 @@ export async function runHarness(config: HarnessConfig): Promise<void> {
     }
   });
 
-  const micCapture: CaptureAdapter =
-    config.micCaptureMode === "ipc"
-      ? new MicIpcCapture({ port: config.micIpcPort })
-      : new MockCapture({
-          source: "mic",
-          sampleRateHz: config.sampleRateHz,
-          frameSizeMs: config.frameSizeMs,
-          toneHz: 180
-        });
+  const micCapture: CaptureAdapter | null =
+    config.micCaptureMode === "none"
+      ? null
+      : config.micCaptureMode === "ipc"
+        ? new MicIpcCapture({ port: config.micIpcPort })
+        : new MockCapture({
+            source: "mic",
+            sampleRateHz: config.sampleRateHz,
+            frameSizeMs: config.frameSizeMs,
+            toneHz: 180
+          });
   const systemCaptureOutcome = await createSystemCapture({
     mode: config.systemCaptureMode,
     sampleRateHz: config.sampleRateHz,
@@ -137,7 +139,9 @@ export async function runHarness(config: HarnessConfig): Promise<void> {
   };
 
   await stt.start();
-  await micCapture.start(frameSink);
+  if (micCapture) {
+    await micCapture.start(frameSink);
+  }
   if (systemCaptureOutcome.adapter) {
     await systemCaptureOutcome.adapter.start(frameSink);
   }
@@ -166,7 +170,9 @@ export async function runHarness(config: HarnessConfig): Promise<void> {
   if (systemCaptureOutcome.adapter) {
     await systemCaptureOutcome.adapter.stop();
   }
-  await micCapture.stop();
+  if (micCapture) {
+    await micCapture.stop();
+  }
   await stt.stop();
 
   logger.write({

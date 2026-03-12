@@ -78,7 +78,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     ["mock", "audioteejs", "unavailable"],
     "mock"
   );
-  const micCaptureMode = toEnum<MicMode>(values.get("--mic-capture-mode"), ["mock", "ipc"], "mock");
+  const micCaptureMode = toEnum<MicMode>(values.get("--mic-capture-mode"), ["mock", "ipc", "none"], "mock");
   const sttMode = toEnum<SttMode>(values.get("--stt-mode"), ["mock", "deepgram"], "mock");
   const micIpcPort = toPositiveInt(values.get("--mic-ipc-port"), 33339);
 

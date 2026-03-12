@@ -181,8 +181,8 @@ done ──[user clicks New Meeting]──▶ idle
 ### Audio Pipeline Strategy (MVP)
 Pipeline rules follow AGENTS.md §6 (Audio Pipeline Rules). Implementation-specific parameters:
 - **Sample rate**: 16kHz PCM16 mono (Deepgram's preferred input format)
-- **Frame size**: Determined by M0 spike (target: 20ms frames = 640 samples)
-- **Mix cadence**: Determined by M0 spike (target: 100ms)
+- **Frame size**: 20ms frames (640 samples) as provisional M0 default (CFG-B)
+- **Mix cadence**: 100ms as provisional M0 default (CFG-B)
 - **Ring buffer depth**: 5 seconds per source (bounded; oldest frames dropped under backpressure)
 - No raw audio persisted to disk — in-memory only per AGENTS invariant.
 
@@ -396,6 +396,9 @@ scribejam/
 2. Validate end-to-end Deepgram streaming transcription with mixed audio input.
 3. Measure baseline metrics: transcript latency p95, dropped-frame rate, memory growth over 30 minutes.
 4. Produce spike report (markdown in repo root: `docs/m0-spike-report.md`) that records: measured metrics, chosen frame size and mix cadence, any audioteejs issues, and go/no-go decision for M1. M1 cannot start until this report is reviewed.
+- **M0 gate interpretation**:
+  - `S1_system_only_10m` must be true system-only (mic disabled)
+  - `S3_mixed_10m` and `S4_mixed_soak_30m` must be validated as real mixed-input Deepgram runs for `GO`
 - **Testing**: Manual validation only. Report must include reproducible test steps and measured results.
 
 ### M1: Project Scaffold & Audio Capture
