@@ -8,6 +8,7 @@ interface V2SocketLike {
   on(event: "message", handler: (msg: { type?: string; transcript?: string; event?: string }) => void): void;
   on(event: "error", handler: (err: Error) => void): void;
   sendMedia(data: ArrayBufferView): void;
+  connect(): void;
   close(): void;
   waitForOpen(): Promise<unknown>;
 }
@@ -32,11 +33,13 @@ export class DeepgramSttAdapter implements SttAdapter {
 
   public async start(): Promise<void> {
     const client = new DeepgramClient({ apiKey: this.apiKey });
+    // CustomDeepgramClient creates the socket with startClosed:true — register
+    // handlers first, then call socket.connect() to initiate the connection.
     const socket = (await client.listen.v2.connect({
       model: "flux-general-en",
       encoding: ListenV2Encoding.Linear16,
       sample_rate: 16000,
-      Authorization: this.apiKey
+      Authorization: this.apiKey  // required by type; auth actually comes from DeepgramClient({ apiKey })
     })) as unknown as V2SocketLike;
 
     socket.on("open", () => {
@@ -71,6 +74,7 @@ export class DeepgramSttAdapter implements SttAdapter {
     });
 
     this.socket = socket;
+    socket.connect();
     await socket.waitForOpen();
   }
 
