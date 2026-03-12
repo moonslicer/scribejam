@@ -1,0 +1,10 @@
+import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests/smoke',
+  timeout: 30_000,
+  retries: 0,
+  use: {
+    trace: 'retain-on-failure'
+  }
+});

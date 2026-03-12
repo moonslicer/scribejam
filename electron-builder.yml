@@ -1,0 +1,10 @@
+appId: com.scribejam.desktop
+productName: Scribejam
+files:
+  - dist/**
+  - package.json
+mac:
+  target:
+    - dmg
+directories:
+  output: release

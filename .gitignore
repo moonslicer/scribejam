@@ -1,2 +1,11 @@
+node_modules/
+dist/
+release/
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo
+.DS_Store
+
 spike/m0-harness/node_modules/
 spike/m0-harness/dist/

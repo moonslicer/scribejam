@@ -1,0 +1,51 @@
+{
+  "name": "scribejam",
+  "version": "0.1.0",
+  "description": "Scribejam desktop app",
+  "main": "dist/main/index.js",
+  "author": "Scribejam",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rm -rf dist tsconfig.main.tsbuildinfo tsconfig.renderer.tsbuildinfo tsconfig.test.tsbuildinfo",
+    "dev": "concurrently -k \"npm:dev:main\" \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:main": "tsc -b tsconfig.main.json --watch --preserveWatchOutput",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on dist/main/index.js http-get://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "build": "npm run clean && npm run build:main && npm run build:renderer",
+    "build:main": "tsc -b tsconfig.main.json --force",
+    "build:renderer": "vite build",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "smoke": "node scripts/smoke/startup-smoke.mjs",
+    "smoke:playwright": "playwright test tests/smoke --reporter=line",
+    "rebuild-native": "electron-rebuild -f",
+    "postinstall": "npm run rebuild-native || echo 'native rebuild skipped'"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "optionalDependencies": {
+    "audiotee": "^0.0.7",
+    "better-sqlite3": "^11.10.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.14.1",
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.6",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "30.5.1",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2",
+    "vite": "^5.4.14",
+    "vitest": "^2.1.9",
+    "wait-on": "^8.0.3"
+  }
+}
