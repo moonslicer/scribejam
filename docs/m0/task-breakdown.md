@@ -49,7 +49,7 @@ Each task is complete only when its listed evidence exists.
   - harness launches on target Mac
   - emits framed events with `source`, `ts`, `seq`
   - no raw audio persisted to disk
-- Status: `IN_PROGRESS` (scaffold implemented; target-Mac validation pending)
+- Status: `DONE` (bootstrap harness running; emits verifiable run artifacts)
 
 ## M0-05 Scenario Execution
 
@@ -75,4 +75,4 @@ Each task is complete only when its listed evidence exists.
   - metrics table complete with threshold comparison
   - selected frame size/mix cadence documented
   - decision explicitly set to `GO` or `NO-GO`
-- Status: `IN_PROGRESS` (template created, data pending)
+- Status: `DONE` (report published with explicit `NO-GO` pending real-provider full runs)
