@@ -1,7 +1,7 @@
 # M0 Spike Report (Technical Validation Gate)
 
-Status: `DRAFT`
-Decision: `TBD`
+Status: `DRAFT (bootstrap evidence added)`
+Decision: `NO-GO (pending real-device provider validation)`
 
 ## Milestone Mapping
 
@@ -15,37 +15,37 @@ Decision: `TBD`
 
 ## Environment
 
-- Date:
-- Operator:
-- Machine:
-- macOS:
-- CPU architecture:
-- Node:
-- Electron:
-- `audioteejs`:
-- Deepgram setup:
-- Commit/snapshot:
+- Date: `2026-03-11` to `2026-03-12`
+- Operator: `hao`
+- Machine: local macOS host
+- macOS: from run metadata (`os.release` in harness output)
+- CPU architecture: from run metadata (`os.arch` in harness output)
+- Node: `redacted`
+- Electron: not yet integrated in harness
+- `audioteejs`: adapter boundary only (not exercised with real package stream in this batch)
+- Deepgram setup: adapter boundary only (mock STT mode in this batch)
+- Commit/snapshot: local workspace
 
 ## Scenarios Executed
 
 | Scenario | Config | Result | Run ID | Evidence Path |
 |---|---|---|---|---|
-| S1_system_only_10m |  |  |  |  |
-| S2_mic_only_10m |  |  |  |  |
-| S3_mixed_10m |  |  |  |  |
-| S4_mixed_soak_30m |  |  |  |  |
-| S5_network_drop |  |  |  |  |
-| S6_system_unavailable |  |  |  |  |
+| S1_system_only_10m | CFG-B (quick) | PASS | m0-20260312-s1-system-only-10m-cfg-b-batch-2026-03-12t05-15-56-096z | docs/m0/runs/m0-20260312-s1-system-only-10m-cfg-b-batch-2026-03-12t05-15-56-096z |
+| S2_mic_only_10m | CFG-B (quick) | PASS | m0-20260312-s2-mic-only-10m-cfg-b-batch-2026-03-12t05-15-56-096z | docs/m0/runs/m0-20260312-s2-mic-only-10m-cfg-b-batch-2026-03-12t05-15-56-096z |
+| S3_mixed_10m | CFG-B (quick) | PASS | m0-20260312-s3-mixed-10m-cfg-b-batch-2026-03-12t05-15-56-096z | docs/m0/runs/m0-20260312-s3-mixed-10m-cfg-b-batch-2026-03-12t05-15-56-096z |
+| S4_mixed_soak_30m | CFG-B (quick) | PASS | m0-20260312-s4-mixed-soak-30m-cfg-b-batch-2026-03-12t05-15-56-096z | docs/m0/runs/m0-20260312-s4-mixed-soak-30m-cfg-b-batch-2026-03-12t05-15-56-096z |
+| S5_network_drop | CFG-B (quick) | PASS | m0-20260312-s5-network-drop-cfg-b-batch-2026-03-12t05-15-56-096z | docs/m0/runs/m0-20260312-s5-network-drop-cfg-b-batch-2026-03-12t05-15-56-096z |
+| S6_system_unavailable | CFG-B (quick) | PASS | m0-20260312-s6-system-unavailable-cfg-b-batch-2026-03-12t05-15-56-096z | docs/m0/runs/m0-20260312-s6-system-unavailable-cfg-b-batch-2026-03-12t05-15-56-096z |
 
 ## Baseline Metrics
 
 | Metric | Threshold | Measured | Pass/Fail |
 |---|---:|---:|---|
-| Transcript latency p95 (ms) | <= 2500 |  |  |
-| Dropped frame rate (%) | < 1.0 |  |  |
-| Memory growth over 30m (MB) | <= 250 |  |  |
-| Reconnect attempts per incident | <= 3 |  |  |
-| Raw audio files written | = 0 |  |  |
+| Transcript latency p95 (ms) | <= 2500 | 710-902 across quick S1-S6 runs | PASS |
+| Dropped frame rate (%) | < 1.0 | 0 in all quick runs | PASS |
+| Memory growth over 30m (MB) | <= 250 | 5.45-9.34 observed in quick runs | PASS (non-30m quick runs) |
+| Reconnect attempts per incident | <= 3 | 1 observed in S5 quick run | PASS |
+| Raw audio files written | = 0 | 0 in all quick runs | PASS |
 
 ## Configuration Decision
 
@@ -56,10 +56,13 @@ Decision: `TBD`
 
 ## Reliability and Degradation Findings
 
-- Network interruption behavior:
-- Deepgram disconnect/reconnect behavior:
-- `audioteejs` unavailable behavior (mic-only fallback):
+- Network interruption behavior: mock S5 drill recovered with 1 reconnect attempt.
+- Deepgram disconnect/reconnect behavior: exercised via mock adapter only.
+- `audioteejs` unavailable behavior (mic-only fallback): exercised in S2/S6 with `system_capture_mode=unavailable`, fallback success true.
 - Residual reliability risks:
+  - real `audioteejs` stream API not yet wired/exercised in this report
+  - real Deepgram websocket behavior not yet exercised in this report
+  - quick run durations do not satisfy full soak requirements
 
 ## Privacy and Invariant Audit
 
@@ -69,16 +72,21 @@ Decision: `TBD`
 
 ## Issues and Mitigations
 
-1.
-2.
-3.
+1. Real `audioteejs` capture integration is pending.
+2. Real Deepgram streaming integration is pending.
+3. Full-duration matrix and true 30-minute soak evidence is pending.
 
 ## Go/No-Go for M1
 
-- Decision: `GO` or `NO-GO`
-- Rationale:
+- Decision: `NO-GO`
+- Rationale: only bootstrap mock-mode evidence is complete; gate requires real-device `audioteejs` + Deepgram validation with full-duration runs.
 - Blockers (if NO-GO):
+  - Implement and validate real `audioteejs` adapter path.
+  - Implement and validate Deepgram websocket adapter path.
+  - Execute `--mode full` scenario matrix on target Mac with provider keys.
 - Owner and next action:
+  - Owner: current implementation agent/user pair.
+  - Next action: run real-provider integration tasks and rerun full matrix.
 
 ## Verification Steps Executed
 

@@ -7,7 +7,7 @@ export class JsonlLogger {
 
   public constructor(filePath: string) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    this.stream = fs.createWriteStream(filePath, { flags: "a", encoding: "utf8" });
+    this.stream = fs.createWriteStream(filePath, { flags: "w", encoding: "utf8" });
   }
 
   public write(event: EventRecord): void {

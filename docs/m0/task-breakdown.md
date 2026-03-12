@@ -56,10 +56,15 @@ Each task is complete only when its listed evidence exists.
 - Goal: run S1-S6 matrix across config variants and collect artifacts.
 - Outputs:
   - `docs/m0/runs/<run-id>/*`
+- Automation support:
+  - `scripts/m0/run-matrix.mjs`
+- Current evidence:
+  - quick mock batch summary:
+    - `docs/m0/runs/batch-2026-03-12T05-15-56-096Z-summary.json`
 - Verifiable checks:
   - all required files present for each completed run
   - metric thresholds evaluated per run
-- Status: `TODO`
+- Status: `IN_PROGRESS` (runner script added; full target-Mac matrix pending)
 
 ## M0-06 Final Gate Report
 

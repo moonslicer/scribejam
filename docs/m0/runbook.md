@@ -38,6 +38,20 @@ cp docs/m0/templates/notes.template.md docs/m0/runs/<run-id>/notes.md
 4. Write aggregated metrics to `metrics.json`.
 5. Complete notes with observed anomalies and degradation behavior.
 
+Optional scripted matrix execution (quick validation mode):
+
+```bash
+node scripts/m0/run-matrix.mjs --mode quick --config CFG-B
+```
+
+Quick mode is a harness sanity pass only; it is not a substitute for full M0 gate evidence.
+
+Full-duration scripted matrix:
+
+```bash
+node scripts/m0/run-matrix.mjs --mode full --config CFG-B
+```
+
 ## Required Event Fields
 
 Every line in `events.ndjson` should include:

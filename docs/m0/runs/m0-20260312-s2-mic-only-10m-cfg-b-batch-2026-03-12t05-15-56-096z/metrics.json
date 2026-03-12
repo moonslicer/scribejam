@@ -1,0 +1,36 @@
+{
+  "run_id": "m0-20260312-s2-mic-only-10m-cfg-b-batch-2026-03-12t05-15-56-096z",
+  "duration_minutes": 0.25,
+  "frame_stats": {
+    "total_frames_system": 0,
+    "total_frames_mic": 715,
+    "total_frames_mixed": 148,
+    "dropped_frames_total": 0,
+    "dropped_frame_rate_pct": 0
+  },
+  "latency_ms": {
+    "p50": 581,
+    "p95": 725,
+    "max": 920
+  },
+  "memory_mb": {
+    "start_rss": 40.59,
+    "end_rss": 49.22,
+    "growth_30m": 8.63
+  },
+  "reliability": {
+    "deepgram_disconnects": 0,
+    "deepgram_reconnect_attempts": 0,
+    "deepgram_reconnect_successes": 0,
+    "capture_stalls_gt_5s": 0
+  },
+  "degradation": {
+    "network_drop_tested": false,
+    "network_drop_recovered": false,
+    "system_capture_unavailable_tested": true,
+    "mic_only_fallback_success": true
+  },
+  "privacy": {
+    "raw_audio_files_written": 0
+  }
+}

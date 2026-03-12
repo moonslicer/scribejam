@@ -12,7 +12,9 @@ export interface MixerOptions {
 export class DeterministicMixer {
   private readonly systemFrames: RingBuffer<AudioFrame>;
   private readonly micFrames: RingBuffer<AudioFrame>;
-  private readonly frameSamples: number;
+  private readonly inputFrameSamples: number;
+  private readonly outputFrameSamples: number;
+  private readonly framesPerMix: number;
   private readonly sink: FrameSink;
   private readonly mixCadenceMs: number;
   private nextMixedSeq = 0;
@@ -21,7 +23,9 @@ export class DeterministicMixer {
   public constructor(options: MixerOptions) {
     this.systemFrames = new RingBuffer<AudioFrame>(options.maxBufferedFramesPerSource);
     this.micFrames = new RingBuffer<AudioFrame>(options.maxBufferedFramesPerSource);
-    this.frameSamples = Math.round((options.sampleRateHz * options.frameSizeMs) / 1000);
+    this.inputFrameSamples = Math.round((options.sampleRateHz * options.frameSizeMs) / 1000);
+    this.outputFrameSamples = Math.round((options.sampleRateHz * options.mixCadenceMs) / 1000);
+    this.framesPerMix = Math.max(1, Math.round(options.mixCadenceMs / options.frameSizeMs));
     this.sink = options.sink;
     this.mixCadenceMs = options.mixCadenceMs;
   }
@@ -71,12 +75,14 @@ export class DeterministicMixer {
   }
 
   private mix(systemFrame: AudioFrame | undefined, micFrame: AudioFrame | undefined): AudioFrame {
-    const mixedSamples = new Int16Array(this.frameSamples);
-    const hasSystem = !!systemFrame;
-    const hasMic = !!micFrame;
+    const mixedSamples = new Int16Array(this.outputFrameSamples);
+    const systemChunk = this.chunkFromSource(systemFrame, this.systemFrames);
+    const micChunk = this.chunkFromSource(micFrame, this.micFrames);
+    const hasSystem = systemChunk.hasSignal;
+    const hasMic = micChunk.hasSignal;
     for (let i = 0; i < mixedSamples.length; i += 1) {
-      const systemSample = hasSystem ? systemFrame.samples[i] ?? 0 : 0;
-      const micSample = hasMic ? micFrame.samples[i] ?? 0 : 0;
+      const systemSample = systemChunk.samples[i] ?? 0;
+      const micSample = micChunk.samples[i] ?? 0;
       const divisor = hasSystem && hasMic ? 2 : 1;
       const mixedValue = divisor === 1 ? systemSample + micSample : Math.round((systemSample + micSample) / divisor);
       mixedSamples[i] = clampToInt16(mixedValue);
@@ -87,6 +93,30 @@ export class DeterministicMixer {
       tsMs: Date.now(),
       samples: mixedSamples
     };
+  }
+
+  private chunkFromSource(
+    firstFrame: AudioFrame | undefined,
+    queue: RingBuffer<AudioFrame>
+  ): { samples: Int16Array; hasSignal: boolean } {
+    const chunk = new Int16Array(this.outputFrameSamples);
+    let hasSignal = false;
+    for (let frameIdx = 0; frameIdx < this.framesPerMix; frameIdx += 1) {
+      const frame = frameIdx === 0 ? firstFrame : queue.shift();
+      if (!frame) {
+        continue;
+      }
+      hasSignal = true;
+      const offset = frameIdx * this.inputFrameSamples;
+      for (let i = 0; i < this.inputFrameSamples; i += 1) {
+        const pos = offset + i;
+        if (pos >= chunk.length) {
+          break;
+        }
+        chunk[pos] = frame.samples[i] ?? 0;
+      }
+    }
+    return { samples: chunk, hasSignal };
   }
 }
 

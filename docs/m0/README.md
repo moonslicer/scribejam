@@ -24,3 +24,9 @@ node scripts/m0/verify-run.mjs docs/m0/runs/<run-id>
 ```
 
 6. Aggregate results in `docs/m0-spike-report.md`.
+
+Scripted quick matrix (mock capture/STT bootstrap):
+
+```bash
+node scripts/m0/run-matrix.mjs --mode quick --config CFG-B
+```
