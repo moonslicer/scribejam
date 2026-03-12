@@ -6,7 +6,8 @@ import { MeetingBar } from './components/MeetingBar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
-import { TranscriptPanel, type TranscriptEntry } from './components/TranscriptPanel';
+import { TranscriptPanel } from './components/TranscriptPanel';
+import { applyTranscriptEvent, type TranscriptEntry } from './transcript/transcript-state';
 
 export default function App(): JSX.Element {
   const api = window.scribejam;
@@ -51,16 +52,7 @@ export default function App(): JSX.Element {
       setErrorMessage(event.message);
     });
     const unsubTranscript = api.onTranscriptUpdate((event) => {
-      setTranscriptEntries((previous) => {
-        const next: TranscriptEntry = {
-          id: `${event.ts}-${previous.length}-${event.speaker}`,
-          ts: event.ts,
-          text: event.text,
-          speaker: event.speaker,
-          isFinal: event.isFinal
-        };
-        return [...previous.slice(-199), next];
-      });
+      setTranscriptEntries((previous) => applyTranscriptEvent(previous, event));
     });
     const unsubTranscriptionStatus = api.onTranscriptionStatus((event) => {
       setTranscriptionStatus(event);

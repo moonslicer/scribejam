@@ -1,12 +1,5 @@
 import { useEffect, useRef } from 'react';
-
-export interface TranscriptEntry {
-  id: string;
-  ts: number;
-  text: string;
-  speaker: 'you' | 'them';
-  isFinal: boolean;
-}
+import type { TranscriptEntry } from '../transcript/transcript-state';
 
 interface TranscriptPanelProps {
   entries: TranscriptEntry[];
