@@ -44,12 +44,12 @@ Each task is complete only when its listed evidence exists.
 
 - Goal: minimal runnable harness for system+mic capture, IPC framing, and structured metrics output.
 - Outputs:
-  - `spike/m0-harness/` (to be implemented)
+  - `spike/m0-harness/`
 - Verifiable checks:
   - harness launches on target Mac
   - emits framed events with `source`, `ts`, `seq`
   - no raw audio persisted to disk
-- Status: `TODO`
+- Status: `IN_PROGRESS` (scaffold implemented; target-Mac validation pending)
 
 ## M0-05 Scenario Execution
 
