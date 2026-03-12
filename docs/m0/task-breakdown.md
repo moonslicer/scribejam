@@ -64,7 +64,7 @@ Each task is complete only when its listed evidence exists.
 - Verifiable checks:
   - all required files present for each completed run
   - metric thresholds evaluated per run
-- Status: `IN_PROGRESS` (runner script added; full target-Mac matrix pending)
+- Status: `DONE (WAIVED)` (full real S1/S3/S4 evidence captured; S5/S6 carry-forward explicitly waived in `docs/m0-spike-report.md`)
 
 ## M0-06 Final Gate Report
 
@@ -75,4 +75,4 @@ Each task is complete only when its listed evidence exists.
   - metrics table complete with threshold comparison
   - selected frame size/mix cadence documented
   - decision explicitly set to `GO` or `NO-GO`
-- Status: `DONE` (report published with explicit `NO-GO` pending real-provider full runs)
+- Status: `DONE` (report finalized as `GO (WAIVED)` with explicit carry-forward tasks)
