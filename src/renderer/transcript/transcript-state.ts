@@ -10,6 +10,19 @@ export interface TranscriptEntry {
   isFinal: boolean;
 }
 
+export function transcriptEntriesToText(entries: TranscriptEntry[]): string {
+  return entries
+    .map((entry) => {
+      const normalized = normalizeText(entry.text);
+      if (normalized.length === 0) {
+        return '';
+      }
+      return `${entry.speaker.toUpperCase()}: ${normalized}`;
+    })
+    .filter((line) => line.length > 0)
+    .join('\n');
+}
+
 export function applyTranscriptEvent(
   existing: TranscriptEntry[],
   event: TranscriptUpdateEvent

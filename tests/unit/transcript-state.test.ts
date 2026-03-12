@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { TranscriptUpdateEvent } from '../../src/shared/ipc';
-import { applyTranscriptEvent, type TranscriptEntry } from '../../src/renderer/transcript/transcript-state';
+import {
+  applyTranscriptEvent,
+  transcriptEntriesToText,
+  type TranscriptEntry
+} from '../../src/renderer/transcript/transcript-state';
 
 function event(overrides: Partial<TranscriptUpdateEvent>): TranscriptUpdateEvent {
   return {
@@ -49,5 +53,26 @@ describe('applyTranscriptEvent', () => {
     expect(entries).toHaveLength(2);
     expect(entries[0]?.speaker).toBe('you');
     expect(entries[1]?.speaker).toBe('them');
+  });
+
+  it('formats transcript text for clipboard copy', () => {
+    const entries: TranscriptEntry[] = [
+      {
+        id: '1',
+        ts: 1,
+        speaker: 'you',
+        text: '  Hello   world ',
+        isFinal: true
+      },
+      {
+        id: '2',
+        ts: 2,
+        speaker: 'them',
+        text: 'Got it.',
+        isFinal: true
+      }
+    ];
+
+    expect(transcriptEntriesToText(entries)).toBe('YOU: Hello world\nTHEM: Got it.');
   });
 });
