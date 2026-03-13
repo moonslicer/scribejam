@@ -16,6 +16,13 @@ export const IPC_CHANNELS = {
 } as const;
 
 export type MeetingState = 'idle' | 'recording' | 'stopped';
+export type MeetingLifecycleState =
+  | 'idle'
+  | 'recording'
+  | 'stopped'
+  | 'enhancing'
+  | 'enhance_failed'
+  | 'done';
 export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
@@ -57,7 +64,7 @@ export interface TranscriptSegment {
 export interface MeetingDetails {
   id: string;
   title: string;
-  state: MeetingState;
+  state: MeetingLifecycleState;
   createdAt: string;
   updatedAt: string;
   durationMs: number | null;
