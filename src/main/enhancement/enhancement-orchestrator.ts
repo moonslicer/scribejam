@@ -6,7 +6,7 @@ import {
   MeetingArtifactsRepository
 } from '../storage/repositories';
 import { toEnhancementArtifacts } from './enhancement-artifacts';
-import { MockEnhancementService } from './mock-enhancement-service';
+import type { LlmClient } from './llm-client';
 
 export class EnhancementOrchestrator {
   public constructor(
@@ -14,10 +14,10 @@ export class EnhancementOrchestrator {
     private readonly meetingRecordsService: MeetingRecordsService,
     private readonly meetingArtifactsRepository: MeetingArtifactsRepository,
     private readonly enhancedOutputsRepository: EnhancedOutputsRepository,
-    private readonly mockEnhancementService: MockEnhancementService
+    private readonly getLlmClient: () => LlmClient
   ) {}
 
-  public enhanceMeeting(meetingId: string): EnhanceMeetingResponse {
+  public async enhanceMeeting(meetingId: string): Promise<EnhanceMeetingResponse> {
     const beginSnapshot = this.stateMachine.beginEnhancement(meetingId);
     this.meetingRecordsService.recordMeetingEnhancementStarted(beginSnapshot);
 
@@ -27,7 +27,7 @@ export class EnhancementOrchestrator {
         throw new Error('Meeting not found for enhancement.');
       }
 
-      const output = this.mockEnhancementService.enhance(
+      const output = await this.getLlmClient().enhance(
         toEnhancementArtifacts(artifacts)
       );
       const completedAt = new Date().toISOString();

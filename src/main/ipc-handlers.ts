@@ -21,7 +21,7 @@ import { MeetingStateMachine } from './meeting/state-machine';
 import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
 import { EnhancementOrchestrator } from './enhancement/enhancement-orchestrator';
-import { MockEnhancementService } from './enhancement/mock-enhancement-service';
+import { createLlmClient } from './enhancement/create-llm-client';
 import { createStorageDatabase } from './storage/db';
 import { MeetingRecordsService } from './storage/meeting-records-service';
 import {
@@ -73,7 +73,11 @@ export function createMainServices(context: HandlerContext): MainServices {
     meetingRecordsService,
     meetingArtifactsRepository,
     enhancedOutputsRepository,
-    new MockEnhancementService()
+    () =>
+      createLlmClient({
+        provider: settingsStore.getSettings().llmProvider,
+        getOpenAIApiKey: () => settingsStore.getSecret('openaiApiKey')
+      })
   );
 
   const audioManager = new AudioManager({
