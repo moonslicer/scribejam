@@ -9,13 +9,19 @@ interface MeetingBarProps {
 const labels: Record<MeetingState, string> = {
   idle: 'Start Recording',
   recording: 'Stop Recording',
-  stopped: 'Start New Recording'
+  stopped: 'Start New Recording',
+  enhancing: 'Enhancing Notes',
+  enhance_failed: 'Enhancement Failed',
+  done: 'Start New Meeting'
 };
 
 const statusTone: Record<MeetingState, string> = {
   idle: 'bg-zinc-400',
   recording: 'bg-red-500',
-  stopped: 'bg-amber-500'
+  stopped: 'bg-amber-500',
+  enhancing: 'bg-blue-500',
+  enhance_failed: 'bg-orange-500',
+  done: 'bg-emerald-500'
 };
 
 export function MeetingBar({ meetingState, onPrimaryAction, disabled = false }: MeetingBarProps): JSX.Element {

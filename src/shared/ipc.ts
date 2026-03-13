@@ -15,8 +15,7 @@ export const IPC_CHANNELS = {
   testSimulateSttDisconnect: 'test:simulate-stt-disconnect'
 } as const;
 
-export type MeetingState = 'idle' | 'recording' | 'stopped';
-export type MeetingLifecycleState =
+export type MeetingState =
   | 'idle'
   | 'recording'
   | 'stopped'
@@ -64,7 +63,7 @@ export interface TranscriptSegment {
 export interface MeetingDetails {
   id: string;
   title: string;
-  state: MeetingLifecycleState;
+  state: MeetingState;
   createdAt: string;
   updatedAt: string;
   durationMs: number | null;

@@ -21,8 +21,14 @@ export class MeetingStateMachine {
     if (trimmed.length === 0) {
       throw new Error('Meeting title is required.');
     }
-    if (this.snapshot.state === 'recording') {
-      throw new Error('Meeting is already recording.');
+    if (this.snapshot.state === 'recording' || this.snapshot.state === 'enhancing') {
+      throw new Error('Cannot start a meeting from the current state.');
+    }
+    if (this.snapshot.state === 'enhance_failed') {
+      throw new Error('Dismiss enhancement failure before starting a new meeting.');
+    }
+    if (this.snapshot.state === 'done') {
+      throw new Error('Reset to idle before starting a new meeting.');
     }
 
     this.snapshot = {
@@ -49,7 +55,76 @@ export class MeetingStateMachine {
     return this.getSnapshot();
   }
 
+  public beginEnhancement(meetingId: string): MeetingSnapshot {
+    if (this.snapshot.state !== 'stopped' || this.snapshot.meetingId !== meetingId) {
+      throw new Error('Cannot begin enhancement from current state.');
+    }
+
+    this.snapshot = {
+      ...this.snapshot,
+      state: 'enhancing'
+    };
+
+    return this.getSnapshot();
+  }
+
+  public completeEnhancement(meetingId: string): MeetingSnapshot {
+    if (this.snapshot.state !== 'enhancing' || this.snapshot.meetingId !== meetingId) {
+      throw new Error('Cannot complete enhancement from current state.');
+    }
+
+    this.snapshot = {
+      ...this.snapshot,
+      state: 'done'
+    };
+
+    return this.getSnapshot();
+  }
+
+  public failEnhancement(meetingId: string): MeetingSnapshot {
+    if (this.snapshot.state !== 'enhancing' || this.snapshot.meetingId !== meetingId) {
+      throw new Error('Cannot fail enhancement from current state.');
+    }
+
+    this.snapshot = {
+      ...this.snapshot,
+      state: 'enhance_failed'
+    };
+
+    return this.getSnapshot();
+  }
+
+  public retryEnhancement(meetingId: string): MeetingSnapshot {
+    if (this.snapshot.state !== 'enhance_failed' || this.snapshot.meetingId !== meetingId) {
+      throw new Error('Cannot retry enhancement from current state.');
+    }
+
+    this.snapshot = {
+      ...this.snapshot,
+      state: 'enhancing'
+    };
+
+    return this.getSnapshot();
+  }
+
+  public dismissEnhancementFailure(meetingId: string): MeetingSnapshot {
+    if (this.snapshot.state !== 'enhance_failed' || this.snapshot.meetingId !== meetingId) {
+      throw new Error('Cannot dismiss enhancement failure from current state.');
+    }
+
+    this.snapshot = {
+      ...this.snapshot,
+      state: 'stopped'
+    };
+
+    return this.getSnapshot();
+  }
+
   public resetToIdle(): MeetingSnapshot {
+    if (this.snapshot.state !== 'done') {
+      throw new Error('Can only reset to idle after a completed meeting.');
+    }
+
     this.snapshot = { state: 'idle' };
     return this.getSnapshot();
   }
