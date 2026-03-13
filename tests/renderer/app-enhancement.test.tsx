@@ -1,10 +1,12 @@
 import React from 'react';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
+import { useMeetingStore } from '../../src/renderer/stores/meeting-store';
 
 let stateListener:
-  | ((event: { state: 'idle' | 'recording' | 'stopped' | 'done'; meetingId?: string }) => void)
+  | ((event: { state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'done'; meetingId?: string }) => void)
   | null = null;
 
 const api = {
@@ -18,7 +20,12 @@ const api = {
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(
-    (listener: (event: { state: 'idle' | 'recording' | 'stopped' | 'done'; meetingId?: string }) => void) => {
+    (
+      listener: (event: {
+        state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'done';
+        meetingId?: string;
+      }) => void
+    ) => {
       stateListener = listener;
       return () => {
         stateListener = null;
@@ -32,9 +39,36 @@ const api = {
   simulateSttDisconnect: vi.fn()
 };
 
-describe('App hydration', () => {
+describe('App enhancement flow', () => {
   beforeEach(() => {
     stateListener = null;
+    useMeetingStore.setState({
+      meetingState: 'idle',
+      meetingId: null,
+      meetingTitle: '',
+      transcriptEntries: [],
+      noteContent: null,
+      editorContent: null,
+      enhancedOutput: null,
+      noteSaveState: 'idle'
+    });
+
+    api.startMeeting.mockReset();
+    api.stopMeeting.mockReset();
+    api.getMeeting.mockReset();
+    api.enhanceMeeting.mockReset();
+    api.getSettings.mockReset();
+    api.saveSettings.mockReset();
+    api.saveNotes.mockReset();
+    api.validateSttKey.mockReset();
+    api.sendMicFrames.mockReset();
+    api.onMeetingStateChanged.mockClear();
+    api.onAudioLevel.mockClear();
+    api.onTranscriptUpdate.mockClear();
+    api.onTranscriptionStatus.mockClear();
+    api.onErrorDisplay.mockClear();
+    api.simulateSttDisconnect.mockReset();
+
     api.getSettings.mockResolvedValue({
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',
@@ -66,68 +100,12 @@ describe('App hydration', () => {
         ]
       },
       enhancedOutput: null,
-      transcriptSegments: [
-        {
-          id: 1,
-          speaker: 'them',
-          text: 'Please send the revised mockups.',
-          startTs: 12,
-          endTs: 12,
-          isFinal: true
-        }
-      ]
+      transcriptSegments: []
     });
-
-    Object.defineProperty(window, 'scribejam', {
-      value: api,
-      configurable: true
-    });
-  });
-
-  afterEach(() => {
-    cleanup();
-  });
-
-  it('hydrates persisted notes and transcript when a meeting id becomes active', async () => {
-    render(<App />);
-    await screen.findByTestId('meeting-bar');
-
-    await act(async () => {
-      stateListener?.({
-        state: 'stopped',
-        meetingId: 'meeting-1'
-      });
-    });
-
-    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
-    expect(await screen.findByText('Follow up with design')).toBeInTheDocument();
-    expect(screen.getByText('Please send the revised mockups.')).toBeInTheDocument();
-    expect(within(screen.getByTestId('transcript-panel')).getByText(/System audio/i)).toBeInTheDocument();
-  });
-
-  it('hydrates persisted enhanced output into the editor when available', async () => {
-    api.getMeeting.mockResolvedValueOnce({
-      id: 'meeting-1',
-      title: 'Weekly sync',
-      state: 'done',
-      createdAt: '2026-03-12T18:00:00.000Z',
-      updatedAt: '2026-03-12T18:25:00.000Z',
-      durationMs: 1200000,
-      noteContent: {
-        type: 'doc',
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: 'Follow up with design'
-              }
-            ]
-          }
-        ]
-      },
-      enhancedOutput: {
+    api.enhanceMeeting.mockResolvedValue({
+      meetingId: 'meeting-1',
+      completedAt: '2026-03-12T18:21:00.000Z',
+      output: {
         blocks: [
           {
             source: 'human',
@@ -141,23 +119,39 @@ describe('App hydration', () => {
         actionItems: [],
         decisions: [],
         summary: 'Quick summary'
-      },
-      transcriptSegments: []
+      }
     });
 
-    const { container } = render(<App />);
-    await screen.findByTestId('meeting-bar');
+    Object.defineProperty(window, 'scribejam', {
+      value: api,
+      configurable: true
+    });
+  });
 
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('enhances a stopped meeting and renders AI-authored content', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<App />);
+
+    await screen.findByTestId('meeting-bar');
     await act(async () => {
       stateListener?.({
-        state: 'done',
+        state: 'stopped',
         meetingId: 'meeting-1'
       });
     });
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(await screen.findByText('Follow up with design')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('meeting-primary-action'));
+
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
-    expect(screen.getByText('Quick summary')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
   });
 });

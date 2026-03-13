@@ -47,6 +47,7 @@ describe('meeting store', () => {
       noteContent: {
         type: 'doc'
       },
+      enhancedOutput: null,
       transcriptSegments: [
         {
           id: 2,
@@ -66,5 +67,67 @@ describe('meeting store', () => {
       noteSaveState: 'saved'
     });
     expect(store.getState().transcriptEntries[0]?.text).toBe('I will send the draft.');
+  });
+
+  it('derives editor content from enhanced output while preserving raw notes', () => {
+    const store = createMeetingStore();
+
+    store.getState().hydrateMeeting({
+      id: 'meeting-1',
+      title: 'Design review',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z',
+      durationMs: 1500000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Raw note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Raw note'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Summary'
+      },
+      transcriptSegments: []
+    });
+
+    expect(store.getState().noteContent).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'Raw note'
+            }
+          ]
+        }
+      ]
+    });
+    expect(store.getState().enhancedOutput?.summary).toBe('Summary');
+    expect(store.getState().editorContent).toMatchObject({
+      type: 'doc'
+    });
   });
 });

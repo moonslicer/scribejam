@@ -104,6 +104,7 @@ export interface MeetingDetails {
   updatedAt: string;
   durationMs: number | null;
   noteContent: JsonObject | null;
+  enhancedOutput: EnhancedOutput | null;
   transcriptSegments: TranscriptSegment[];
 }
 

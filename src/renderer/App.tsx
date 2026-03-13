@@ -25,6 +25,7 @@ export default function App(): JSX.Element {
   const meetingTitle = useMeetingStore((state) => state.meetingTitle);
   const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
   const noteContent = useMeetingStore((state) => state.noteContent);
+  const editorContent = useMeetingStore((state) => state.editorContent);
   const noteSaveState = useMeetingStore((state) => state.noteSaveState);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
@@ -33,6 +34,7 @@ export default function App(): JSX.Element {
   const hydrateMeeting = useMeetingStore((state) => state.hydrateMeeting);
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
   const setNoteContent = useMeetingStore((state) => state.setNoteContent);
+  const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
 
   useMicCapture({
@@ -145,12 +147,28 @@ export default function App(): JSX.Element {
         await api.stopMeeting({ meetingId });
         return;
       }
+      if (meetingState === 'stopped') {
+        if (!api) {
+          setErrorMessage('Desktop bridge unavailable.');
+          return;
+        }
+        if (!meetingId) {
+          setErrorMessage('No stopped meeting id found.');
+          return;
+        }
+
+        setMeetingState('enhancing');
+        const response = await api.enhanceMeeting({ meetingId });
+        setEnhancedOutput(response.output);
+        setMeetingState('done');
+        return;
+      }
       if (setupRequired) {
         setErrorMessage('Complete first-run setup to enable cloud transcription.');
         return;
       }
       if (meetingState === 'enhancing' || meetingState === 'enhance_failed' || meetingState === 'done') {
-        setErrorMessage('Enhancement controls are not wired in this milestone yet.');
+        setErrorMessage('This meeting is not ready for another action yet.');
         return;
       }
       if (!api) {
@@ -228,7 +246,7 @@ export default function App(): JSX.Element {
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
-            content={noteContent}
+            content={editorContent}
             editable={meetingState === 'recording' || meetingState === 'stopped'}
             onChange={setNoteContent}
           />
