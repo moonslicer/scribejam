@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import type { JsonObject, MeetingDetails, MeetingState, TranscriptUpdateEvent } from '../../shared/ipc';
+import type {
+  EnhancedOutput,
+  JsonObject,
+  MeetingDetails,
+  MeetingState,
+  TranscriptUpdateEvent
+} from '../../shared/ipc';
+import { enhancedOutputToDoc } from '../editor/enhanced-output-to-doc';
 import { applyTranscriptEvent, type TranscriptEntry } from '../transcript/transcript-state';
 
 export type NoteSaveState = 'idle' | 'dirty' | 'saving' | 'saved';
@@ -10,6 +17,8 @@ export interface MeetingStoreState {
   meetingTitle: string;
   transcriptEntries: TranscriptEntry[];
   noteContent: JsonObject | null;
+  editorContent: JsonObject | null;
+  enhancedOutput: EnhancedOutput | null;
   noteSaveState: NoteSaveState;
 }
 
@@ -20,6 +29,7 @@ export interface MeetingStoreActions {
   resetTranscript: () => void;
   applyTranscriptUpdate: (event: TranscriptUpdateEvent) => void;
   setNoteContent: (content: JsonObject | null) => void;
+  setEnhancedOutput: (output: EnhancedOutput | null) => void;
   setNoteSaveState: (state: NoteSaveState) => void;
   hydrateMeeting: (meeting: MeetingDetails) => void;
 }
@@ -33,6 +43,8 @@ export const createMeetingStore = () =>
     meetingTitle: '',
     transcriptEntries: [],
     noteContent: null,
+    editorContent: null,
+    enhancedOutput: null,
     noteSaveState: 'idle',
     setMeetingState: (meetingState) => set({ meetingState }),
     setMeetingId: (meetingId) => set({ meetingId }),
@@ -52,9 +64,15 @@ export const createMeetingStore = () =>
 
         return {
           noteContent,
+          editorContent: noteContent,
           noteSaveState: noteContent ? 'dirty' : 'idle'
         };
       }),
+    setEnhancedOutput: (enhancedOutput) =>
+      set((state) => ({
+        enhancedOutput,
+        editorContent: enhancedOutput ? enhancedOutputToDoc(enhancedOutput) : state.noteContent
+      })),
     setNoteSaveState: (noteSaveState) => set({ noteSaveState }),
     hydrateMeeting: (meeting) =>
       set({
@@ -62,6 +80,10 @@ export const createMeetingStore = () =>
         meetingId: meeting.id,
         meetingTitle: meeting.title,
         noteContent: meeting.noteContent,
+        enhancedOutput: meeting.enhancedOutput,
+        editorContent: meeting.enhancedOutput
+          ? enhancedOutputToDoc(meeting.enhancedOutput)
+          : meeting.noteContent,
         transcriptEntries: meeting.transcriptSegments.map((segment) => ({
           id: String(segment.id),
           ts: segment.startTs,

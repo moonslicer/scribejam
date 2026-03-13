@@ -30,6 +30,8 @@ describe('App meeting title flow', () => {
       meetingTitle: '',
       transcriptEntries: [],
       noteContent: null,
+      editorContent: null,
+      enhancedOutput: null,
       noteSaveState: 'idle'
     });
 

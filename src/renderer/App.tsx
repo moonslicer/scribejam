@@ -25,6 +25,7 @@ export default function App(): JSX.Element {
   const meetingTitle = useMeetingStore((state) => state.meetingTitle);
   const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
   const noteContent = useMeetingStore((state) => state.noteContent);
+  const editorContent = useMeetingStore((state) => state.editorContent);
   const noteSaveState = useMeetingStore((state) => state.noteSaveState);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
@@ -228,7 +229,7 @@ export default function App(): JSX.Element {
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
-            content={noteContent}
+            content={editorContent}
             editable={meetingState === 'recording' || meetingState === 'stopped'}
             onChange={setNoteContent}
           />

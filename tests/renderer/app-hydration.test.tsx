@@ -61,6 +61,7 @@ describe('App hydration', () => {
           }
         ]
       },
+      enhancedOutput: null,
       transcriptSegments: [
         {
           id: 1,
