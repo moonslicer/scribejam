@@ -9,6 +9,7 @@ Post-MVP features to build after the Tier 1 core loop is solid.
 | **Templates** | Customizable note structures (1:1, standup, sales call, interview). Users set a template before or after a meeting to shape AI output. |
 | **Contextual chat (Cmd+J)** | AI assistant that knows the full meeting context. Ask mid-meeting questions like "What were the action items?" with source citations from the transcript. |
 | **Recipes** | Saved AI prompts that combine instructions with real meeting context, invoked via "/" in the chat. Examples: leadership coaching, sales call analysis, customer discovery synthesis. |
+| **Probable "you" speaker mapping** | Keep a single mixed STT stream but enable diarization, then correlate diarized speaker turns with local mic activity over time to infer which anonymous speaker is most likely the user. This improves `you` vs `them` labeling without requiring a second full transcription stream, but remains heuristic and should stay visually/probabilistically distinct from confirmed identity. |
 | **Note history** | Full searchable archive of past meetings with full-text search across notes and transcripts. |
 | **Sharing** | Generate public links for sharing enhanced notes. Recipients can view without a Scribejam account. |
 
