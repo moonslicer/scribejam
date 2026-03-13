@@ -7,6 +7,7 @@ import type {
   MeetingStartResponse,
   MeetingDetails,
   MeetingGetRequest,
+  MeetingResetResponse,
   MeetingStateChangedEvent,
   MeetingStopRequest,
   MicFramesPayload,
@@ -24,6 +25,7 @@ type Unsubscribe = () => void;
 interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
+  resetMeeting: () => Promise<MeetingResetResponse>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
   getSettings: () => Promise<Settings>;

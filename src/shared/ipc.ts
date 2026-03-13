@@ -1,6 +1,7 @@
 export const IPC_CHANNELS = {
   meetingStart: 'meeting:start',
   meetingStop: 'meeting:stop',
+  meetingReset: 'meeting:reset',
   meetingGet: 'meeting:get',
   meetingEnhance: 'meeting:enhance',
   settingsGet: 'settings:get',
@@ -33,6 +34,7 @@ export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconne
 
 export interface MeetingStartRequest {
   title: string;
+  meetingId?: string;
 }
 
 export interface MeetingStartResponse {
@@ -42,6 +44,10 @@ export interface MeetingStartResponse {
 
 export interface MeetingStopRequest {
   meetingId: string;
+}
+
+export interface MeetingResetResponse {
+  state: Extract<MeetingState, 'idle'>;
 }
 
 export interface MeetingGetRequest {

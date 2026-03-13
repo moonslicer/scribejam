@@ -5,6 +5,7 @@ interface MeetingBarProps {
   meetingTitle: string;
   onMeetingTitleChange: (value: string) => void;
   onPrimaryAction: () => void;
+  onSecondaryAction?: () => void;
   disabled?: boolean;
 }
 
@@ -14,7 +15,7 @@ const labels: Record<MeetingState, string> = {
   stopped: 'Enhance Notes',
   enhancing: 'Enhancing Notes',
   enhance_failed: 'Enhancement Failed',
-  done: 'Start New Meeting'
+  done: 'Resume Recording'
 };
 
 const statusTone: Record<MeetingState, string> = {
@@ -31,6 +32,7 @@ export function MeetingBar({
   meetingTitle,
   onMeetingTitleChange,
   onPrimaryAction,
+  onSecondaryAction,
   disabled = false
 }: MeetingBarProps): JSX.Element {
   const titleLocked = meetingState === 'recording' || meetingState === 'enhancing';
@@ -63,15 +65,28 @@ export function MeetingBar({
           />
         </label>
       </div>
-      <button
-        data-testid="meeting-primary-action"
-        type="button"
-        disabled={disabled}
-        onClick={onPrimaryAction}
-        className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:bg-zinc-400"
-      >
-        {labels[meetingState]}
-      </button>
+      <div className="flex items-center gap-2">
+        {meetingState === 'done' && onSecondaryAction ? (
+          <button
+            data-testid="meeting-secondary-action"
+            type="button"
+            disabled={disabled}
+            onClick={onSecondaryAction}
+            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-ink disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+          >
+            New Meeting
+          </button>
+        ) : null}
+        <button
+          data-testid="meeting-primary-action"
+          type="button"
+          disabled={disabled}
+          onClick={onPrimaryAction}
+          className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:bg-zinc-400"
+        >
+          {labels[meetingState]}
+        </button>
+      </div>
     </div>
   );
 }

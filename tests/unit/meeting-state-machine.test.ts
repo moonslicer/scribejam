@@ -36,6 +36,20 @@ describe('MeetingStateMachine', () => {
     expect(idle.state).toBe('idle');
   });
 
+  it('resumes the same meeting after enhancement completes', () => {
+    const machine = new MeetingStateMachine();
+
+    const started = machine.start('Weekly sync');
+    const stopped = machine.stop(started.meetingId ?? '');
+    const enhancing = machine.beginEnhancement(stopped.meetingId ?? '');
+    const done = machine.completeEnhancement(enhancing.meetingId ?? '');
+    const resumed = machine.resume(done.meetingId ?? '');
+
+    expect(resumed.state).toBe('recording');
+    expect(resumed.meetingId).toBe(started.meetingId);
+    expect(resumed.title).toBe(started.title);
+  });
+
   it('allows starting a new meeting after a stopped meeting', () => {
     const machine = new MeetingStateMachine();
 

@@ -1,4 +1,8 @@
 import type Database from 'better-sqlite3';
+import {
+  areTranscriptTextsLikelySameUtterance,
+  normalizeTranscriptText
+} from '../../shared/transcript';
 import type {
   EnhancedOutputRecord,
   MeetingRecord,
@@ -242,7 +246,7 @@ export class TranscriptRepository {
       )
       .all(meetingId) as TranscriptSegmentRow[];
 
-    return rows.map(mapTranscriptSegmentRow);
+    return compactTranscriptSegments(rows.map(mapTranscriptSegmentRow));
   }
 }
 
@@ -351,6 +355,56 @@ function mapTranscriptSegmentRow(row: TranscriptSegmentRow): TranscriptSegmentRe
     endTs: row.end_ts,
     isFinal: row.is_final === 1
   };
+}
+
+function compactTranscriptSegments(
+  segments: TranscriptSegmentRecord[]
+): TranscriptSegmentRecord[] {
+  const compacted: TranscriptSegmentRecord[] = [];
+
+  for (const segment of segments) {
+    const text = normalizeTranscriptText(segment.text);
+    if (text.length === 0) {
+      continue;
+    }
+
+    const normalizedSegment: TranscriptSegmentRecord = {
+      ...segment,
+      text,
+      endTs: segment.endTs ?? (segment.isFinal ? segment.startTs : null)
+    };
+    const last = compacted[compacted.length - 1];
+
+    if (!normalizedSegment.isFinal) {
+      if (last && !last.isFinal && last.speaker === normalizedSegment.speaker) {
+        compacted[compacted.length - 1] = normalizedSegment;
+      } else {
+        compacted.push(normalizedSegment);
+      }
+      continue;
+    }
+
+    if (last && last.speaker === normalizedSegment.speaker) {
+      if (
+        !last.isFinal ||
+        areTranscriptTextsLikelySameUtterance(last.text, normalizedSegment.text)
+      ) {
+        compacted[compacted.length - 1] = {
+          ...normalizedSegment,
+          startTs: last.startTs,
+          endTs: normalizedSegment.endTs ?? normalizedSegment.startTs
+        };
+        continue;
+      }
+    }
+
+    compacted.push({
+      ...normalizedSegment,
+      endTs: normalizedSegment.endTs ?? normalizedSegment.startTs
+    });
+  }
+
+  return compacted.filter((segment) => segment.isFinal);
 }
 
 function mapEnhancedOutputRow(row: EnhancedOutputRow): EnhancedOutputRecord {

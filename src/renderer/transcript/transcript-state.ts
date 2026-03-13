@@ -1,4 +1,8 @@
 import type { TranscriptUpdateEvent } from '../../shared/ipc';
+import {
+  areTranscriptTextsLikelySameUtterance,
+  normalizeTranscriptText
+} from '../../shared/transcript';
 
 const MAX_TRANSCRIPT_ENTRIES = 200;
 
@@ -18,7 +22,7 @@ export function formatTranscriptSpeakerLabel(speaker: TranscriptEntry['speaker']
 export function transcriptEntriesToText(entries: TranscriptEntry[]): string {
   return entries
     .map((entry) => {
-      const normalized = normalizeText(entry.text);
+      const normalized = normalizeTranscriptText(entry.text);
       if (normalized.length === 0) {
         return '';
       }
@@ -32,7 +36,7 @@ export function applyTranscriptEvent(
   existing: TranscriptEntry[],
   event: TranscriptUpdateEvent
 ): TranscriptEntry[] {
-  const trimmedText = normalizeText(event.text);
+  const trimmedText = normalizeTranscriptText(event.text);
   if (trimmedText.length === 0) {
     return existing;
   }
@@ -42,7 +46,7 @@ export function applyTranscriptEvent(
 
   if (!event.isFinal) {
     if (last && !last.isFinal && last.speaker === event.speaker) {
-      const unchanged = normalizeText(last.text) === trimmedText;
+      const unchanged = normalizeTranscriptText(last.text) === trimmedText;
       if (unchanged && last.ts === event.ts) {
         return next;
       }
@@ -73,9 +77,15 @@ export function applyTranscriptEvent(
     last &&
     last.isFinal &&
     last.speaker === event.speaker &&
-    normalizeText(last.text) === trimmedText
+    areTranscriptTextsLikelySameUtterance(last.text, trimmedText)
   ) {
-    return next;
+    const unchanged = normalizeTranscriptText(last.text) === trimmedText;
+    if (unchanged && last.ts === event.ts) {
+      return next;
+    }
+
+    next[next.length - 1] = createEntry(event);
+    return trimTranscript(next);
   }
 
   next.push(createEntry(event));
@@ -98,8 +108,4 @@ function buildEntryId(event: TranscriptUpdateEvent): string {
 
 function trimTranscript(entries: TranscriptEntry[]): TranscriptEntry[] {
   return entries.slice(-MAX_TRANSCRIPT_ENTRIES);
-}
-
-function normalizeText(value: string): string {
-  return value.trim().replace(/\s+/g, ' ');
 }

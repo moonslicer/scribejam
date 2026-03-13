@@ -171,3 +171,56 @@ test('enhancement flow renders AI content and persists the enhanced output', asy
     await context.close();
   }
 });
+
+test('stopped meetings ignore transcript updates after stop', async () => {
+  const context = await launchApp();
+
+  try {
+    await completeFirstRunSetup(context.page);
+    await installMeetingEventCapture(context.page);
+
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    await sendMicFrames(context.page, { count: 12, amplitude: 9000 });
+    await expect(context.page.getByText('mock transcript token')).toBeVisible();
+
+    const meetingId = await getLastMeetingId(context.page);
+    expect(meetingId).not.toBeNull();
+
+    await context.page.evaluate(async (id) => {
+      await window.scribejam.stopMeeting({ meetingId: id });
+    }, meetingId ?? '');
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
+
+    const stoppedMeeting = (await getMeeting(context.page, meetingId ?? '')) as {
+      transcriptSegments?: Array<{ text?: string }>;
+    } | null;
+
+    expect(stoppedMeeting?.transcriptSegments).toHaveLength(1);
+    expect(stoppedMeeting?.transcriptSegments?.[0]?.text).toBe('mock transcript token');
+
+    await sendMicFrames(context.page, { count: 12, amplitude: 9000 });
+    await context.page.waitForTimeout(250);
+
+    const afterStopMeeting = (await getMeeting(context.page, meetingId ?? '')) as {
+      transcriptSegments?: Array<{ text?: string }>;
+      enhancedOutput?: { summary?: string };
+    } | null;
+
+    expect(afterStopMeeting?.transcriptSegments).toHaveLength(1);
+    expect(afterStopMeeting?.transcriptSegments?.[0]?.text).toBe('mock transcript token');
+
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');
+
+    const enhancedMeeting = (await getMeeting(context.page, meetingId ?? '')) as {
+      enhancedOutput?: { summary?: string };
+    } | null;
+
+    expect(enhancedMeeting?.enhancedOutput?.summary).toContain('Transcript captured 1 segment(s)');
+    assertNoFatalRendererErrors(context.pageErrors, context.consoleErrors);
+  } finally {
+    await context.close();
+  }
+});

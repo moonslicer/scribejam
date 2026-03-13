@@ -46,6 +46,18 @@ describe('applyTranscriptEvent', () => {
     expect(entries).toHaveLength(1);
   });
 
+  it('replaces adjacent finalized delta updates for the same utterance', () => {
+    let entries: TranscriptEntry[] = [];
+    entries = applyTranscriptEvent(entries, event({ text: 'I wanna be', isFinal: true, ts: 100 }));
+    entries = applyTranscriptEvent(
+      entries,
+      event({ text: 'I wanna be the very best.', isFinal: true, ts: 101 })
+    );
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.text).toBe('I wanna be the very best.');
+  });
+
   it('starts a new live row when speaker changes', () => {
     let entries: TranscriptEntry[] = [];
     entries = applyTranscriptEvent(entries, event({ text: 'you sentence', speaker: 'you', isFinal: false }));

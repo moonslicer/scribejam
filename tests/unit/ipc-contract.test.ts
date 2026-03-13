@@ -15,6 +15,10 @@ describe('ipc contract validators', () => {
     expect(IPC_CHANNELS.meetingEnhance).toBe('meeting:enhance');
   });
 
+  it('defines the meeting reset channel constant', () => {
+    expect(IPC_CHANNELS.meetingReset).toBe('meeting:reset');
+  });
+
   it('accepts deepgram key validation payloads', () => {
     const payload: SettingsValidateKeyRequest = {
       provider: 'deepgram',

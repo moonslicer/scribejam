@@ -155,6 +155,59 @@ describe('storage repositories', () => {
     db.close();
   });
 
+  it('compacts persisted transcript deltas into finalized utterances on read', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
+    tempDirs.push(dir);
+    const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
+    const meetings = new MeetingsRepository(db);
+    const transcript = new TranscriptRepository(db);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'stopped',
+      createdAt: '2026-03-12T17:00:00.000Z',
+      updatedAt: '2026-03-12T17:30:00.000Z'
+    });
+    transcript.append({
+      meetingId: 'meeting-1',
+      speaker: 'you',
+      text: 'I wanna be',
+      startTs: 10,
+      isFinal: false
+    });
+    transcript.append({
+      meetingId: 'meeting-1',
+      speaker: 'you',
+      text: 'I wanna be the very best.',
+      startTs: 11,
+      endTs: 11,
+      isFinal: true
+    });
+    transcript.append({
+      meetingId: 'meeting-1',
+      speaker: 'you',
+      text: 'I wanna be the very best. The best there ever was.',
+      startTs: 12,
+      endTs: 12,
+      isFinal: true
+    });
+
+    expect(transcript.listByMeetingId('meeting-1')).toEqual([
+      {
+        id: 3,
+        meetingId: 'meeting-1',
+        speaker: 'you',
+        text: 'I wanna be the very best. The best there ever was.',
+        startTs: 10,
+        endTs: 12,
+        isFinal: true
+      }
+    ]);
+
+    db.close();
+  });
+
   it('returns the latest enhancement for a meeting', () => {
     const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
     tempDirs.push(dir);

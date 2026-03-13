@@ -59,6 +59,10 @@ export class TranscriptionService {
     });
 
     this.sttAdapter.onTranscript((event) => {
+      if (!this.running) {
+        return;
+      }
+
       const speaker = this.resolveSpeaker(event.isFinal);
       this.events.onTranscript({
         text: event.text,
