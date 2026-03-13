@@ -13,6 +13,7 @@ export default function App(): JSX.Element {
   const api = window.scribejam;
   const [meetingState, setMeetingState] = useState<MeetingState>('idle');
   const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [meetingTitle, setMeetingTitle] = useState('');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
@@ -88,12 +89,21 @@ export default function App(): JSX.Element {
         setErrorMessage('Complete first-run setup to enable cloud transcription.');
         return;
       }
+      if (meetingState === 'enhancing' || meetingState === 'enhance_failed' || meetingState === 'done') {
+        setErrorMessage('Enhancement controls are not wired in this milestone yet.');
+        return;
+      }
+      const trimmedTitle = meetingTitle.trim();
+      if (trimmedTitle.length === 0) {
+        setErrorMessage('Meeting title is required.');
+        return;
+      }
 
       if (!api) {
         setErrorMessage('Desktop bridge unavailable.');
         return;
       }
-      const response = await api.startMeeting({ title: 'Untitled Meeting' });
+      const response = await api.startMeeting({ title: trimmedTitle });
       setMeetingId(response.meetingId);
       setTranscriptEntries([]);
     } catch (error) {
@@ -153,6 +163,8 @@ export default function App(): JSX.Element {
 
       <MeetingBar
         meetingState={meetingState}
+        meetingTitle={meetingTitle}
+        onMeetingTitleChange={setMeetingTitle}
         onPrimaryAction={() => void onPrimaryAction()}
         disabled={settings === null}
       />
