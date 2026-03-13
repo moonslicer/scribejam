@@ -538,13 +538,13 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 - **How it fits the larger picture**: The title becomes part of each meeting's durable identity and later powers history/search UX.
 - **Implementation**:
   - Add a title input near the primary start action
-  - Validate non-empty title before calling `meeting:start`
+  - If the title is blank on start, generate a default title from the local start timestamp
   - Show the active title while recording or stopped
 - **Acceptance focus**:
-  - Starting a meeting requires explicit title input
+  - Starting a meeting with no typed title uses a readable timestamp title
   - Renderer no longer hardcodes meeting titles
 - **Verification**:
-  - Renderer test that empty title blocks start
+  - Renderer test that empty title starts with a generated title
   - Renderer test that the typed title is sent to `meeting:start`
 
 ##### Task 7: Introduce a small renderer meeting store

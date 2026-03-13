@@ -35,6 +35,7 @@ export interface MeetingStartRequest {
 
 export interface MeetingStartResponse {
   meetingId: string;
+  title: string;
 }
 
 export interface MeetingStopRequest {

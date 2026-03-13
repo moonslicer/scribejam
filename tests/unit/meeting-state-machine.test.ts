@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MeetingStateMachine } from '../../src/main/meeting/state-machine';
 
 describe('MeetingStateMachine', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('transitions idle -> recording -> stopped', () => {
     const machine = new MeetingStateMachine();
 
@@ -57,5 +61,15 @@ describe('MeetingStateMachine', () => {
     const enhancing = machine.beginEnhancement(stopped.meetingId ?? '');
     machine.failEnhancement(enhancing.meetingId ?? '');
     expect(() => machine.start('Blocked')).toThrowError();
+  });
+
+  it('falls back to the current date and time when the title is blank', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-12T09:07:00'));
+
+    const machine = new MeetingStateMachine();
+    const started = machine.start('   ');
+
+    expect(started.title).toBe('Mar 12 09:07');
   });
 });

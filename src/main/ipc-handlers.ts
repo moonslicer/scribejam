@@ -133,7 +133,10 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
       meetingId: snapshot.meetingId
     });
 
-    return { meetingId: snapshot.meetingId };
+    return {
+      meetingId: snapshot.meetingId,
+      title: snapshot.title ?? validated.title
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.meetingStop, async (_event, payload: unknown) => {
