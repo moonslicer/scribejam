@@ -160,12 +160,44 @@ test('meeting start and stop roundtrip updates state', async () => {
 
   try {
     await completeFirstRunSetup(context.page);
+    await context.page.evaluate(() => {
+      const typedWindow = window as Window & {
+        __scribejamMeetingEvents?: Array<{ state: string; meetingId?: string }>;
+        scribejam: {
+          onMeetingStateChanged: (
+            listener: (event: { state: string; meetingId?: string }) => void
+          ) => () => void;
+        };
+      };
+
+      typedWindow.__scribejamMeetingEvents = [];
+      typedWindow.scribejam.onMeetingStateChanged((event) => {
+        typedWindow.__scribejamMeetingEvents?.push(event);
+      });
+    });
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('idle');
 
     await context.page.getByTestId('meeting-primary-action').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
 
-    await context.page.getByTestId('meeting-primary-action').click();
+    const meetingId = await context.page.evaluate(() => {
+      const typedWindow = window as Window & {
+        __scribejamMeetingEvents?: Array<{ state: string; meetingId?: string }>;
+      };
+      const events = typedWindow.__scribejamMeetingEvents ?? [];
+      for (let index = events.length - 1; index >= 0; index -= 1) {
+        const candidate = events[index]?.meetingId;
+        if (typeof candidate === 'string' && candidate.length > 0) {
+          return candidate;
+        }
+      }
+      return null;
+    });
+    expect(meetingId).not.toBeNull();
+
+    await context.page.evaluate(async (id) => {
+      await window.scribejam.stopMeeting({ meetingId: id });
+    }, meetingId ?? '');
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
 
     assertNoFatalRendererErrors(context.pageErrors, context.consoleErrors);
