@@ -11,7 +11,7 @@ interface MeetingBarProps {
 const labels: Record<MeetingState, string> = {
   idle: 'Start Recording',
   recording: 'Stop Recording',
-  stopped: 'Start New Recording',
+  stopped: 'Enhance Notes',
   enhancing: 'Enhancing Notes',
   enhance_failed: 'Enhancement Failed',
   done: 'Start New Meeting'

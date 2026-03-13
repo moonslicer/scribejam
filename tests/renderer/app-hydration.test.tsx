@@ -10,6 +10,7 @@ const api = {
   startMeeting: vi.fn(),
   stopMeeting: vi.fn(),
   getMeeting: vi.fn(),
+  enhanceMeeting: vi.fn(),
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
