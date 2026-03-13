@@ -7,18 +7,23 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
 import { TranscriptPanel } from './components/TranscriptPanel';
-import { applyTranscriptEvent, type TranscriptEntry } from './transcript/transcript-state';
+import { useMeetingStore } from './stores/meeting-store';
 
 export default function App(): JSX.Element {
   const api = window.scribejam;
-  const [meetingState, setMeetingState] = useState<MeetingState>('idle');
-  const [meetingId, setMeetingId] = useState<string | null>(null);
-  const [meetingTitle, setMeetingTitle] = useState('');
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
-  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
+  const meetingState = useMeetingStore((state) => state.meetingState);
+  const meetingId = useMeetingStore((state) => state.meetingId);
+  const meetingTitle = useMeetingStore((state) => state.meetingTitle);
+  const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
+  const setMeetingState = useMeetingStore((state) => state.setMeetingState);
+  const setMeetingId = useMeetingStore((state) => state.setMeetingId);
+  const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
+  const applyTranscriptUpdate = useMeetingStore((state) => state.applyTranscriptUpdate);
+  const resetTranscript = useMeetingStore((state) => state.resetTranscript);
 
   useMicCapture({
     enabled: meetingState === 'recording',
@@ -53,7 +58,7 @@ export default function App(): JSX.Element {
       setErrorMessage(event.message);
     });
     const unsubTranscript = api.onTranscriptUpdate((event) => {
-      setTranscriptEntries((previous) => applyTranscriptEvent(previous, event));
+      applyTranscriptUpdate(event);
     });
     const unsubTranscriptionStatus = api.onTranscriptionStatus((event) => {
       setTranscriptionStatus(event);
@@ -66,7 +71,7 @@ export default function App(): JSX.Element {
       unsubTranscript();
       unsubTranscriptionStatus();
     };
-  }, [api]);
+  }, [api, applyTranscriptUpdate, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
@@ -105,7 +110,7 @@ export default function App(): JSX.Element {
       }
       const response = await api.startMeeting({ title: trimmedTitle });
       setMeetingId(response.meetingId);
-      setTranscriptEntries([]);
+      resetTranscript();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update meeting state.');
     }

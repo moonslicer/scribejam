@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 
-Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-  value: () => {},
-  configurable: true
-});
+if (typeof HTMLElement !== 'undefined') {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    value: () => {},
+    configurable: true
+  });
+}
