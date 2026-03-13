@@ -907,6 +907,209 @@ Implementation notes:
 6. Keep provider-specific logic isolated so a second adapter can be added later without changing renderer code or core orchestration
 - **Testing (M5)**: Unit tests for prompt construction, OpenAI client behavior, and the enhancement client abstraction with mocked responses. Integration test: enhancement orchestration with a mocked OpenAI adapter.
 
+#### M5 Delivery Breakdown (Junior-Friendly)
+
+Goal: replace the deterministic mock enhancement path with a real OpenAI-backed enhancement flow while preserving the M4 seam. The renderer should keep using the same typed enhancement contract, the main process should stay responsible for provider calls and secrets, and enhancement failures should remain scoped to enhancement rather than breaking note-taking or capture.
+
+##### Task 1: Define the internal enhancement input boundary
+- **Why this task exists**: Right now the enhancement path can read persisted artifacts directly and hand them to a mock service. Before introducing a real provider, we need one explicit internal shape that represents "the artifacts we send to an LLM" without leaking repository row shapes or renderer assumptions into provider code.
+- **How it fits the larger picture**: This becomes the stable seam between storage/orchestration and prompt/provider work, which keeps later provider swaps and test fixtures simple.
+- **Implementation**:
+  - Add an internal enhancement input type such as `EnhancementArtifacts` or similar in the main process
+  - Include only the durable artifacts needed for enhancement: note content, finalized transcript context, meeting title, and any lightweight metadata required by the prompt
+  - Add a pure mapper that converts repository-loaded meeting artifacts into that internal input shape
+  - Keep this boundary internal to main so renderer/shared IPC contracts do not expand unnecessarily
+- **Acceptance focus**:
+  - Provider-facing code no longer depends on raw repository row shapes
+  - Enhancement artifacts are normalized once in a testable place
+- **Verification**:
+  - Unit test that persisted meeting artifacts map into the internal enhancement input correctly
+  - Unit test that missing notes or sparse transcript data still produce a valid internal input
+
+##### Task 2: Build the note-transcript merge prompt as a pure module
+- **Why this task exists**: The product promise depends on human notes staying the anchor. That behavior should be encoded in one prompt-building module rather than scattered across the OpenAI adapter or orchestration code.
+- **How it fits the larger picture**: A pure prompt module keeps the "how we ask the model" logic debuggable, versionable, and easy to replace later without touching storage or UI code.
+- **Implementation**:
+  - Add a pure prompt builder module that accepts the internal enhancement input
+  - Encode the product rules in the prompt: preserve user notes as anchors, augment rather than overwrite, distinguish human and AI content, avoid fabricating decisions/action items
+  - Keep prompt assembly deterministic so tests can assert the important sections and ordering
+  - Return a structured request object if helpful (for example `systemPrompt`, `userPrompt`, `responseFormat`)
+- **Acceptance focus**:
+  - Prompt construction is isolated from network calls and orchestration
+  - Prompt content reflects the notepad-first product philosophy rather than a generic summarizer
+- **Verification**:
+  - Unit test that notes appear in the prompt before transcript context
+  - Unit test that prompt instructions explicitly preserve human notes as the anchor
+  - Unit test that empty-note and empty-transcript cases still generate valid prompts
+
+##### Task 3: Define `llm-client.ts` and the enhancement error model
+- **Why this task exists**: The current mock service works because it is simple, but once we add a real provider we need one small interface that the orchestrator can depend on without caring whether the backing provider is OpenAI or something else.
+- **How it fits the larger picture**: This is the key seam that keeps provider-specific code isolated in main and prevents renderer or orchestration churn when a second adapter is added later.
+- **Implementation**:
+  - Add `llm-client.ts` with a narrow interface such as `enhance(input): Promise<EnhancedOutput>`
+  - Define a typed error model for provider failures such as invalid key, timeout, rate limit, transient network failure, and malformed provider response
+  - Keep OpenAI SDK-specific request/response types out of the interface
+  - Keep the interface focused on enhancement only; do not let it become a generic catch-all API layer
+- **Acceptance focus**:
+  - Orchestration depends on one internal client contract instead of one provider implementation
+  - Provider failures can be handled in feature-scoped ways instead of as generic thrown strings
+- **Verification**:
+  - Unit test that the client interface can be mocked cleanly in orchestrator tests
+  - Unit test that typed provider errors normalize into the expected internal error variants
+
+##### Task 4: Implement strict `EnhancedOutput` parsing/validation for provider responses
+- **Why this task exists**: A real model response is untrusted input. If we skip validation, malformed output could corrupt persistence, break the renderer, or blur the human/AI authorship rules.
+- **How it fits the larger picture**: This keeps the enhancement contract authoritative even when providers change and gives later UX work a reliable shape to render.
+- **Implementation**:
+  - Add a parser/validator that converts the provider response into the existing `EnhancedOutput` shape
+  - Reject malformed or incomplete responses before persistence
+  - Enforce authorship rules at the boundary so AI-generated blocks are always marked as AI and user-authored content is not silently overwritten
+  - Keep this validation close to the provider adapter boundary
+- **Acceptance focus**:
+  - Persisted enhancement output always conforms to the shared schema
+  - Invalid provider payloads fail safely instead of partially updating local state
+- **Verification**:
+  - Unit test that a valid model response parses into `EnhancedOutput`
+  - Unit test that malformed JSON or missing required fields fail with a typed error
+  - Unit test that AI blocks remain explicitly typed as AI-authored
+
+##### Task 5: Add the OpenAI enhancement adapter behind the client interface
+- **Why this task exists**: M5 is only complete once enhancement can run through a real provider rather than the deterministic mock path.
+- **How it fits the larger picture**: This is the first cloud-backed enhancement implementation, but it should still sit behind the same seam so M6 UX work and future providers do not need to care about SDK details.
+- **Implementation**:
+  - Add the OpenAI SDK dependency and confine its usage to the main process
+  - Implement an OpenAI adapter that uses the prompt module and returns parsed `EnhancedOutput`
+  - Read the API key from the existing safe-storage-backed settings/secrets path
+  - Add explicit request timeout support and cancellation hooks where reasonable
+  - Do not expose OpenAI SDK types across the adapter boundary
+- **Acceptance focus**:
+  - A real enhancement request can complete using an OpenAI API key stored in settings
+  - OpenAI integration stays behind the internal client seam and does not leak into renderer code
+- **Verification**:
+  - Unit test the adapter with mocked OpenAI responses
+  - Unit test that missing API keys or unauthorized responses normalize to typed provider errors
+
+##### Task 6: Wire provider selection and dependency injection in the main process
+- **Why this task exists**: The app currently constructs the enhancement path around the mock service directly. To safely swap to OpenAI, service creation and orchestration need to depend on the new client seam rather than a concrete mock class.
+- **How it fits the larger picture**: This preserves the M4 renderer contract while making the enhancement backend replaceable and easier to test.
+- **Implementation**:
+  - Refactor main-process service registration to create an enhancement client from settings/provider selection
+  - Replace direct `MockEnhancementService` wiring in the orchestrator path with the `llm-client` interface
+  - Keep `meeting:enhance` IPC request/response types unchanged unless absolutely necessary
+  - Retain a mocked/fake client path for tests so the orchestrator remains easy to exercise without network calls
+- **Acceptance focus**:
+  - Renderer-triggered enhancement continues to use the same typed IPC surface
+  - Main-process wiring can switch providers without touching renderer code or storage contracts
+- **Verification**:
+  - Integration test that the orchestrator can run against a mocked `llm-client` implementation
+  - IPC/preload tests confirm the renderer enhancement contract stays stable
+
+##### Task 7: Add OpenAI key onboarding, validation, and disclosure in setup/settings
+- **Why this task exists**: Real enhancement requires user-provided credentials and explicit disclosure that notes and transcript content will be sent off-device for enhancement.
+- **How it fits the larger picture**: This is where the product’s privacy/transparency rules become concrete. It also keeps "invalid key" failures scoped to enhancement, as required by AGENTS.
+- **Implementation**:
+  - Extend settings validation contracts so OpenAI keys can be validated from the main process
+  - Add OpenAI key entry to the settings surface with clear configured/not-configured status
+  - Update the first-run setup flow or adjacent disclosure copy so enhancement data flow is explicit, not implied
+  - Keep Deepgram and OpenAI validation paths separate so one broken key does not disable the other feature unnecessarily
+  - Continue storing provider API keys via `safeStorage`
+- **Acceptance focus**:
+  - Users can configure and validate an OpenAI key without leaving the app
+  - Enhancement data flow is disclosed clearly before the user relies on the feature
+  - Invalid OpenAI credentials block enhancement only, not transcription or note-taking
+- **Verification**:
+  - Unit test that settings validation accepts supported providers and rejects unsupported ones
+  - Renderer test that settings/setup flows show OpenAI key status and validation feedback
+
+##### Task 8: Add bounded timeout, retry, and enhancement-specific failure handling
+- **Why this task exists**: A real provider introduces rate limits, timeouts, and transient network failures. M5 must make those failures survivable without breaking the local-first note workflow.
+- **How it fits the larger picture**: This is the backend reliability work that M6’s retry/progress UX will build on. If the failure semantics are not correct here, the later UI work will rest on shaky behavior.
+- **Implementation**:
+  - Add a bounded timeout for enhancement requests
+  - Retry once for transient cases such as rate limit, timeout, or retryable network failure
+  - Persist `enhance_failed` when the request fails terminally and leave saved notes/transcript intact
+  - Route invalid-key failures toward settings and retryable failures toward a future retry action without blocking note-taking
+  - Avoid logging secrets, raw audio, or full sensitive transcript payloads in failure diagnostics
+- **Acceptance focus**:
+  - Enhancement failure does not corrupt saved meeting artifacts
+  - Failure handling is feature-scoped and consistent with AGENTS degradation rules
+- **Verification**:
+  - Unit test timeout behavior
+  - Unit test single-retry behavior for retryable failures
+  - Integration test that a terminal provider failure moves the meeting to `enhance_failed` while preserving notes/transcript
+
+##### Task 9: Tighten M5 automated verification around prompt, adapter, and orchestration seams
+- **Why this task exists**: M5 introduces network-bound behavior and more internal boundaries than M4. The only safe way to keep it junior-friendly is to verify each seam independently before trusting the whole stack.
+- **How it fits the larger picture**: This gives M6 a stable backend to build progress/retry UX on top of and reduces the odds that later polish work turns into backend debugging.
+- **Implementation**:
+  - Add unit tests for prompt construction
+  - Add unit tests for response parsing/validation
+  - Add unit tests for OpenAI adapter behavior with mocked provider responses
+  - Add integration coverage for orchestrator behavior with a mocked `llm-client`
+  - Keep at least one deterministic no-network test path for enhancement orchestration
+- **Acceptance focus**:
+  - M5 testing expectations have direct coverage at the prompt, adapter, and orchestration layers
+  - Tests fail at the boundary where behavior breaks rather than only in end-to-end flows
+- **Verification**:
+  - Run node and native test suites covering prompt/client/orchestrator changes
+  - Confirm new tests do not require live provider credentials
+
+##### Task 10: Run the M5 manual smoke flow and capture residual risks
+- **Why this task exists**: Even with good mocks, M5 crosses secrets, settings, provider behavior, persistence, and renderer updates. A short manual pass is still needed to verify the real user path.
+- **How it fits the larger picture**: This is the release-quality checkpoint before M6 invests in richer progress and retry UX.
+- **Implementation**:
+  - Run typecheck and the full automated test suite
+  - Perform a manual stopped-meeting-to-enhancement flow with a configured OpenAI key
+  - Verify both success and at least one controlled failure mode if practical
+  - Record residual risks or deferred UX gaps clearly
+- **Acceptance focus**:
+  - M5 acceptance criteria have direct evidence
+  - Known limitations are documented before M6 starts layering UI behavior on top
+- **Verification**:
+  - Manual smoke flow:
+    - configure Deepgram and OpenAI keys
+    - start a meeting
+    - type a few anchor notes
+    - allow transcript entries to persist
+    - stop the meeting
+    - click enhance
+    - confirm enhanced content appears without overwriting the raw saved notes
+    - confirm a bad-key or forced failure case routes the user to a recoverable state
+
+#### Suggested Build Order
+1. Task 1: Define the internal enhancement input boundary
+2. Task 2: Build the note-transcript merge prompt as a pure module
+3. Task 3: Define `llm-client.ts` and the enhancement error model
+4. Task 4: Implement strict `EnhancedOutput` parsing/validation for provider responses
+5. Task 5: Add the OpenAI enhancement adapter behind the client interface
+6. Task 6: Wire provider selection and dependency injection in the main process
+7. Task 7: Add OpenAI key onboarding, validation, and disclosure in setup/settings
+8. Task 8: Add bounded timeout, retry, and enhancement-specific failure handling
+9. Task 9: Tighten M5 automated verification around prompt, adapter, and orchestration seams
+10. Task 10: Run the M5 manual smoke flow and capture residual risks
+
+#### Step-Back Review: How This Plan Matches M5
+- **M5.1 Note-transcript merge prompt as a pure module** is covered by Tasks 1 and 2
+- **M5.2 `llm-client.ts` as a small main-process seam** is covered by Tasks 3 and 6
+- **M5.3 OpenAI enhancement client** is covered by Tasks 4 and 5
+- **M5.4 OpenAI API key input/validation in setup/settings** is covered by Task 7
+- **M5.5 Timeout, retry, and feature-scoped failure handling** is covered by Task 8
+- **M5.6 Provider isolation for future adapters** is covered by Tasks 3, 5, and 6
+- **M5 testing expectations** are covered by Tasks 4, 5, 8, 9, and 10
+
+This plan intentionally stays inside M5 scope:
+- It does not add progress streaming to the renderer yet; that remains M6 scope
+- It does not add renderer retry UX or edit-to-human authorship transitions yet; that remains M6 scope
+- It does not take on meeting history, shortcuts, icon/menu-bar polish, or `.dmg` distribution work yet; that remains M7 scope
+- It preserves AGENTS invariants by keeping raw audio in-memory only, keeping provider calls in the main process, keeping secrets in `safeStorage`, and preserving explicit human/AI distinction in persisted output
+
+Implementation notes:
+- Keep one deterministic fake enhancement client available for tests even after the real OpenAI adapter exists
+- Do not let the prompt builder or provider adapter overwrite raw user notes; enhanced output remains a separate persisted artifact
+- Prefer typed provider errors over free-form strings so renderer and orchestration behavior can stay explicit as the UX grows
+- Avoid broadening the setup flow into a full provider dashboard; M5 only needs enough UI to configure, validate, disclose, and recover
+- Treat malformed model output as an adapter failure, not as partially valid enhancement content
+
 ### M6: Authorship Semantics & Enhancement UX
 1. Stream or stage enhancement progress to the renderer via `enhance:progress`
 2. Add retry and failure UX for enhancement without blocking note-taking

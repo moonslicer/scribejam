@@ -28,6 +28,7 @@ export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
+export type SettingsKeyProvider = SttProvider | 'openai';
 export type CaptureSource = 'mixed' | 'mic' | 'system';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
@@ -173,7 +174,7 @@ export interface SettingsSaveRequest {
 }
 
 export interface SettingsValidateKeyRequest {
-  provider: SttProvider;
+  provider: SettingsKeyProvider;
   key: string;
 }
 
@@ -248,7 +249,10 @@ export function isSettingsValidateKeyRequest(value: unknown): value is SettingsV
   }
 
   const candidate = value as Partial<SettingsValidateKeyRequest>;
-  return candidate.provider === 'deepgram' && typeof candidate.key === 'string';
+  return (
+    (candidate.provider === 'deepgram' || candidate.provider === 'openai') &&
+    typeof candidate.key === 'string'
+  );
 }
 
 export function isMeetingGetRequest(value: unknown): value is MeetingGetRequest {

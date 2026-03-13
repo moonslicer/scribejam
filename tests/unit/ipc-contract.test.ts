@@ -27,6 +27,14 @@ describe('ipc contract validators', () => {
     expect(isSettingsValidateKeyRequest(payload)).toBe(true);
   });
 
+  it('accepts openai key validation payloads', () => {
+    const payload: SettingsValidateKeyRequest = {
+      provider: 'openai',
+      key: 'sk-test'
+    };
+    expect(isSettingsValidateKeyRequest(payload)).toBe(true);
+  });
+
   it('rejects invalid key validation payloads', () => {
     expect(isSettingsValidateKeyRequest({ provider: 'deepgram', key: 123 })).toBe(false);
     expect(isSettingsValidateKeyRequest({ provider: 'other', key: 'x' })).toBe(false);

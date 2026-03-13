@@ -4,14 +4,22 @@ import type { Settings, SettingsSaveRequest } from '../../shared/ipc';
 interface SettingsPanelProps {
   settings: Settings | null;
   onSave: (payload: SettingsSaveRequest) => Promise<void>;
+  onValidateKey: (
+    provider: 'deepgram' | 'openai',
+    key: string
+  ) => Promise<{ valid: boolean; error?: string }>;
 }
 
-export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Element {
+export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanelProps): JSX.Element {
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [captureSource, setCaptureSource] = useState<Settings['captureSource']>('mixed');
   const [saving, setSaving] = useState(false);
+  const [validatingDeepgram, setValidatingDeepgram] = useState(false);
+  const [validatingOpenAI, setValidatingOpenAI] = useState(false);
+  const [deepgramValidation, setDeepgramValidation] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [openaiValidation, setOpenaiValidation] = useState<{ valid: boolean; error?: string } | null>(null);
 
   const hasLoaded = useMemo(() => settings !== null, [settings]);
 
@@ -35,6 +43,33 @@ export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Ele
       setAnthropicApiKey('');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleValidate = async (provider: 'deepgram' | 'openai'): Promise<void> => {
+    if (provider === 'deepgram') {
+      setValidatingDeepgram(true);
+    } else {
+      setValidatingOpenAI(true);
+    }
+
+    try {
+      const result = await onValidateKey(
+        provider,
+        provider === 'deepgram' ? deepgramApiKey : openaiApiKey
+      );
+
+      if (provider === 'deepgram') {
+        setDeepgramValidation(result);
+      } else {
+        setOpenaiValidation(result);
+      }
+    } finally {
+      if (provider === 'deepgram') {
+        setValidatingDeepgram(false);
+      } else {
+        setValidatingOpenAI(false);
+      }
     }
   };
 
@@ -76,19 +111,53 @@ export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Ele
         <input
           data-testid="settings-input-deepgram"
           value={deepgramApiKey}
-          onChange={(event) => setDeepgramApiKey(event.target.value)}
+          onChange={(event) => {
+            setDeepgramApiKey(event.target.value);
+            setDeepgramValidation(null);
+          }}
           className="rounded border border-zinc-300 px-3 py-2 text-sm"
           placeholder="Deepgram API key"
           autoComplete="off"
         />
+        <button
+          data-testid="settings-validate-deepgram-button"
+          type="button"
+          onClick={() => void handleValidate('deepgram')}
+          disabled={deepgramApiKey.trim().length === 0 || validatingDeepgram}
+          className="w-fit rounded bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+        >
+          {validatingDeepgram ? 'Validating...' : 'Validate Deepgram'}
+        </button>
+        {deepgramValidation ? (
+          <p data-testid="settings-validation-deepgram" className={`text-sm ${deepgramValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {deepgramValidation.valid ? 'Key is valid.' : deepgramValidation.error ?? 'Unable to validate key.'}
+          </p>
+        ) : null}
         <input
           data-testid="settings-input-openai"
           value={openaiApiKey}
-          onChange={(event) => setOpenaiApiKey(event.target.value)}
+          onChange={(event) => {
+            setOpenaiApiKey(event.target.value);
+            setOpenaiValidation(null);
+          }}
           className="rounded border border-zinc-300 px-3 py-2 text-sm"
           placeholder="OpenAI API key"
           autoComplete="off"
         />
+        <button
+          data-testid="settings-validate-openai-button"
+          type="button"
+          onClick={() => void handleValidate('openai')}
+          disabled={openaiApiKey.trim().length === 0 || validatingOpenAI}
+          className="w-fit rounded bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+        >
+          {validatingOpenAI ? 'Validating...' : 'Validate OpenAI'}
+        </button>
+        {openaiValidation ? (
+          <p data-testid="settings-validation-openai" className={`text-sm ${openaiValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {openaiValidation.valid ? 'Key is valid.' : openaiValidation.error ?? 'Unable to validate key.'}
+          </p>
+        ) : null}
         <input
           data-testid="settings-input-anthropic"
           value={anthropicApiKey}

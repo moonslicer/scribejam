@@ -1,6 +1,7 @@
 import type { TranscriptUpdateEvent } from '../../shared/ipc';
 import type { MeetingSnapshot } from '../meeting/state-machine';
-import type { EnhancedOutput, MeetingDetails } from '../../shared/ipc';
+import type { MeetingDetails } from '../../shared/ipc';
+import { safeParseEnhancedOutput } from '../enhancement/parse-enhanced-output';
 import { MeetingArtifactsRepository, MeetingsRepository, TranscriptRepository } from './repositories';
 
 export class MeetingRecordsService {
@@ -123,7 +124,7 @@ export class MeetingRecordsService {
       updatedAt: persisted.meeting.updatedAt,
       durationMs: persisted.meeting.durationMs,
       noteContent: parseNoteContent(persisted.note?.content),
-      enhancedOutput: parseEnhancedOutput(persisted.enhancedOutput?.content),
+      enhancedOutput: safeParseEnhancedOutput(persisted.enhancedOutput?.content),
       transcriptSegments: persisted.transcriptSegments.map((segment) => ({
         id: segment.id,
         speaker: segment.speaker,
@@ -145,55 +146,6 @@ function parseNoteContent(content: string | undefined): MeetingDetails['noteCont
     const parsed = JSON.parse(content) as MeetingDetails['noteContent'];
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-function parseEnhancedOutput(content: string | undefined): EnhancedOutput | null {
-  if (!content) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(content) as Partial<EnhancedOutput>;
-    if (
-      Array.isArray(parsed.blocks) &&
-      Array.isArray(parsed.actionItems) &&
-      Array.isArray(parsed.decisions) &&
-      typeof parsed.summary === 'string'
-    ) {
-      return {
-        blocks: parsed.blocks.map((block) => ({
-          source: block?.source === 'human' ? 'human' : 'ai',
-          content: typeof block?.content === 'string' ? block.content : ''
-        })),
-        actionItems: parsed.actionItems
-          .filter(
-            (item): item is { owner: string; description: string; due?: string } =>
-              Boolean(item) && typeof item.owner === 'string' && typeof item.description === 'string'
-          )
-          .map((item) => ({
-            owner: item.owner,
-            description: item.description,
-            ...(typeof item.due === 'string' ? { due: item.due } : {})
-          })),
-        decisions: parsed.decisions
-          .filter(
-            (decision): decision is { description: string; context: string } =>
-              Boolean(decision) &&
-              typeof decision.description === 'string' &&
-              typeof decision.context === 'string'
-          )
-          .map((decision) => ({
-            description: decision.description,
-            context: decision.context
-          })),
-        summary: parsed.summary
-      };
     }
   } catch {
     return null;

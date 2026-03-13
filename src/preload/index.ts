@@ -33,6 +33,7 @@ interface ScribejamApi {
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
   saveNotes: (payload: NotesSaveRequest) => void;
+  validateProviderKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;
   onMeetingStateChanged: (listener: (event: MeetingStateChangedEvent) => void) => Unsubscribe;
@@ -54,6 +55,7 @@ const api: ScribejamApi = {
   saveNotes: (payload) => {
     ipcRenderer.send(IPC_CHANNELS.notesSave, payload);
   },
+  validateProviderKey: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsValidateKey, payload),
   validateSttKey: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsValidateKey, payload),
   sendMicFrames: (payload) => {
     ipcRenderer.send(IPC_CHANNELS.audioMicFrames, payload);

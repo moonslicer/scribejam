@@ -167,9 +167,14 @@ export default function App(): JSX.Element {
         }
 
         setMeetingState('enhancing');
-        const response = await api.enhanceMeeting({ meetingId });
-        setEnhancedOutput(response.output);
-        setMeetingState('done');
+        try {
+          const response = await api.enhanceMeeting({ meetingId });
+          setEnhancedOutput(response.output);
+          setMeetingState('done');
+        } catch (error) {
+          setMeetingState('enhance_failed');
+          throw error;
+        }
         return;
       }
       if (meetingState === 'done') {
@@ -250,15 +255,22 @@ export default function App(): JSX.Element {
     setSettings(refreshed);
   };
 
-  const completeFirstRunSetup = async (payload: { deepgramApiKey: string }): Promise<void> => {
+  const completeFirstRunSetup = async (payload: {
+    deepgramApiKey: string;
+    openaiApiKey: string;
+  }): Promise<void> => {
     await saveSettings({
       deepgramApiKey: payload.deepgramApiKey,
+      openaiApiKey: payload.openaiApiKey,
       firstRunAcknowledged: true
     });
     setErrorMessage(null);
   };
 
-  const validateDeepgramKey = async (key: string): Promise<{ valid: boolean; error?: string }> => {
+  const validateProviderKey = async (
+    provider: 'deepgram' | 'openai',
+    key: string
+  ): Promise<{ valid: boolean; error?: string }> => {
     if (!api) {
       return {
         valid: false,
@@ -266,8 +278,8 @@ export default function App(): JSX.Element {
       };
     }
 
-    return api.validateSttKey({
-      provider: 'deepgram',
+    return (api.validateProviderKey ?? api.validateSttKey)({
+      provider,
       key
     });
   };
@@ -287,7 +299,7 @@ export default function App(): JSX.Element {
       </header>
 
       {setupRequired ? (
-        <SetupWizard onValidateKey={validateDeepgramKey} onComplete={completeFirstRunSetup} />
+        <SetupWizard onValidateKey={validateProviderKey} onComplete={completeFirstRunSetup} />
       ) : null}
 
       <MeetingBar
@@ -309,7 +321,6 @@ export default function App(): JSX.Element {
             onChange={setNoteContent}
           />
         </div>
-
         <div className="flex flex-col gap-3">
           <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
             <AudioLevel source="mic" label="Microphone" value={levels.mic} />
@@ -319,7 +330,11 @@ export default function App(): JSX.Element {
         </div>
       </section>
 
-      <SettingsPanel settings={settings} onSave={saveSettings} />
+      <SettingsPanel
+        settings={settings}
+        onSave={saveSettings}
+        onValidateKey={validateProviderKey}
+      />
     </main>
   );
 }

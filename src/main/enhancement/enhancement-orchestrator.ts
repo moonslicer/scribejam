@@ -1,22 +1,37 @@
-import type { EnhanceMeetingResponse, JsonObject } from '../../shared/ipc';
+import type { EnhanceMeetingResponse } from '../../shared/ipc';
 import { MeetingStateMachine } from '../meeting/state-machine';
 import { MeetingRecordsService } from '../storage/meeting-records-service';
 import {
   EnhancedOutputsRepository,
   MeetingArtifactsRepository
 } from '../storage/repositories';
-import { MockEnhancementService } from './mock-enhancement-service';
+import { toEnhancementArtifacts } from './enhancement-artifacts';
+import {
+  isRetryableEnhancementError,
+  normalizeEnhancementError,
+  type LlmClient
+} from './llm-client';
 
 export class EnhancementOrchestrator {
+  private readonly retryDelayMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+
   public constructor(
     private readonly stateMachine: MeetingStateMachine,
     private readonly meetingRecordsService: MeetingRecordsService,
     private readonly meetingArtifactsRepository: MeetingArtifactsRepository,
     private readonly enhancedOutputsRepository: EnhancedOutputsRepository,
-    private readonly mockEnhancementService: MockEnhancementService
-  ) {}
+    private readonly getLlmClient: () => LlmClient,
+    options?: {
+      retryDelayMs?: number;
+      sleep?: (ms: number) => Promise<void>;
+    }
+  ) {
+    this.retryDelayMs = options?.retryDelayMs ?? 750;
+    this.sleep = options?.sleep ?? defaultSleep;
+  }
 
-  public enhanceMeeting(meetingId: string): EnhanceMeetingResponse {
+  public async enhanceMeeting(meetingId: string): Promise<EnhanceMeetingResponse> {
     const beginSnapshot = this.stateMachine.beginEnhancement(meetingId);
     this.meetingRecordsService.recordMeetingEnhancementStarted(beginSnapshot);
 
@@ -26,17 +41,9 @@ export class EnhancementOrchestrator {
         throw new Error('Meeting not found for enhancement.');
       }
 
-      const output = this.mockEnhancementService.enhance({
-        noteContent: parseNoteContent(artifacts.note?.content),
-        transcriptSegments: artifacts.transcriptSegments.map((segment) => ({
-          id: segment.id,
-          speaker: segment.speaker,
-          text: segment.text,
-          startTs: segment.startTs,
-          endTs: segment.endTs,
-          isFinal: segment.isFinal
-        }))
-      });
+      const llmClient = this.getLlmClient();
+      const enhancementInput = toEnhancementArtifacts(artifacts);
+      const output = await this.runEnhancementWithRetry(llmClient, enhancementInput);
       const completedAt = new Date().toISOString();
       this.enhancedOutputsRepository.save({
         meetingId,
@@ -55,24 +62,42 @@ export class EnhancementOrchestrator {
     } catch (error) {
       const failedSnapshot = this.stateMachine.failEnhancement(meetingId);
       this.meetingRecordsService.recordMeetingEnhancementFailed(failedSnapshot);
-      throw error;
+      throw normalizeEnhancementError(error);
+    }
+  }
+
+  private async runEnhancementWithRetry(
+    llmClient: LlmClient,
+    input: ReturnType<typeof toEnhancementArtifacts>
+  ) {
+    try {
+      return await llmClient.enhance(input);
+    } catch (error) {
+      const normalized = normalizeEnhancementError(error);
+      if (!isRetryableEnhancementError(normalized)) {
+        throw normalized;
+      }
+
+      await this.sleep(this.retryDelayMs);
+
+      try {
+        return await llmClient.enhance(input);
+      } catch (retryError) {
+        throw normalizeEnhancementError(retryError, createRetryOptions(normalized));
+      }
     }
   }
 }
 
-function parseNoteContent(content: string | undefined): JsonObject | null {
-  if (!content) {
-    return null;
-  }
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
-  try {
-    const parsed = JSON.parse(content) as JsonObject;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
+function createRetryOptions(error: { provider: string | undefined; message: string }) {
+  return {
+    fallbackMessage: error.message,
+    ...(error.provider ? { provider: error.provider } : {})
+  };
 }

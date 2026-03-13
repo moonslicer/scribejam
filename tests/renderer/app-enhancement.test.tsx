@@ -6,7 +6,10 @@ import App from '../../src/renderer/App';
 import { useMeetingStore } from '../../src/renderer/stores/meeting-store';
 
 let stateListener:
-  | ((event: { state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'done'; meetingId?: string }) => void)
+  | ((event: {
+      state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'enhance_failed' | 'done';
+      meetingId?: string;
+    }) => void)
   | null = null;
 
 const api = {
@@ -23,7 +26,7 @@ const api = {
   onMeetingStateChanged: vi.fn(
     (
       listener: (event: {
-        state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'done';
+        state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'enhance_failed' | 'done';
         meetingId?: string;
       }) => void
     ) => {
@@ -229,6 +232,27 @@ describe('App enhancement flow', () => {
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('recording');
     await waitFor(() => expect(screen.queryByText('AI expansion')).not.toBeInTheDocument());
     expect(screen.getByText('Follow up with design')).toBeInTheDocument();
+  });
+
+  it('moves the meeting into enhance_failed when enhancement rejects', async () => {
+    const user = userEvent.setup();
+    api.enhanceMeeting.mockRejectedValueOnce(new Error('Invalid OpenAI key.'));
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await user.click(screen.getByTestId('meeting-primary-action'));
+
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('enhance_failed');
+    expect(screen.getByText('Invalid OpenAI key.')).toBeInTheDocument();
   });
 
   it('offers a new meeting action from done state and clears the completed meeting view', async () => {

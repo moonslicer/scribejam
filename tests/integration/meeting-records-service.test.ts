@@ -250,4 +250,36 @@ describe('MeetingRecordsService', () => {
 
     db.close();
   });
+
+  it('drops invalid persisted enhancement payloads instead of coercing them', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
+    tempDirs.push(dir);
+    const dbPath = join(dir, 'scribejam.sqlite');
+    const db = createStorageDatabase({ dbPath });
+    const meetings = new MeetingsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+    const transcript = new TranscriptRepository(db);
+    const enhancements = new EnhancedOutputsRepository(db);
+    const service = new MeetingRecordsService(meetings, artifacts, transcript);
+
+    meetings.create({
+      id: 'meeting-2',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z'
+    });
+    enhancements.save({
+      meetingId: 'meeting-2',
+      content:
+        '{"blocks":[{"source":"robot","content":"bad source"}],"actionItems":[],"decisions":[],"summary":"Quick summary"}',
+      createdAt: '2026-03-12T18:26:00.000Z'
+    });
+
+    const meeting = service.getMeeting('meeting-2');
+
+    expect(meeting?.enhancedOutput).toBeNull();
+
+    db.close();
+  });
 });

@@ -1,12 +1,14 @@
-import type { EnhancedBlock, EnhancedDecision, EnhancedOutput, JsonObject, TranscriptSegment } from '../../shared/ipc';
-
-export interface MockEnhancementInput {
-  noteContent: JsonObject | null;
-  transcriptSegments: TranscriptSegment[];
-}
+import type {
+  EnhancedBlock,
+  EnhancedDecision,
+  EnhancedOutput,
+  JsonObject,
+  TranscriptSegment
+} from '../../shared/ipc';
+import type { EnhancementArtifacts } from './enhancement-artifacts';
 
 export class MockEnhancementService {
-  public enhance(input: MockEnhancementInput): EnhancedOutput {
+  public enhance(input: EnhancementArtifacts): EnhancedOutput {
     const noteAnchors = extractNoteAnchors(input.noteContent);
     const transcriptLines = input.transcriptSegments
       .map((segment) => `${formatSpeaker(segment.speaker)}: ${segment.text.trim()}`)
