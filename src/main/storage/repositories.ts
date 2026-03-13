@@ -23,6 +23,12 @@ export interface UpdateMeetingStopInput {
   durationMs: number;
 }
 
+export interface UpdateMeetingStateInput {
+  id: string;
+  state: PersistedMeetingState;
+  updatedAt: string;
+}
+
 export interface SaveNotesInput {
   id: string;
   meetingId: string;
@@ -106,6 +112,25 @@ export class MeetingsRepository {
           SET state = @state,
               updated_at = @updatedAt,
               duration_ms = @durationMs
+          WHERE id = @id
+        `
+      )
+      .run(input);
+
+    const meeting = this.getById(input.id);
+    if (!meeting) {
+      throw new Error('Meeting update failed.');
+    }
+    return meeting;
+  }
+
+  public updateState(input: UpdateMeetingStateInput): MeetingRecord {
+    this.db
+      .prepare(
+        `
+          UPDATE meetings
+          SET state = @state,
+              updated_at = @updatedAt
           WHERE id = @id
         `
       )

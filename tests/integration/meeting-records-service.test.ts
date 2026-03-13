@@ -88,4 +88,43 @@ describe('MeetingRecordsService', () => {
       }
     ]);
   });
+
+  it('persists enhancement lifecycle state changes', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
+    tempDirs.push(dir);
+    const service = createService(join(dir, 'scribejam.sqlite'));
+
+    service.recordMeetingStarted({
+      state: 'recording',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      startedAt: Date.parse('2026-03-12T18:00:00.000Z')
+    });
+    service.recordMeetingStopped({
+      state: 'stopped',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      startedAt: Date.parse('2026-03-12T18:00:00.000Z'),
+      stoppedAt: Date.parse('2026-03-12T18:25:00.000Z')
+    });
+    service.recordMeetingEnhancementStarted({
+      state: 'enhancing',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      startedAt: Date.parse('2026-03-12T18:00:00.000Z'),
+      stoppedAt: Date.parse('2026-03-12T18:25:00.000Z')
+    });
+    service.recordMeetingEnhancementCompleted({
+      state: 'done',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      startedAt: Date.parse('2026-03-12T18:00:00.000Z'),
+      stoppedAt: Date.parse('2026-03-12T18:25:00.000Z')
+    });
+
+    const meeting = service.getMeeting('meeting-1');
+
+    expect(meeting?.state).toBe('done');
+    expect(meeting?.durationMs).toBe(1500000);
+  });
 });

@@ -51,6 +51,15 @@ describe('storage repositories', () => {
     expect(stopped.state).toBe('stopped');
     expect(stopped.durationMs).toBe(1800000);
 
+    const enhancing = meetings.updateState({
+      id: 'meeting-1',
+      state: 'enhancing',
+      updatedAt: '2026-03-12T17:31:00.000Z'
+    });
+
+    expect(enhancing.state).toBe('enhancing');
+    expect(enhancing.durationMs).toBe(1800000);
+
     db.close();
   });
 
