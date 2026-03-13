@@ -17,6 +17,7 @@ import {
   type SettingsValidateKeyRequest
 } from '../shared/ipc';
 import { AudioManager } from './audio/audio-manager';
+import { EnhancementProviderError, isRetryableEnhancementError } from './enhancement/llm-client';
 import { MeetingStateMachine } from './meeting/state-machine';
 import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
@@ -209,9 +210,26 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
       throw new Error('Invalid meeting enhancement payload.');
     }
 
-    return services.enhancementOrchestrator.enhanceMeeting(
-      (payload as EnhanceMeetingRequest).meetingId
-    );
+    const meetingId = (payload as EnhanceMeetingRequest).meetingId;
+
+    try {
+      const response = await services.enhancementOrchestrator.enhanceMeeting(meetingId);
+      emitMeetingState(context.window, {
+        state: services.stateMachine.getSnapshot().state,
+        meetingId
+      });
+      return response;
+    } catch (error) {
+      const snapshot = services.stateMachine.getSnapshot();
+      if (snapshot.state === 'enhance_failed' && snapshot.meetingId === meetingId) {
+        emitMeetingState(context.window, {
+          state: snapshot.state,
+          meetingId
+        });
+      }
+      emitEnhancementError(context.window, error);
+      throw error;
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, async () => {
@@ -280,6 +298,24 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
 
 function emitMeetingState(window: BrowserWindow, event: MeetingStateChangedEvent): void {
   window.webContents.send(IPC_CHANNELS.meetingStateChanged, event);
+}
+
+function emitEnhancementError(window: BrowserWindow, error: unknown): void {
+  if (!(error instanceof EnhancementProviderError)) {
+    window.webContents.send(IPC_CHANNELS.errorDisplay, {
+      message: error instanceof Error ? error.message : 'Enhancement failed.'
+    });
+    return;
+  }
+
+  window.webContents.send(IPC_CHANNELS.errorDisplay, {
+    message: error.message,
+    ...(error.code === 'invalid_api_key'
+      ? { action: 'open-settings' as const }
+      : isRetryableEnhancementError(error)
+        ? { action: 'retry' as const }
+        : {})
+  });
 }
 
 function parseMeetingStart(payload: unknown): MeetingStartRequest {

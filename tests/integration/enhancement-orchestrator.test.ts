@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EnhancementOrchestrator } from '../../src/main/enhancement/enhancement-orchestrator';
+import type { LlmClient } from '../../src/main/enhancement/llm-client';
+import { EnhancementProviderError } from '../../src/main/enhancement/llm-client';
 import { MockLlmClient } from '../../src/main/enhancement/mock-llm-client';
 import { MeetingStateMachine } from '../../src/main/meeting/state-machine';
 import { createStorageDatabase } from '../../src/main/storage/db';
@@ -23,7 +25,10 @@ afterEach(() => {
   }
 });
 
-function createHarness() {
+function createHarness(options?: {
+  getLlmClient?: () => LlmClient;
+  sleep?: (ms: number) => Promise<void>;
+}) {
   const dir = mkdtempSync(join(tmpdir(), 'scribejam-enhancement-'));
   tempDirs.push(dir);
   const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
@@ -39,7 +44,11 @@ function createHarness() {
     meetingRecords,
     artifacts,
     enhancedOutputs,
-    () => new MockLlmClient()
+    options?.getLlmClient ?? (() => new MockLlmClient()),
+    {
+      retryDelayMs: 1,
+      sleep: options?.sleep ?? (async () => {})
+    }
   );
 
   return {
@@ -141,6 +150,83 @@ describe('EnhancementOrchestrator', () => {
     expect(response.output.blocks[0]?.content).toContain(
       'I wanna be the very best. The best there ever was.'
     );
+
+    harness.db.close();
+  });
+
+  it('retries once for retryable enhancement failures before succeeding', async () => {
+    let attempts = 0;
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new EnhancementProviderError('rate_limited', 'Rate limited.', {
+              provider: 'openai'
+            });
+          }
+
+          return {
+            blocks: [{ source: 'ai', content: 'Recovered after retry' }],
+            actionItems: [],
+            decisions: [],
+            summary: 'Recovered'
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Retry sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    const response = await harness.orchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    expect(attempts).toBe(2);
+    expect(response.output.summary).toBe('Recovered');
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
+
+  it('marks the meeting as enhance_failed after terminal provider failure and keeps artifacts', async () => {
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async () => {
+          throw new EnhancementProviderError('invalid_api_key', 'Invalid OpenAI key.', {
+            provider: 'openai'
+          });
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Failure sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    harness.notes.save({
+      id: `${started.meetingId}-note`,
+      meetingId: started.meetingId ?? '',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Keep these notes"}]}]}',
+      updatedAt: '2026-03-13T00:05:00.000Z'
+    });
+    harness.transcript.append({
+      meetingId: started.meetingId ?? '',
+      speaker: 'them',
+      text: 'Keep this transcript context.',
+      startTs: 12,
+      endTs: 12,
+      isFinal: true
+    });
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    await expect(harness.orchestrator.enhanceMeeting(started.meetingId ?? '')).rejects.toMatchObject({
+      code: 'invalid_api_key'
+    });
+
+    const meeting = harness.meetingRecords.getMeeting(started.meetingId ?? '');
+    expect(meeting?.state).toBe('enhance_failed');
+    expect(meeting?.noteContent?.content).toBeDefined();
+    expect(meeting?.transcriptSegments).toHaveLength(1);
 
     harness.db.close();
   });

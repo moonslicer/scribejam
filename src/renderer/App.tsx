@@ -167,9 +167,14 @@ export default function App(): JSX.Element {
         }
 
         setMeetingState('enhancing');
-        const response = await api.enhanceMeeting({ meetingId });
-        setEnhancedOutput(response.output);
-        setMeetingState('done');
+        try {
+          const response = await api.enhanceMeeting({ meetingId });
+          setEnhancedOutput(response.output);
+          setMeetingState('done');
+        } catch (error) {
+          setMeetingState('enhance_failed');
+          throw error;
+        }
         return;
       }
       if (meetingState === 'done') {
