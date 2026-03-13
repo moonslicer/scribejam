@@ -53,6 +53,39 @@ export interface JsonObject {
   [key: string]: JsonValue;
 }
 
+export interface EnhancedBlock {
+  source: 'human' | 'ai';
+  content: string;
+}
+
+export interface EnhancedActionItem {
+  owner: string;
+  description: string;
+  due?: string;
+}
+
+export interface EnhancedDecision {
+  description: string;
+  context: string;
+}
+
+export interface EnhancedOutput {
+  blocks: EnhancedBlock[];
+  actionItems: EnhancedActionItem[];
+  decisions: EnhancedDecision[];
+  summary: string;
+}
+
+export interface EnhanceMeetingRequest {
+  meetingId: string;
+}
+
+export interface EnhanceMeetingResponse {
+  meetingId: string;
+  output: EnhancedOutput;
+  completedAt: string;
+}
+
 export interface TranscriptSegment {
   id: number;
   speaker: TranscriptSpeaker;
@@ -230,6 +263,15 @@ export function isNotesSaveRequest(value: unknown): value is NotesSaveRequest {
     candidate.meetingId.length > 0 &&
     isJsonObject(candidate.content)
   );
+}
+
+export function isEnhanceMeetingRequest(value: unknown): value is EnhanceMeetingRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<EnhanceMeetingRequest>;
+  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

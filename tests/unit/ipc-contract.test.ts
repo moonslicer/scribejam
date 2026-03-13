@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isEnhanceMeetingRequest,
   isMeetingGetRequest,
   isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
+  type EnhanceMeetingRequest,
   type SettingsValidateKeyRequest
 } from '../../src/shared/ipc';
 
@@ -26,6 +28,17 @@ describe('ipc contract validators', () => {
     expect(isMeetingGetRequest({ meetingId: 'meeting-1' })).toBe(true);
     expect(isMeetingGetRequest({ meetingId: '' })).toBe(false);
     expect(isMeetingGetRequest({})).toBe(false);
+  });
+
+  it('accepts and rejects meeting enhance payloads', () => {
+    const payload: EnhanceMeetingRequest = {
+      meetingId: 'meeting-1'
+    };
+
+    expect(isEnhanceMeetingRequest(payload)).toBe(true);
+    expect(isEnhanceMeetingRequest({ meetingId: '' })).toBe(false);
+    expect(isEnhanceMeetingRequest({ meetingId: 123 })).toBe(false);
+    expect(isEnhanceMeetingRequest(null)).toBe(false);
   });
 
   it('accepts and rejects note save payloads', () => {
