@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { MeetingState, Settings, TranscriptionStatusEvent } from '../shared/ipc';
+import type { Settings, TranscriptionStatusEvent } from '../shared/ipc';
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
@@ -30,6 +30,7 @@ export default function App(): JSX.Element {
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
   const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
   const applyTranscriptUpdate = useMeetingStore((state) => state.applyTranscriptUpdate);
+  const hydrateMeeting = useMeetingStore((state) => state.hydrateMeeting);
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
   const setNoteContent = useMeetingStore((state) => state.setNoteContent);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
@@ -48,6 +49,30 @@ export default function App(): JSX.Element {
     saveNotes,
     onError: setErrorMessage
   });
+
+  useEffect(() => {
+    if (!api || !meetingId) {
+      return;
+    }
+
+    let cancelled = false;
+    void api
+      .getMeeting({ meetingId })
+      .then((meeting) => {
+        if (!cancelled && meeting) {
+          hydrateMeeting(meeting);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setErrorMessage('Failed to load saved meeting notes.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, hydrateMeeting, meetingId]);
 
   useEffect(() => {
     if (!api) {
@@ -198,7 +223,7 @@ export default function App(): JSX.Element {
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
             content={noteContent}
-            editable={meetingState !== 'enhancing'}
+            editable={meetingState === 'recording' || meetingState === 'stopped'}
             onChange={setNoteContent}
           />
         </div>

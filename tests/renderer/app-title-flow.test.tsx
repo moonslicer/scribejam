@@ -47,6 +47,7 @@ describe('App meeting title flow', () => {
       anthropicApiKeySet: false
     });
     api.startMeeting.mockResolvedValue({ meetingId: 'meeting-1' });
+    api.getMeeting.mockResolvedValue(null);
 
     Object.defineProperty(window, 'scribejam', {
       value: api,
