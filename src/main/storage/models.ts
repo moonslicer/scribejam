@@ -32,8 +32,16 @@ export interface TranscriptSegmentRecord {
   isFinal: boolean;
 }
 
+export interface EnhancedOutputRecord {
+  id: number;
+  meetingId: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface PersistedMeetingArtifacts {
   meeting: MeetingRecord;
   note: NoteRecord | null;
   transcriptSegments: TranscriptSegmentRecord[];
+  enhancedOutput: EnhancedOutputRecord | null;
 }

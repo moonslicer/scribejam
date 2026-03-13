@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import type {
+  EnhancedOutputRecord,
   MeetingRecord,
   NoteRecord,
   PersistedMeetingArtifacts,
@@ -22,6 +23,12 @@ export interface UpdateMeetingStopInput {
   durationMs: number;
 }
 
+export interface UpdateMeetingStateInput {
+  id: string;
+  state: PersistedMeetingState;
+  updatedAt: string;
+}
+
 export interface SaveNotesInput {
   id: string;
   meetingId: string;
@@ -36,6 +43,12 @@ export interface AppendTranscriptSegmentInput {
   startTs: number;
   endTs?: number;
   isFinal: boolean;
+}
+
+export interface SaveEnhancedOutputInput {
+  meetingId: string;
+  content: string;
+  createdAt: string;
 }
 
 interface MeetingRow {
@@ -62,6 +75,13 @@ interface TranscriptSegmentRow {
   start_ts: number;
   end_ts: number | null;
   is_final: number;
+}
+
+interface EnhancedOutputRow {
+  id: number;
+  meeting_id: string;
+  content: string;
+  created_at: string;
 }
 
 export class MeetingsRepository {
@@ -92,6 +112,25 @@ export class MeetingsRepository {
           SET state = @state,
               updated_at = @updatedAt,
               duration_ms = @durationMs
+          WHERE id = @id
+        `
+      )
+      .run(input);
+
+    const meeting = this.getById(input.id);
+    if (!meeting) {
+      throw new Error('Meeting update failed.');
+    }
+    return meeting;
+  }
+
+  public updateState(input: UpdateMeetingStateInput): MeetingRecord {
+    this.db
+      .prepare(
+        `
+          UPDATE meetings
+          SET state = @state,
+              updated_at = @updatedAt
           WHERE id = @id
         `
       )
@@ -207,15 +246,64 @@ export class TranscriptRepository {
   }
 }
 
+export class EnhancedOutputsRepository {
+  public constructor(private readonly db: Database.Database) {}
+
+  public save(input: SaveEnhancedOutputInput): EnhancedOutputRecord {
+    const result = this.db
+      .prepare(
+        `
+          INSERT INTO enhanced_outputs (meeting_id, content, created_at)
+          VALUES (@meetingId, @content, @createdAt)
+        `
+      )
+      .run(input);
+
+    const row = this.db
+      .prepare(
+        `
+          SELECT id, meeting_id, content, created_at
+          FROM enhanced_outputs
+          WHERE id = ?
+        `
+      )
+      .get(result.lastInsertRowid) as EnhancedOutputRow | undefined;
+
+    if (!row) {
+      throw new Error('Enhanced output insert failed.');
+    }
+
+    return mapEnhancedOutputRow(row);
+  }
+
+  public getLatestByMeetingId(meetingId: string): EnhancedOutputRecord | null {
+    const row = this.db
+      .prepare(
+        `
+          SELECT id, meeting_id, content, created_at
+          FROM enhanced_outputs
+          WHERE meeting_id = ?
+          ORDER BY id DESC
+          LIMIT 1
+        `
+      )
+      .get(meetingId) as EnhancedOutputRow | undefined;
+
+    return row ? mapEnhancedOutputRow(row) : null;
+  }
+}
+
 export class MeetingArtifactsRepository {
   private readonly meetings: MeetingsRepository;
   private readonly notes: NotesRepository;
   private readonly transcript: TranscriptRepository;
+  private readonly enhancedOutputs: EnhancedOutputsRepository;
 
   public constructor(private readonly db: Database.Database) {
     this.meetings = new MeetingsRepository(db);
     this.notes = new NotesRepository(db);
     this.transcript = new TranscriptRepository(db);
+    this.enhancedOutputs = new EnhancedOutputsRepository(db);
   }
 
   public getMeetingWithArtifacts(meetingId: string): PersistedMeetingArtifacts | null {
@@ -227,7 +315,8 @@ export class MeetingArtifactsRepository {
     return {
       meeting,
       note: this.notes.getByMeetingId(meetingId),
-      transcriptSegments: this.transcript.listByMeetingId(meetingId)
+      transcriptSegments: this.transcript.listByMeetingId(meetingId),
+      enhancedOutput: this.enhancedOutputs.getLatestByMeetingId(meetingId)
     };
   }
 }
@@ -261,5 +350,14 @@ function mapTranscriptSegmentRow(row: TranscriptSegmentRow): TranscriptSegmentRe
     startTs: row.start_ts,
     endTs: row.end_ts,
     isFinal: row.is_final === 1
+  };
+}
+
+function mapEnhancedOutputRow(row: EnhancedOutputRow): EnhancedOutputRecord {
+  return {
+    id: row.id,
+    meetingId: row.meeting_id,
+    content: row.content,
+    createdAt: row.created_at
   };
 }

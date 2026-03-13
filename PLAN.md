@@ -692,6 +692,212 @@ The original M4 enhancement scope was too broad for one milestone, so it is spli
    - `action_items`, `decisions`, and `summary` render as appended AI-authored sections
 - **Testing (M4)**: Unit tests for schema/repository changes and `EnhancedOutput` JSON→Tiptap doc transform. Integration test: full enhance flow with a mocked enhancement service.
 
+#### M4 Delivery Breakdown (Junior-Friendly)
+
+Goal: prove the first end-to-end enhancement loop without taking on real provider complexity yet. A stopped meeting with saved notes and transcript should be enhancable through a typed main-process flow, the result should persist locally, and the editor should render human and AI authorship distinctly.
+
+##### Task 1: Define the M4 enhancement contract in shared types
+- **Why this task exists**: Before wiring UI or storage, we need one explicit shape for what enhancement produces and how renderer and main agree on requests/responses.
+- **How it fits the larger picture**: This becomes the stable seam that M5 provider integrations and M6 UX improvements build on without reworking the renderer contract.
+- **Implementation**:
+  - Add `EnhancedOutput` shared types
+  - Add `EnhanceMeetingRequest` and `EnhanceMeetingResponse`
+  - Define the persisted enhancement record shape used by main/storage
+  - Extend the hydrated meeting payload only as much as needed to surface the latest enhancement
+- **Acceptance focus**:
+  - Enhancement payloads are typed centrally rather than inferred ad hoc
+  - Renderer and main agree on one enhancement response shape
+- **Verification**:
+  - Unit tests for enhancement payload guards/validation if runtime guards are added
+  - Update IPC contract tests to cover the new channel/types
+
+##### Task 2: Add enhancement storage schema and repository methods
+- **Why this task exists**: M4 requires local persistence of enhancement output, and persistence should stay behind explicit repositories instead of spreading SQL into orchestration code.
+- **How it fits the larger picture**: This gives M4 durable enhancement artifacts and later supports M7 meeting history without changing the enhancement contract.
+- **Implementation**:
+  - Add an `enhanced_outputs` table to SQLite
+  - Store the structured `EnhancedOutput` JSON, creation timestamp, and meeting linkage
+  - Add repository methods to save the latest enhancement and fetch enhancement records for a meeting
+  - Keep existing notes and transcript tables unchanged except where a migration/version bump is required
+- **Acceptance focus**:
+  - Enhancement output is stored locally and linked to a meeting
+  - Schema changes do not persist raw audio or broaden stored data beyond meeting artifacts
+- **Verification**:
+  - Unit test that database migration creates the enhancement table cleanly
+  - Unit test that an enhancement record can be saved and fetched by meeting id
+  - Unit test that reopening an upgraded database preserves prior meeting/note/transcript data
+
+##### Task 3: Add meeting-state persistence helpers for the enhancement lifecycle
+- **Why this task exists**: The in-memory state machine already knows about `enhancing` and `done`, but M4 needs those transitions reflected in stored meeting records too.
+- **How it fits the larger picture**: This keeps lifecycle state authoritative and durable, which M6 retry/failure UX will rely on later.
+- **Implementation**:
+  - Add repository/service methods to update meeting state outside the stop transition
+  - Persist `enhancing` when an enhancement begins
+  - Persist `done` when enhancement completes successfully
+  - Keep the transition rules owned by the existing state machine
+- **Acceptance focus**:
+  - Stored meeting state matches the authoritative lifecycle after enhancement starts/completes
+  - Lifecycle persistence remains centralized in main-process services
+- **Verification**:
+  - Unit test that meeting state updates from `stopped` to `enhancing`
+  - Unit test that successful completion updates state to `done`
+
+##### Task 4: Build a deterministic mock enhancement service in the main process
+- **Why this task exists**: We need to prove the enhancement loop now without coupling M4 to real OpenAI work, timeouts, or key management.
+- **How it fits the larger picture**: This creates the provider abstraction seam that M5 can swap behind without changing the renderer or storage format.
+- **Implementation**:
+  - Add a small enhancement service module in main
+  - Read saved note content and transcript for a meeting
+  - Produce deterministic `EnhancedOutput` based on those artifacts
+  - Keep provider-specific logic out of renderer-facing code
+- **Acceptance focus**:
+  - Enhancement runs entirely from persisted artifacts
+  - The service is deterministic enough for repeatable tests
+- **Verification**:
+  - Unit test that the mock service returns the expected output for a fixed note/transcript fixture
+  - Unit test that it handles empty or sparse notes without crashing
+
+##### Task 5: Add the main-process enhancement orchestration flow
+- **Why this task exists**: M4 needs one place where the enhancement request is validated, the state machine is advanced, persisted artifacts are read, the enhancer runs, and the result is stored.
+- **How it fits the larger picture**: This becomes the core enhancement pipeline that M5 and M6 can extend with real providers, retries, and progress events.
+- **Implementation**:
+  - Add `meeting:enhance` IPC handling in main
+  - Validate the request and require a stopped meeting before enhancement begins
+  - Advance the state machine to `enhancing`
+  - Call the mock enhancement service
+  - Persist the resulting `EnhancedOutput`
+  - Complete the state machine to `done`
+  - Return the persisted enhancement payload to the renderer
+- **Acceptance focus**:
+  - Enhancement flow stays in main process
+  - Invalid lifecycle transitions fail fast and do not corrupt persisted state
+- **Verification**:
+  - Integration test that a stopped meeting can be enhanced end-to-end through the handler
+  - Integration test that enhancement is rejected for an invalid state such as `recording`
+
+##### Task 6: Expose the enhancement IPC surface through preload only
+- **Why this task exists**: The renderer needs a typed way to trigger enhancement, but AGENTS requires minimal, explicit `contextBridge` APIs instead of broad renderer access.
+- **How it fits the larger picture**: This preserves the process boundary as enhancement functionality expands in later milestones.
+- **Implementation**:
+  - Add the `meeting:enhance` channel constant
+  - Expose an `enhanceMeeting()` preload API
+  - Keep the renderer limited to typed request/response calls
+- **Acceptance focus**:
+  - Renderer can trigger enhancement without direct access to storage or main-process internals
+  - The new IPC surface is minimal and typed
+- **Verification**:
+  - Update preload/IPC contract tests to cover the exposed enhancement API
+
+##### Task 7: Build a pure `EnhancedOutput` to Tiptap document transformer
+- **Why this task exists**: The enhancement result needs to render in the existing editor, and that conversion should be deterministic and testable outside the UI.
+- **How it fits the larger picture**: This isolates authorship rendering semantics now and gives M6 a clear place to evolve edit-to-human transitions later.
+- **Implementation**:
+  - Add a renderer utility that transforms `EnhancedOutput` into Tiptap `JSONContent`
+  - Render `blocks` in order
+  - Leave `source: 'human'` content unmarked
+  - Add the `authorship` mark for `source: 'ai'`
+  - Append summary, action items, and decisions as AI-authored sections
+- **Acceptance focus**:
+  - Human and AI content remain visually distinct
+  - Transformation logic is pure and independent from React component lifecycle
+- **Verification**:
+  - Unit test that human blocks render without the authorship mark
+  - Unit test that AI blocks receive the authorship mark
+  - Unit test that summary/action items/decisions append in the expected order
+
+##### Task 8: Decide and implement the renderer source-of-truth for enhanced content
+- **Why this task exists**: Once enhancement completes, the app needs a clear rule for what the editor shows and what remains the durable raw note anchor.
+- **How it fits the larger picture**: This prevents M4 from muddying the distinction between original user notes and AI-generated augmentation, which is central to the product philosophy.
+- **Implementation**:
+  - Keep the original user note JSON persisted in `notes`
+  - Treat `EnhancedOutput` as a separate persisted artifact
+  - When a meeting with an enhancement is loaded, derive the displayed editor document from the saved enhancement output
+  - Fall back to raw notes when no enhancement exists yet
+- **Acceptance focus**:
+  - Original user notes remain durable and recoverable
+  - Enhanced rendering does not overwrite the raw note artifact behind the scenes
+- **Verification**:
+  - Unit/integration test that a meeting without enhancement hydrates raw notes
+  - Unit/integration test that a meeting with enhancement hydrates the derived enhanced document
+
+##### Task 9: Add the first renderer enhancement action
+- **Why this task exists**: M4 needs a visible user path from a stopped meeting to enhancement; without it, the main-process work is unreachable.
+- **How it fits the larger picture**: This is the first user-facing enhancement loop that M6 will later refine with progress and retry states.
+- **Implementation**:
+  - Change the stopped-state primary action from “start new recording” to “enhance notes”
+  - Invoke the new preload enhancement API when the active meeting is stopped
+  - After success, update renderer state so the editor shows the enhanced result
+  - Keep enhancement non-editable or minimally editable if that is the safer M4 choice
+- **Acceptance focus**:
+  - The user can trigger enhancement from the stopped state
+  - Successful enhancement updates the workspace without starting a new recording
+- **Verification**:
+  - Renderer test that the stopped-state CTA triggers `enhanceMeeting`
+  - Renderer test that successful enhancement causes AI-styled content to appear
+
+##### Task 10: Add meeting hydration support for persisted enhancement results
+- **Why this task exists**: M4 is not complete if enhanced output only appears immediately after a run and disappears on reload.
+- **How it fits the larger picture**: This closes the persistence loop for enhancement the same way M3 closed it for notes and transcript.
+- **Implementation**:
+  - Extend meeting fetch/hydration to include the latest saved enhancement artifact
+  - On load, derive the editor document from enhancement when present
+  - Preserve transcript hydration alongside the enhanced note view
+- **Acceptance focus**:
+  - Enhanced meetings survive reload/reopen
+  - Transcript and original meeting metadata still hydrate correctly
+- **Verification**:
+  - Renderer/integration test that a persisted enhancement reloads into the editor after app hydration
+
+##### Task 11: Tighten M4 verification and manual smoke flow
+- **Why this task exists**: M4 crosses typed contracts, persistence, lifecycle, and renderer rendering, so it needs one explicit verification pass before M5 builds on top.
+- **How it fits the larger picture**: This reduces risk before real provider work adds network and secret-management complexity.
+- **Implementation**:
+  - Fill any remaining gaps in repository, transformer, and renderer tests
+  - Run typecheck and full test suite
+  - Execute a short manual stopped-meeting-to-enhanced-meeting flow
+- **Acceptance focus**:
+  - M4 acceptance criteria have direct evidence
+  - The enhancement foundation is stable enough for provider-backed work
+- **Verification**:
+  - Manual smoke flow:
+    - start a meeting
+    - type a few notes
+    - allow transcript entries to persist
+    - stop the meeting
+    - click enhance
+    - confirm AI-authored content renders gray and human anchors remain black
+    - reload app and confirm the enhanced view persists
+
+#### Suggested Build Order
+1. Task 1: Define the M4 enhancement contract in shared types
+2. Task 2: Add enhancement storage schema and repository methods
+3. Task 3: Add meeting-state persistence helpers for the enhancement lifecycle
+4. Task 4: Build a deterministic mock enhancement service in the main process
+5. Task 5: Add the main-process enhancement orchestration flow
+6. Task 6: Expose the enhancement IPC surface through preload only
+7. Task 7: Build a pure `EnhancedOutput` to Tiptap document transformer
+8. Task 8: Decide and implement the renderer source-of-truth for enhanced content
+9. Task 9: Add the first renderer enhancement action
+10. Task 10: Add meeting hydration support for persisted enhancement results
+11. Task 11: Tighten M4 verification and manual smoke flow
+
+#### Step-Back Review: How This Plan Matches M4
+- **M4.1 Shared enhancement contract** is covered by Tasks 1 and 6
+- **M4.2 Enhancement persistence and lifecycle storage** is covered by Tasks 2 and 3
+- **M4.3 Mock enhancement service** is covered by Task 4
+- **M4.4 First Enhance Notes flow** is covered by Tasks 5, 6, and 9
+- **M4.5 Authorship-aware rendering in the editor** is covered by Tasks 7, 8, 9, and 10
+- **M4 testing expectations** are covered by Tasks 2, 4, 5, 7, 9, 10, and 11
+
+This plan intentionally stays inside M4 scope:
+- It does not add real OpenAI enhancement yet; that remains M5 scope
+- It does not add progress streaming, retry UX, or edit-to-human authorship flipping yet; that remains M6 scope
+- It preserves the AGENTS invariants by keeping raw audio in-memory only, keeping enhancement orchestration in the main process, and maintaining explicit human/AI visual distinction
+
+Implementation notes:
+- Keep the mock enhancement service deterministic and fixture-friendly. M4 is about proving the contract and persistence loop, not about prompt quality.
+- Prefer storing `EnhancedOutput` separately from raw notes rather than overwriting the `notes` record. That keeps human notes as the anchor and makes the system easier to debug.
+
 ### M5: OpenAI-Backed Enhancement
 1. Build the note-transcript merge prompt as a pure module
 2. Implement `llm-client.ts` as a small enhancement client interface owned by the main process

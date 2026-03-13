@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 export interface StorageDatabaseOptions {
   dbPath?: string;
@@ -63,6 +63,20 @@ export function migrate(db: Database.Database): void {
 
         CREATE INDEX IF NOT EXISTS idx_transcript_segments_meeting_id
           ON transcript_segments (meeting_id, id);
+      `);
+    }
+
+    if (currentVersion < 2) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS enhanced_outputs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_enhanced_outputs_meeting_id
+          ON enhanced_outputs (meeting_id, id DESC);
       `);
     }
 
