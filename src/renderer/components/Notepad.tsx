@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JsonObject } from '../../shared/ipc';
@@ -20,6 +20,12 @@ interface NotepadProps {
 }
 
 export function Notepad({ content, editable, onChange }: NotepadProps): JSX.Element {
+  const editableRef = useRef(editable);
+
+  useEffect(() => {
+    editableRef.current = editable;
+  }, [editable]);
+
   const editor = useEditor({
     extensions: [StarterKit, AuthorshipMark],
     content: content ?? EMPTY_NOTE_DOCUMENT,
@@ -32,6 +38,9 @@ export function Notepad({ content, editable, onChange }: NotepadProps): JSX.Elem
     },
     editable,
     onUpdate: ({ editor: currentEditor }) => {
+      if (!editableRef.current) {
+        return;
+      }
       onChange(currentEditor.getJSON() as JsonObject);
     }
   });

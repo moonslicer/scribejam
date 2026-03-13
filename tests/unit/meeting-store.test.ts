@@ -130,4 +130,53 @@ describe('meeting store', () => {
       type: 'doc'
     });
   });
+
+  it('restores raw notes into the editor when enhancement view is dismissed', () => {
+    const store = createMeetingStore();
+
+    store.getState().hydrateMeeting({
+      id: 'meeting-1',
+      title: 'Design review',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z',
+      durationMs: 1500000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Raw note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Raw note'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Summary'
+      },
+      transcriptSegments: []
+    });
+
+    store.getState().resumeEditingNotes();
+
+    expect(store.getState().enhancedOutput).toBeNull();
+    expect(store.getState().editorContent).toEqual(store.getState().noteContent);
+    expect(store.getState().editorInstanceKey).toBe(1);
+  });
 });

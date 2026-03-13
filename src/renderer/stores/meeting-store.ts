@@ -19,6 +19,7 @@ export interface MeetingStoreState {
   noteContent: JsonObject | null;
   editorContent: JsonObject | null;
   enhancedOutput: EnhancedOutput | null;
+  editorInstanceKey: number;
   noteSaveState: NoteSaveState;
 }
 
@@ -30,11 +31,20 @@ export interface MeetingStoreActions {
   applyTranscriptUpdate: (event: TranscriptUpdateEvent) => void;
   setNoteContent: (content: JsonObject | null) => void;
   setEnhancedOutput: (output: EnhancedOutput | null) => void;
+  resumeEditingNotes: () => void;
   setNoteSaveState: (state: NoteSaveState) => void;
   hydrateMeeting: (meeting: MeetingDetails) => void;
 }
 
 export type MeetingStore = MeetingStoreState & MeetingStoreActions;
+
+function cloneJsonObject<T extends JsonObject | null>(value: T): T {
+  if (value === null) {
+    return value;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 export const createMeetingStore = () =>
   create<MeetingStore>((set) => ({
@@ -45,6 +55,7 @@ export const createMeetingStore = () =>
     noteContent: null,
     editorContent: null,
     enhancedOutput: null,
+    editorInstanceKey: 0,
     noteSaveState: 'idle',
     setMeetingState: (meetingState) => set({ meetingState }),
     setMeetingId: (meetingId) => set({ meetingId }),
@@ -63,15 +74,23 @@ export const createMeetingStore = () =>
         }
 
         return {
-          noteContent,
-          editorContent: noteContent,
+          noteContent: cloneJsonObject(noteContent),
+          editorContent: cloneJsonObject(noteContent),
           noteSaveState: noteContent ? 'dirty' : 'idle'
         };
       }),
     setEnhancedOutput: (enhancedOutput) =>
       set((state) => ({
         enhancedOutput,
-        editorContent: enhancedOutput ? enhancedOutputToDoc(enhancedOutput) : state.noteContent
+        editorContent: enhancedOutput
+          ? enhancedOutputToDoc(enhancedOutput)
+          : cloneJsonObject(state.noteContent)
+      })),
+    resumeEditingNotes: () =>
+      set((state) => ({
+        enhancedOutput: null,
+        editorContent: cloneJsonObject(state.noteContent),
+        editorInstanceKey: state.editorInstanceKey + 1
       })),
     setNoteSaveState: (noteSaveState) => set({ noteSaveState }),
     hydrateMeeting: (meeting) =>
@@ -79,11 +98,11 @@ export const createMeetingStore = () =>
         meetingState: meeting.state,
         meetingId: meeting.id,
         meetingTitle: meeting.title,
-        noteContent: meeting.noteContent,
+        noteContent: cloneJsonObject(meeting.noteContent),
         enhancedOutput: meeting.enhancedOutput,
         editorContent: meeting.enhancedOutput
           ? enhancedOutputToDoc(meeting.enhancedOutput)
-          : meeting.noteContent,
+          : cloneJsonObject(meeting.noteContent),
         transcriptEntries: meeting.transcriptSegments.map((segment) => ({
           id: String(segment.id),
           ts: segment.startTs,
@@ -91,6 +110,7 @@ export const createMeetingStore = () =>
           speaker: segment.speaker,
           isFinal: segment.isFinal
         })),
+        editorInstanceKey: 0,
         noteSaveState: meeting.noteContent ? 'saved' : 'idle'
       })
   }));

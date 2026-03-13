@@ -35,6 +35,8 @@ export default function App(): JSX.Element {
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
   const setNoteContent = useMeetingStore((state) => state.setNoteContent);
   const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
+  const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
+  const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
 
   useMicCapture({
@@ -163,11 +165,31 @@ export default function App(): JSX.Element {
         setMeetingState('done');
         return;
       }
+      if (meetingState === 'done') {
+        if (!api) {
+          setErrorMessage('Desktop bridge unavailable.');
+          return;
+        }
+        if (!meetingId) {
+          setErrorMessage('No completed meeting id found.');
+          return;
+        }
+
+        const response = await api.startMeeting({
+          title: meetingTitle.trim(),
+          meetingId
+        });
+        setMeetingTitle(response.title);
+        setMeetingId(response.meetingId);
+        resumeEditingNotes();
+        setMeetingState('recording');
+        return;
+      }
       if (setupRequired) {
         setErrorMessage('Complete first-run setup to enable cloud transcription.');
         return;
       }
-      if (meetingState === 'enhancing' || meetingState === 'enhance_failed' || meetingState === 'done') {
+      if (meetingState === 'enhancing' || meetingState === 'enhance_failed') {
         setErrorMessage('This meeting is not ready for another action yet.');
         return;
       }
@@ -246,6 +268,7 @@ export default function App(): JSX.Element {
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
+            key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
             content={editorContent}
             editable={meetingState === 'recording' || meetingState === 'stopped'}
             onChange={setNoteContent}

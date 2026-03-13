@@ -14,7 +14,7 @@ const labels: Record<MeetingState, string> = {
   stopped: 'Enhance Notes',
   enhancing: 'Enhancing Notes',
   enhance_failed: 'Enhancement Failed',
-  done: 'Start New Meeting'
+  done: 'Resume Recording'
 };
 
 const statusTone: Record<MeetingState, string> = {

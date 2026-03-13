@@ -125,7 +125,10 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
 
   ipcMain.handle(IPC_CHANNELS.meetingStart, async (_event, payload: unknown) => {
     const validated = parseMeetingStart(payload);
-    const snapshot = services.stateMachine.start(validated.title);
+    const snapshot =
+      validated.meetingId !== undefined
+        ? services.stateMachine.resume(validated.meetingId)
+        : services.stateMachine.start(validated.title);
     if (!snapshot.meetingId) {
       throw new Error('Failed to create meeting id.');
     }
@@ -143,7 +146,11 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
         action: 'open-settings'
       });
     }
-    services.meetingRecordsService.recordMeetingStarted(snapshot);
+    if (validated.meetingId !== undefined) {
+      services.meetingRecordsService.recordMeetingResumed(snapshot);
+    } else {
+      services.meetingRecordsService.recordMeetingStarted(snapshot);
+    }
     emitMeetingState(context.window, {
       state: snapshot.state,
       meetingId: snapshot.meetingId
@@ -265,7 +272,13 @@ function parseMeetingStart(payload: unknown): MeetingStartRequest {
   if (typeof candidate.title !== 'string') {
     throw new Error('Meeting title is required.');
   }
-  return { title: candidate.title };
+  if (candidate.meetingId !== undefined && (typeof candidate.meetingId !== 'string' || candidate.meetingId.length === 0)) {
+    throw new Error('Meeting id must be a non-empty string when provided.');
+  }
+  return {
+    title: candidate.title,
+    ...(candidate.meetingId !== undefined ? { meetingId: candidate.meetingId } : {})
+  };
 }
 
 function parseMeetingStop(payload: unknown): string {

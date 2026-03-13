@@ -30,11 +30,31 @@ export class MeetingRecordsService {
       throw new Error('Meeting snapshot is missing stop metadata.');
     }
 
+    const existing = this.meetings.getById(snapshot.meetingId);
+    if (!existing) {
+      throw new Error('Cannot stop a meeting that has not been persisted.');
+    }
+
+    const priorDurationMs = existing.durationMs ?? 0;
+    const segmentDurationMs = Math.max(0, snapshot.stoppedAt - snapshot.startedAt);
+
     this.meetings.updateStopped({
       id: snapshot.meetingId,
       state: snapshot.state,
       updatedAt: new Date(snapshot.stoppedAt).toISOString(),
-      durationMs: Math.max(0, snapshot.stoppedAt - snapshot.startedAt)
+      durationMs: priorDurationMs + segmentDurationMs
+    });
+  }
+
+  public recordMeetingResumed(snapshot: MeetingSnapshot): void {
+    if (!snapshot.meetingId || !snapshot.startedAt) {
+      throw new Error('Meeting snapshot is missing resume metadata.');
+    }
+
+    this.meetings.updateState({
+      id: snapshot.meetingId,
+      state: snapshot.state,
+      updatedAt: new Date(snapshot.startedAt).toISOString()
     });
   }
 

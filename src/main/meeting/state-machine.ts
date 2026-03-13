@@ -41,6 +41,27 @@ export class MeetingStateMachine {
     return this.getSnapshot();
   }
 
+  public resume(meetingId: string): MeetingSnapshot {
+    if (
+      (this.snapshot.state !== 'stopped' && this.snapshot.state !== 'done') ||
+      this.snapshot.meetingId !== meetingId
+    ) {
+      throw new Error('Cannot resume meeting from current state.');
+    }
+    if (!this.snapshot.title) {
+      throw new Error('Cannot resume meeting without a title.');
+    }
+
+    this.snapshot = {
+      state: 'recording',
+      meetingId: this.snapshot.meetingId,
+      title: this.snapshot.title,
+      startedAt: Date.now()
+    };
+
+    return this.getSnapshot();
+  }
+
   public stop(meetingId: string): MeetingSnapshot {
     if (this.snapshot.state !== 'recording' || this.snapshot.meetingId !== meetingId) {
       throw new Error('Cannot stop meeting from current state.');

@@ -50,6 +50,7 @@ describe('App enhancement flow', () => {
       noteContent: null,
       editorContent: null,
       enhancedOutput: null,
+      editorInstanceKey: 0,
       noteSaveState: 'idle'
     });
 
@@ -121,6 +122,10 @@ describe('App enhancement flow', () => {
         summary: 'Quick summary'
       }
     });
+    api.startMeeting.mockResolvedValue({
+      meetingId: 'meeting-1',
+      title: 'Weekly sync'
+    });
 
     Object.defineProperty(window, 'scribejam', {
       value: api,
@@ -153,5 +158,71 @@ describe('App enhancement flow', () => {
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
+  });
+
+  it('resumes the same meeting from done state and restores raw notes for editing', async () => {
+    const user = userEvent.setup();
+    api.getMeeting.mockResolvedValue({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Follow up with design'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Follow up with design'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      transcriptSegments: []
+    });
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(await screen.findByText('AI expansion')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('meeting-primary-action'));
+
+    await waitFor(() =>
+      expect(api.startMeeting).toHaveBeenCalledWith({
+        title: 'Weekly sync',
+        meetingId: 'meeting-1'
+      })
+    );
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('recording');
+    await waitFor(() => expect(screen.queryByText('AI expansion')).not.toBeInTheDocument());
+    expect(screen.getByText('Follow up with design')).toBeInTheDocument();
   });
 });

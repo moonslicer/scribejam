@@ -33,6 +33,7 @@ export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconne
 
 export interface MeetingStartRequest {
   title: string;
+  meetingId?: string;
 }
 
 export interface MeetingStartResponse {
