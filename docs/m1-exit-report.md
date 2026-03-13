@@ -19,7 +19,7 @@ Evidence:
 
 2. Set up Vite for renderer bundling, TailwindCSS  
 Evidence:
-- `vite.config.ts`
+- `vite.config.mts`
 - `tailwind.config.ts`
 - `postcss.config.cjs`
 - renderer builds successfully via `npm run build`
@@ -83,7 +83,7 @@ Evidence:
 - smoke suite:
   - `tests/smoke/app-launch.spec.ts`
 - tooling:
-  - `vitest.config.ts`
+- `vitest.config.mts`
   - `playwright.config.ts`
   - scripts in `package.json`
 

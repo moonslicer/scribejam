@@ -90,4 +90,31 @@ describe('DeterministicMixer', () => {
 
     expect(drops).toEqual(['mic']);
   });
+
+  it('drains buffered backlog across multiple mixed frames when cadence falls behind', () => {
+    const mixedSeqs: number[] = [];
+    const mixer = new DeterministicMixer({
+      sampleRateHz: 16_000,
+      frameSizeMs: 20,
+      mixCadenceMs: 100,
+      maxBufferedFramesPerSource: 20,
+      events: {
+        onMixedFrame: (frame) => {
+          mixedSeqs.push(frame.seq);
+        },
+        onDrop: () => {
+          // no-op
+        }
+      }
+    });
+
+    for (let i = 0; i < 10; i += 1) {
+      mixer.ingest(makeFrame('mic', i, 1_000));
+    }
+
+    mixer.tick(1_000);
+
+    expect(mixedSeqs).toEqual([0, 1]);
+    expect(mixer.getBufferDepths()).toEqual({ mic: 0, system: 0 });
+  });
 });

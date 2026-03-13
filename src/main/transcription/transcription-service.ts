@@ -25,6 +25,8 @@ export class TranscriptionService {
   private running = false;
   private lastMicFrameTs = -1;
   private lastSystemFrameTs = -1;
+  private lastSpeakerHint: 'you' | 'them' | null = null;
+  private activeUtteranceSpeaker: 'you' | 'them' | null = null;
 
   public constructor(options: TranscriptionServiceOptions) {
     this.sttAdapter = options.sttAdapter;
@@ -40,6 +42,7 @@ export class TranscriptionService {
           if (!this.running) {
             return;
           }
+          this.updateSpeakerHint(frame.activeSources);
           void this.sttAdapter.sendAudio(frame.frames).catch(() => {
             this.events.onStatus({
               status: 'paused',
@@ -56,9 +59,10 @@ export class TranscriptionService {
     });
 
     this.sttAdapter.onTranscript((event) => {
+      const speaker = this.resolveSpeaker(event.isFinal);
       this.events.onTranscript({
         text: event.text,
-        speaker: this.lastMicFrameTs >= this.lastSystemFrameTs ? 'you' : 'them',
+        speaker,
         ts: event.ts,
         isFinal: event.isFinal
       });
@@ -76,6 +80,8 @@ export class TranscriptionService {
 
     this.lastMicFrameTs = -1;
     this.lastSystemFrameTs = -1;
+    this.lastSpeakerHint = null;
+    this.activeUtteranceSpeaker = null;
     this.events.onStatus({ status: 'connecting' });
 
     try {
@@ -99,6 +105,8 @@ export class TranscriptionService {
   public async stop(): Promise<void> {
     this.running = false;
     this.mixer.reset();
+    this.lastSpeakerHint = null;
+    this.activeUtteranceSpeaker = null;
     await this.sttAdapter.stop();
     this.events.onStatus({ status: 'idle' });
   }
@@ -123,6 +131,34 @@ export class TranscriptionService {
 
   public simulateDisconnect(): void {
     this.sttAdapter.simulateDisconnect?.();
+  }
+
+  private updateSpeakerHint(activeSources: { mic: boolean; system: boolean }): void {
+    if (activeSources.mic && !activeSources.system) {
+      this.lastSpeakerHint = 'you';
+      return;
+    }
+
+    if (activeSources.system && !activeSources.mic) {
+      this.lastSpeakerHint = 'them';
+    }
+  }
+
+  private resolveSpeaker(isFinal: boolean): 'you' | 'them' {
+    if (this.activeUtteranceSpeaker === null) {
+      this.activeUtteranceSpeaker = this.lastSpeakerHint ?? this.resolveSpeakerFromRecentFrames();
+    }
+
+    const speaker = this.activeUtteranceSpeaker;
+    if (isFinal) {
+      this.activeUtteranceSpeaker = null;
+    }
+
+    return speaker;
+  }
+
+  private resolveSpeakerFromRecentFrames(): 'you' | 'them' {
+    return this.lastMicFrameTs >= this.lastSystemFrameTs ? 'you' : 'them';
   }
 
   private onConnectionEvent(event: SttConnectionEvent): void {

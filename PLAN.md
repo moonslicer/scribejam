@@ -431,7 +431,7 @@ scribejam/
 **M2 implementation decisions (as-built):**
 - Deepgram reconnect policy uses bounded retries with exponential backoff (max 3 attempts, base 500ms) and explicit renderer status events.
 - Frame defaults use M0-selected CFG-B values: 16kHz PCM16 mono, 20ms frame size, 100ms mix cadence, 250-frame bounded source buffers.
-- Binary `you/them` speaker labels are derived from recent source activity timestamps (heuristic), not full diarization.
+- Binary `you/them` speaker labels use recent single-source activity as a heuristic and keep attribution stable for an utterance across interim/final updates; full diarization is still out of scope.
 - Renderer transcript handling coalesces live partial updates into one active line per speaker and only appends finalized segments.
 - Transcript panel includes one-click full-text copy for fast handoff/sharing.
 - First-run wizard is mandatory for cloud transcription activation; if bypassed at IPC level, transcription remains paused and meeting controls stay stable.

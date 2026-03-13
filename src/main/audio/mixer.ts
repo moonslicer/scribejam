@@ -28,6 +28,7 @@ export class DeterministicMixer {
   private readonly cadenceMs: number;
   private readonly events: MixerEvents;
   private nextMixedSeq = 0;
+  private nextTickTs: number | null = null;
   private timer: NodeJS.Timeout | null = null;
 
   public constructor(options: DeterministicMixerOptions) {
@@ -45,6 +46,7 @@ export class DeterministicMixer {
       return;
     }
 
+    this.nextTickTs = Date.now() + this.cadenceMs;
     this.timer = setInterval(() => {
       this.tick();
     }, this.cadenceMs);
@@ -64,6 +66,7 @@ export class DeterministicMixer {
     this.micFrames.clear();
     this.systemFrames.clear();
     this.nextMixedSeq = 0;
+    this.nextTickTs = null;
   }
 
   public ingest(frame: SourceAudioFrame): void {
@@ -82,29 +85,18 @@ export class DeterministicMixer {
   }
 
   public tick(now = Date.now()): MixedAudioFrame {
-    const micChunk = this.takeChunk(this.micFrames);
-    const systemChunk = this.takeChunk(this.systemFrames);
-    const mixedSamples = new Int16Array(this.outputFrameSamples);
+    const scheduledTs = this.nextTickTs ?? now;
+    const maxBufferedFrames = Math.max(this.micFrames.size, this.systemFrames.size);
+    const bufferedIntervals = Math.max(1, Math.ceil(maxBufferedFrames / this.framesPerMix));
+    const overdueIntervals = Math.max(1, Math.floor((now - scheduledTs) / this.cadenceMs) + 1);
+    const intervalsToDrain = Math.max(bufferedIntervals, overdueIntervals);
 
-    for (let i = 0; i < this.outputFrameSamples; i += 1) {
-      const mic = micChunk.samples[i] ?? 0;
-      const system = systemChunk.samples[i] ?? 0;
-      const divisor = micChunk.hasSignal && systemChunk.hasSignal ? 2 : 1;
-      mixedSamples[i] = clampToInt16(divisor === 1 ? mic + system : Math.round((mic + system) / divisor));
+    let frame = this.mixFrame(scheduledTs);
+    for (let interval = 1; interval < intervalsToDrain; interval += 1) {
+      frame = this.mixFrame(scheduledTs + interval * this.cadenceMs);
     }
 
-    const frame: MixedAudioFrame = {
-      seq: this.nextMixedSeq,
-      ts: now,
-      frames: mixedSamples,
-      activeSources: {
-        mic: micChunk.hasSignal,
-        system: systemChunk.hasSignal
-      }
-    };
-    this.nextMixedSeq += 1;
-
-    this.events.onMixedFrame(frame);
+    this.nextTickTs = scheduledTs + intervalsToDrain * this.cadenceMs;
     return frame;
   }
 
@@ -137,6 +129,33 @@ export class DeterministicMixer {
     }
 
     return { samples: output, hasSignal };
+  }
+
+  private mixFrame(ts: number): MixedAudioFrame {
+    const micChunk = this.takeChunk(this.micFrames);
+    const systemChunk = this.takeChunk(this.systemFrames);
+    const mixedSamples = new Int16Array(this.outputFrameSamples);
+
+    for (let i = 0; i < this.outputFrameSamples; i += 1) {
+      const mic = micChunk.samples[i] ?? 0;
+      const system = systemChunk.samples[i] ?? 0;
+      const divisor = micChunk.hasSignal && systemChunk.hasSignal ? 2 : 1;
+      mixedSamples[i] = clampToInt16(divisor === 1 ? mic + system : Math.round((mic + system) / divisor));
+    }
+
+    const frame: MixedAudioFrame = {
+      seq: this.nextMixedSeq,
+      ts,
+      frames: mixedSamples,
+      activeSources: {
+        mic: micChunk.hasSignal,
+        system: systemChunk.hasSignal
+      }
+    };
+    this.nextMixedSeq += 1;
+
+    this.events.onMixedFrame(frame);
+    return frame;
   }
 }
 

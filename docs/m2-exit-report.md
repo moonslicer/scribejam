@@ -49,7 +49,7 @@ This report covers `PLAN.md` M2 acceptance items 1-7 and M2 testing requirements
 
 7. Binary speaker labeling (`system -> them`, `mic -> you`)
 - Evidence:
-  - `src/main/transcription/transcription-service.ts` (source activity + speaker mapping)
+  - `src/main/transcription/transcription-service.ts` (source-activity heuristic with sticky per-utterance speaker mapping)
   - `src/shared/ipc.ts` (`TranscriptSpeaker` type)
 
 ## 3) Milestone Gates
@@ -71,16 +71,23 @@ This report covers `PLAN.md` M2 acceptance items 1-7 and M2 testing requirements
 - typed IPC contracts introduced for transcript/status/key validation
 
 4. Verification gate: `PASS`
-- unit + integration + Playwright smoke coverage executed and passing
+- baseline milestone verification passed; `2026-03-13` regression follow-up added targeted coverage and surfaced a separate smoke start/stop failure
 
 ## 4) Verification Steps Executed
 
-Executed on `2026-03-12` from `/Users/hao/Projects/scribejam`:
+Baseline milestone verification executed on `2026-03-12`:
 
 1. `npm run typecheck` - pass
-2. `npm run test` - pass (`19/19`)
+2. `npm run test` - pass
 3. `npm run smoke` - pass
 4. `npm run smoke:playwright` - pass (`9/9`)
+
+Regression follow-up executed on `2026-03-13` after speaker-attribution hardening:
+
+1. `npm run typecheck` - pass
+2. `npm run test` - pass (`55/55`)
+3. `npm run smoke` - failed: startup smoke timed out waiting for Electron startup
+4. `npm run smoke:playwright` - failed (`8/9`); `meeting start and stop roundtrip updates state` remained in `recording` instead of reaching `stopped`
 
 ## 5) New/Updated Test Coverage
 
@@ -91,6 +98,7 @@ Executed on `2026-03-12` from `/Users/hao/Projects/scribejam`:
   - `tests/unit/deepgram-adapter.test.ts`
 - Integration:
   - `tests/integration/transcription-service.test.ts`
+    - speaker attribution remains stable across interim/final updates within one utterance
 - Playwright smoke:
   - `tests/smoke/app-launch.spec.ts`
     - first-run disclosure required
@@ -108,14 +116,14 @@ Executed on `2026-03-12` from `/Users/hao/Projects/scribejam`:
 ## 7) Residual Risks and M3/M4 Handoff
 
 1. Speaker attribution fidelity
-- Current M2 uses binary source activity (`you/them`) and does not provide intra-system diarization.
+- Current M2 uses binary source activity (`you/them`) with sticky per-utterance attribution and does not provide intra-system diarization.
 
 2. Transcription continuity under real-world network turbulence
 - Reconnect logic is bounded and covered by mocks; should be validated on long real sessions in milestone hardening.
 
 3. UX polish around transcript partial/final grouping
-- Current implementation appends streaming entries; later milestones may refine line merging and transcript readability.
+- Current implementation coalesces live partials per speaker, but overlapping speech and rapid turn changes can still produce imperfect grouping.
 
 ## 8) Conclusion
 
-M2 exit criteria from `PLAN.md` are implemented with passing automated verification and explicit AGENTS-aligned degradation behavior. The repository now has a functional first-run disclosure gate, real-time transcription pipeline, deterministic mixing, and live transcript UI suitable for M3 handoff.
+M2 exit criteria from `PLAN.md` are implemented with explicit AGENTS-aligned degradation behavior, and the speaker-attribution regression now has targeted coverage and a narrow service-level fix. The repository remains suitable for M3 handoff, with one open follow-up from the `2026-03-13` regression pass: the existing smoke start/stop flow should be investigated separately because it did not consistently transition from `recording` to `stopped`.

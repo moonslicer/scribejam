@@ -7,9 +7,22 @@ export interface AudioFrame {
   frames: Int16Array;
 }
 
+export type SystemCaptureUnavailableReason =
+  | 'forced_unavailable'
+  | 'module_unavailable'
+  | 'module_load_failed'
+  | 'permission_denied'
+  | 'start_failed';
+
+export interface SystemCaptureUnavailableFailure {
+  reason: SystemCaptureUnavailableReason;
+  error?: Error;
+  moduleName?: string;
+}
+
 export interface SystemCaptureCallbacks {
   onFrame: (frame: AudioFrame) => void;
-  onUnavailable: () => void;
+  onUnavailable: (failure: SystemCaptureUnavailableFailure) => void;
   onError: (error: Error) => void;
 }
 
@@ -29,7 +42,16 @@ interface AudioTeeCtor {
   new (options: { sampleRate: number; chunkDurationMs: number }): AudioTeeInstance;
 }
 
+interface AudioTeeResolution {
+  ctor: AudioTeeCtor | null;
+  failure?: SystemCaptureUnavailableFailure;
+}
+
 const CANDIDATE_MODULE_NAMES = ['audioteejs', 'audiotee'];
+const importAtRuntime = new Function(
+  'specifier',
+  'return import(specifier);'
+) as (specifier: string) => Promise<unknown>;
 
 export class SystemCapture {
   private readonly sampleRate: number;
@@ -44,18 +66,23 @@ export class SystemCapture {
 
   public async start(callbacks: SystemCaptureCallbacks): Promise<void> {
     if (process.env.SCRIBEJAM_FORCE_SYSTEM_UNAVAILABLE === '1') {
-      callbacks.onUnavailable();
+      callbacks.onUnavailable({ reason: 'forced_unavailable' });
       return;
     }
 
-    const Ctor = await this.resolveAudioTeeCtor();
-    if (!Ctor) {
-      callbacks.onUnavailable();
+    const resolution = await this.resolveAudioTeeCtor();
+    if (resolution.failure) {
+      callbacks.onUnavailable(resolution.failure);
+      return;
+    }
+
+    if (!resolution.ctor) {
+      callbacks.onUnavailable({ reason: 'module_unavailable' });
       return;
     }
 
     try {
-      const tee = new Ctor({
+      const tee = new resolution.ctor({
         sampleRate: this.sampleRate,
         chunkDurationMs: this.frameSizeMs
       });
@@ -81,8 +108,8 @@ export class SystemCapture {
 
       await tee.start();
       this.instance = tee;
-    } catch {
-      callbacks.onUnavailable();
+    } catch (error) {
+      callbacks.onUnavailable(classifyStartFailure(error));
     }
   }
 
@@ -96,39 +123,100 @@ export class SystemCapture {
     await active.stop();
   }
 
-  private async resolveAudioTeeCtor(): Promise<AudioTeeCtor | null> {
+  private async resolveAudioTeeCtor(): Promise<AudioTeeResolution> {
     for (const moduleName of CANDIDATE_MODULE_NAMES) {
-      const Ctor = await this.tryLoad(moduleName);
-      if (Ctor) {
-        return Ctor;
+      const resolution = await this.tryLoad(moduleName);
+      if (resolution.failure) {
+        return resolution;
+      }
+      if (resolution.ctor) {
+        return resolution;
       }
     }
-    return null;
+
+    return { ctor: null };
   }
 
-  private async tryLoad(moduleName: string): Promise<AudioTeeCtor | null> {
+  private async tryLoad(moduleName: string): Promise<AudioTeeResolution> {
     try {
-      const imported: unknown = await import(moduleName);
+      const imported: unknown = await importAtRuntime(moduleName);
       if (!imported || typeof imported !== 'object') {
-        return null;
+        return { ctor: null };
       }
 
       const moduleLike = imported as Record<string, unknown>;
       if (typeof moduleLike.AudioTee === 'function') {
-        return moduleLike.AudioTee as AudioTeeCtor;
+        return { ctor: moduleLike.AudioTee as AudioTeeCtor };
       }
 
       const defaultExport = moduleLike.default;
       if (defaultExport && typeof defaultExport === 'object') {
         const defaultLike = defaultExport as Record<string, unknown>;
         if (typeof defaultLike.AudioTee === 'function') {
-          return defaultLike.AudioTee as AudioTeeCtor;
+          return { ctor: defaultLike.AudioTee as AudioTeeCtor };
         }
       }
-    } catch {
-      return null;
+    } catch (error) {
+      if (isModuleNotFoundForCandidate(error, moduleName)) {
+        return { ctor: null };
+      }
+
+      return {
+        ctor: null,
+        failure: {
+          reason: 'module_load_failed',
+          moduleName,
+          error: normalizeError(error)
+        }
+      };
     }
 
-    return null;
+    return { ctor: null };
   }
+}
+
+function classifyStartFailure(error: unknown): SystemCaptureUnavailableFailure {
+  const normalized = normalizeError(error);
+  const message = normalized.message.toLowerCase();
+
+  if (
+    message.includes('permission') ||
+    message.includes('not permitted') ||
+    message.includes('denied') ||
+    message.includes('unauthorized') ||
+    message.includes('system audio recording') ||
+    message.includes('tcc')
+  ) {
+    return {
+      reason: 'permission_denied',
+      error: normalized
+    };
+  }
+
+  return {
+    reason: 'start_failed',
+    error: normalized
+  };
+}
+
+function normalizeError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(typeof error === 'string' ? error : 'Unknown system audio capture error.');
+}
+
+function isModuleNotFoundForCandidate(error: unknown, moduleName: string): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const withCode = error as Error & { code?: string };
+  if (withCode.code === 'MODULE_NOT_FOUND') {
+    return true;
+  }
+
+  return error.message.includes(`Cannot find module '${moduleName}'`) ||
+    error.message.includes(`Cannot find package '${moduleName}'`);
 }
