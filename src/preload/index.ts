@@ -5,9 +5,12 @@ import {
   type ErrorDisplayEvent,
   type MeetingStartRequest,
   type MeetingStartResponse,
+  type MeetingDetails,
+  type MeetingGetRequest,
   type MeetingStateChangedEvent,
   type MeetingStopRequest,
   type MicFramesPayload,
+  type NotesSaveRequest,
   type Settings,
   type SettingsValidateKeyRequest,
   type SettingsValidateKeyResponse,
@@ -21,8 +24,10 @@ type Unsubscribe = () => void;
 interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
+  getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
+  saveNotes: (payload: NotesSaveRequest) => void;
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;
   onMeetingStateChanged: (listener: (event: MeetingStateChangedEvent) => void) => Unsubscribe;
@@ -36,8 +41,12 @@ interface ScribejamApi {
 const api: ScribejamApi = {
   startMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStart, payload),
   stopMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStop, payload),
+  getMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingGet, payload),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
   saveSettings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsSave, payload),
+  saveNotes: (payload) => {
+    ipcRenderer.send(IPC_CHANNELS.notesSave, payload);
+  },
   validateSttKey: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsValidateKey, payload),
   sendMicFrames: (payload) => {
     ipcRenderer.send(IPC_CHANNELS.audioMicFrames, payload);

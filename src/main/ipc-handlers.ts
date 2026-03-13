@@ -2,11 +2,15 @@ import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
+  isMeetingGetRequest,
+  isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
   type ErrorDisplayEvent,
+  type MeetingGetRequest,
   type MeetingStartRequest,
   type MeetingStateChangedEvent,
+  type NotesSaveRequest,
   type SettingsSaveRequest,
   type SettingsValidateKeyRequest
 } from '../shared/ipc';
@@ -14,6 +18,14 @@ import { AudioManager } from './audio/audio-manager';
 import { MeetingStateMachine } from './meeting/state-machine';
 import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
+import { createStorageDatabase } from './storage/db';
+import { MeetingRecordsService } from './storage/meeting-records-service';
+import {
+  MeetingArtifactsRepository,
+  MeetingsRepository,
+  NotesRepository,
+  TranscriptRepository
+} from './storage/repositories';
 import { TranscriptionService } from './transcription/transcription-service';
 
 interface HandlerContext {
@@ -25,6 +37,8 @@ interface MainServices {
   settingsStore: SettingsStore;
   audioManager: AudioManager;
   transcriptionService: TranscriptionService;
+  meetingRecordsService: MeetingRecordsService;
+  notesRepository: NotesRepository;
 }
 
 export function createMainServices(context: HandlerContext): MainServices {
@@ -32,10 +46,21 @@ export function createMainServices(context: HandlerContext): MainServices {
     context.window.webContents.send(IPC_CHANNELS.errorDisplay, event);
   };
   const settingsStore = new SettingsStore();
+  const storageDb = createStorageDatabase();
+  const meetingsRepository = new MeetingsRepository(storageDb);
+  const transcriptRepository = new TranscriptRepository(storageDb);
+  const notesRepository = new NotesRepository(storageDb);
+  const meetingArtifactsRepository = new MeetingArtifactsRepository(storageDb);
+  const stateMachine = new MeetingStateMachine();
   const sttAdapter = createSttAdapter({
     getDeepgramApiKey: () => settingsStore.getSecret('deepgramApiKey')
   });
   let transcriptionService!: TranscriptionService;
+  const meetingRecordsService = new MeetingRecordsService(
+    meetingsRepository,
+    meetingArtifactsRepository,
+    transcriptRepository
+  );
 
   const audioManager = new AudioManager({
     onAudioLevel: (event) => {
@@ -51,6 +76,7 @@ export function createMainServices(context: HandlerContext): MainServices {
     sttAdapter,
     events: {
       onTranscript: (event) => {
+        meetingRecordsService.appendTranscriptSegment(stateMachine.getSnapshot().meetingId, event);
         context.window.webContents.send(IPC_CHANNELS.transcriptUpdate, event);
       },
       onStatus: (event) => {
@@ -61,21 +87,25 @@ export function createMainServices(context: HandlerContext): MainServices {
   });
 
   return {
-    stateMachine: new MeetingStateMachine(),
+    stateMachine,
     settingsStore,
     audioManager,
-    transcriptionService
+    transcriptionService,
+    meetingRecordsService,
+    notesRepository
   };
 }
 
 export function registerIpcHandlers(context: HandlerContext, services: MainServices): void {
   ipcMain.removeHandler(IPC_CHANNELS.meetingStart);
   ipcMain.removeHandler(IPC_CHANNELS.meetingStop);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
   ipcMain.removeHandler(IPC_CHANNELS.settingsGet);
   ipcMain.removeHandler(IPC_CHANNELS.settingsSave);
   ipcMain.removeHandler(IPC_CHANNELS.settingsValidateKey);
   ipcMain.removeHandler(IPC_CHANNELS.testSimulateSttDisconnect);
   ipcMain.removeAllListeners(IPC_CHANNELS.audioMicFrames);
+  ipcMain.removeAllListeners(IPC_CHANNELS.notesSave);
 
   ipcMain.handle(IPC_CHANNELS.meetingStart, async (_event, payload: unknown) => {
     const validated = parseMeetingStart(payload);
@@ -97,6 +127,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
         action: 'open-settings'
       });
     }
+    services.meetingRecordsService.recordMeetingStarted(snapshot);
     emitMeetingState(context.window, {
       state: snapshot.state,
       meetingId: snapshot.meetingId
@@ -110,6 +141,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     const snapshot = services.stateMachine.stop(meetingId);
     await services.audioManager.stopRecording();
     await services.transcriptionService.stop();
+    services.meetingRecordsService.recordMeetingStopped(snapshot);
 
     emitMeetingState(
       context.window,
@@ -122,6 +154,14 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
             state: snapshot.state
           }
     );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingGet, async (_event, payload: unknown) => {
+    if (!isMeetingGetRequest(payload)) {
+      throw new Error('Invalid meeting get payload.');
+    }
+
+    return services.meetingRecordsService.getMeeting((payload as MeetingGetRequest).meetingId);
   });
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, async () => {
@@ -163,6 +203,21 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
 
   ipcMain.on(IPC_CHANNELS.audioMicFrames, (_event, payload: unknown) => {
     services.audioManager.ingestMicPayload(payload);
+  });
+
+  ipcMain.on(IPC_CHANNELS.notesSave, (_event, payload: unknown) => {
+    if (!isNotesSaveRequest(payload)) {
+      throw new Error('Invalid notes save payload.');
+    }
+
+    const request = payload as NotesSaveRequest;
+    const now = new Date().toISOString();
+    services.notesRepository.save({
+      id: `${request.meetingId}-note`,
+      meetingId: request.meetingId,
+      content: JSON.stringify(request.content),
+      updatedAt: now
+    });
   });
 
   emitMeetingState(context.window, { state: services.stateMachine.getSnapshot().state });

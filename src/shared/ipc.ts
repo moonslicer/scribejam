@@ -1,9 +1,11 @@
 export const IPC_CHANNELS = {
   meetingStart: 'meeting:start',
   meetingStop: 'meeting:stop',
+  meetingGet: 'meeting:get',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsValidateKey: 'settings:validate-key',
+  notesSave: 'notes:save',
   audioMicFrames: 'audio:mic-frames',
   meetingStateChanged: 'meeting:state-changed',
   audioLevel: 'audio:level',
@@ -13,7 +15,13 @@ export const IPC_CHANNELS = {
   testSimulateSttDisconnect: 'test:simulate-stt-disconnect'
 } as const;
 
-export type MeetingState = 'idle' | 'recording' | 'stopped';
+export type MeetingState =
+  | 'idle'
+  | 'recording'
+  | 'stopped'
+  | 'enhancing'
+  | 'enhance_failed'
+  | 'done';
 export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
@@ -31,6 +39,41 @@ export interface MeetingStartResponse {
 
 export interface MeetingStopRequest {
   meetingId: string;
+}
+
+export interface MeetingGetRequest {
+  meetingId: string;
+}
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+export interface TranscriptSegment {
+  id: number;
+  speaker: TranscriptSpeaker;
+  text: string;
+  startTs: number;
+  endTs: number | null;
+  isFinal: boolean;
+}
+
+export interface MeetingDetails {
+  id: string;
+  title: string;
+  state: MeetingState;
+  createdAt: string;
+  updatedAt: string;
+  durationMs: number | null;
+  noteContent: JsonObject | null;
+  transcriptSegments: TranscriptSegment[];
+}
+
+export interface NotesSaveRequest {
+  meetingId: string;
+  content: JsonObject;
 }
 
 export interface MicFramesPayload {
@@ -153,4 +196,30 @@ export function isSettingsValidateKeyRequest(value: unknown): value is SettingsV
 
   const candidate = value as Partial<SettingsValidateKeyRequest>;
   return candidate.provider === 'deepgram' && typeof candidate.key === 'string';
+}
+
+export function isMeetingGetRequest(value: unknown): value is MeetingGetRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<MeetingGetRequest>;
+  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
+}
+
+export function isNotesSaveRequest(value: unknown): value is NotesSaveRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<NotesSaveRequest>;
+  return (
+    typeof candidate.meetingId === 'string' &&
+    candidate.meetingId.length > 0 &&
+    isJsonObject(candidate.content)
+  );
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
