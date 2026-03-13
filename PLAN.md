@@ -29,7 +29,7 @@ Inspired by the AI meeting notepad category (Granola, Otter, Fireflies), Scribej
 - Visual distinction: **black text** = human-authored, **gray text** = AI-generated
 
 ### 3. Privacy & Data Transparency (Two Modes)
-- **Mode A — Cloud-assisted (MVP default)**: live audio is sent to Deepgram for STT and transcript+notes are sent to Claude/OpenAI for enhancement.
+- **Mode A — Cloud-assisted (MVP default)**: live audio is sent to Deepgram for STT and transcript+notes are sent to OpenAI for enhancement.
 - **Mode B — Local-only (deferred)**: STT and enhancement run locally; no meeting content is sent to third-party APIs.
 - No audio/video persisted locally by default — raw audio is processed in-memory and discarded after transcription.
 - Meeting artifacts (title, notes, transcript, enhanced notes) persist locally in SQLite; no Scribejam cloud sync in MVP.
@@ -93,9 +93,9 @@ Inspired by the AI meeting notepad category (Granola, Otter, Fireflies), Scribej
 │  │  │Manager   │ │Manager    │ │Engine    │  │  │
 │  │  └──────────┘ └─────┬─────┘ └──────────┘  │  │
 │  │  ┌──────────┐ ┌─────┴─────┐ ┌──────────┐  │  │
-│  │  │SQLite    │ │audioteejs │ │LLM Client│  │  │
-│  │  │(better-  │ │(npm pkg,  │ │(Anthropic│  │  │
-│  │  │ sqlite3) │ │CoreAudio) │ │ /OpenAI) │  │  │
+│  │  │SQLite    │ │audioteejs │ │OpenAI    │  │  │
+│  │  │(better-  │ │(npm pkg,  │ │Enhancement│  │  │
+│  │  │ sqlite3) │ │CoreAudio) │ │Client    │  │  │
 │  │  └──────────┘ └───────────┘ └──────────┘  │  │
 │  └───────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────┘
@@ -113,7 +113,7 @@ Inspired by the AI meeting notepad category (Granola, Otter, Fireflies), Scribej
 Everything runs in the Electron main process — no separate backend service:
 - **Audio manager**: Uses `audioteejs` to receive PCM chunks via EventEmitter
 - **STT engine**: Feeds audio chunks to Deepgram (MVP default) with optional whisper-node fallback
-- **LLM client**: `@anthropic-ai/sdk` for Claude, `openai` for GPT-4o
+- **LLM client**: `openai` package for GPT-5/GPT-4-class enhancement models
 - **Storage**: `better-sqlite3` for local persistence
 - **Meeting state machine**: idle → recording → stopped → enhancing → done (see state machine definition below)
 
@@ -128,7 +128,7 @@ All IPC goes through `contextBridge` with typed payloads. No direct `ipcRenderer
 | `meeting:start` | invoke | `{ title: string }` | `{ meetingId: string }` | M1 |
 | `meeting:stop` | invoke | `{ meetingId: string }` | `void` | M1 |
 | `meeting:enhance` | invoke | `{ meetingId: string }` | `EnhancedOutput` | M4 |
-| `meeting:list` | invoke | `void` | `Meeting[]` | M5 |
+| `meeting:list` | invoke | `void` | `Meeting[]` | M7 |
 | `meeting:get` | invoke | `{ meetingId: string }` | `Meeting` | M3 |
 | `notes:save` | send | `{ meetingId: string, content: JSONContent }` | — (fire-and-forget) | M3 |
 | `audio:mic-frames` | send | `{ frames: Int16Array, seq: number, ts: number }` | — (fire-and-forget) | M1 |
@@ -143,7 +143,7 @@ All IPC goes through `contextBridge` with typed payloads. No direct `ipcRenderer
 | `meeting:state-changed` | `{ state: MeetingState, meetingId?: string }` | M1 |
 | `transcript:update` | `{ text: string, speaker: 'you' \| 'them', ts: number, isFinal: boolean }` | M2 |
 | `audio:level` | `{ source: 'mic' \| 'system', rms: number }` | M1 |
-| `enhance:progress` | `{ status: 'streaming' \| 'done' \| 'error', partial?: EnhancedOutput }` | M4 |
+| `enhance:progress` | `{ status: 'streaming' \| 'done' \| 'error', partial?: EnhancedOutput }` | M6 |
 | `error:display` | `{ message: string, action?: 'open-settings' \| 'retry' }` | M1 |
 
 ### Audio Capture
@@ -194,8 +194,8 @@ Pipeline rules follow AGENTS.md §6 (Audio Pipeline Rules). Implementation-speci
   - Native module: must be rebuilt/pinned for target Electron version and architecture
 
 ### AI Enhancement (Note-Transcript Merge)
-- **Providers**: `@anthropic-ai/sdk` (Claude) and `openai` package (OpenAI models)
-- Configurable via `LLM_PROVIDER` (default) plus model-specific setting/env vars
+- **MVP provider**: `openai` package (OpenAI models)
+- **Architecture rule**: Keep OpenAI behind an internal enhancement client interface owned by the main process so another provider can be plugged in later without changing renderer code or core orchestration
 
 #### Merge Prompt Design
 
@@ -244,7 +244,7 @@ interface EnhancedOutput {
 
 ### Local Storage
 - **`better-sqlite3`** — synchronous and fast; native module requiring Electron ABI compatibility
-- Local persistence by default; transcription/enhancement requests are processed by configured external providers
+- Local persistence by default; Deepgram handles STT requests and OpenAI handles enhancement requests in cloud-assisted mode
 - Schema migrations: version-tracked with a `schema_version` pragma; each milestone that changes schema ships a migration
 
 **SQLite Schema (MVP):**
@@ -284,7 +284,7 @@ CREATE TABLE enhanced_outputs (
   id            TEXT PRIMARY KEY,
   meeting_id    TEXT NOT NULL UNIQUE REFERENCES meetings(id),
   output        TEXT NOT NULL,      -- JSON (EnhancedOutput)
-  provider      TEXT NOT NULL,      -- 'claude' | 'openai'
+  provider      TEXT NOT NULL,      -- 'openai' for MVP; future adapters may add others
   model         TEXT NOT NULL,
   created_at    TEXT NOT NULL
 );
@@ -301,14 +301,14 @@ CREATE TABLE settings (
   1. Deepgram API key (required for MVP transcription)
   2. Data flow disclosure acknowledgement (audio is sent to Deepgram in cloud-assisted mode)
   3. Explicit consent checkbox before recording/transcription can begin
-- **LLM key/provider onboarding**: deferred to M4 milestone settings enhancements.
+- **LLM key onboarding**: deferred to M5 OpenAI integration and settings enhancements.
 - **Storage**: API keys stored in Electron `safeStorage` (OS keychain-backed encryption)
 - **Settings page**: temporary inline panel in M2; move to a dedicated settings surface in later milestones.
 - **Validation**: Keys are tested on save (small API call) with clear error messages for invalid/expired keys
 
 ### Cloud Provider Data Flow (MVP Default)
 - Live audio chunks are sent to Deepgram for STT; transcript text is returned to the app.
-- User notes + transcript are sent to the selected LLM provider (Claude or OpenAI) for enhancement.
+- User notes + transcript are sent to OpenAI for enhancement.
 - API keys are user-provided and stored via Electron `safeStorage` (OS keychain-backed).
 - Scribejam does not run its own backend or team sync service in MVP.
 
@@ -461,7 +461,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 1: Define the M3 data model and storage boundaries
 - **Why this task exists**: Before changing UI, we need a clear definition of what a persisted meeting contains so title, notes, and transcript save consistently.
-- **How it fits the larger picture**: This creates the local-first foundation for M3 note persistence, M4 enhancement input, and M5 meeting history.
+- **How it fits the larger picture**: This creates the local-first foundation for M3 note persistence, M4-M6 enhancement work, and M7 meeting history.
 - **Implementation**:
   - Define TypeScript models for `Meeting`, `Note`, and `TranscriptSegment`
   - Define the minimum SQLite schema for `meetings`, `notes`, and `transcript_segments`
@@ -490,7 +490,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 3: Extend the shared IPC contract for M3 persistence
 - **Why this task exists**: The renderer needs a typed way to save notes and load a meeting while keeping process boundaries explicit.
-- **How it fits the larger picture**: This becomes the stable contract for M3 note editing and later for M5 history views.
+- **How it fits the larger picture**: This becomes the stable contract for M3 note editing and later for M7 history views.
 - **Implementation**:
   - Add `meeting:get`
   - Add `notes:save`
@@ -505,7 +505,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 4: Persist meeting lifecycle events in the main process
 - **Why this task exists**: Starting and stopping a meeting should create durable records immediately, not just update in-memory state.
-- **How it fits the larger picture**: This makes M3 recoverable after app restarts and gives M4 stored notes/transcript artifacts to work from.
+- **How it fits the larger picture**: This makes M3 recoverable after app restarts and gives M4-M6 stored notes/transcript artifacts to work from.
 - **Implementation**:
   - On `meeting:start`, create a meeting row with title and start time
   - On transcript events, append transcript segments
@@ -521,7 +521,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 5: Expand the meeting state machine to match the planned lifecycle
 - **Why this task exists**: M3 explicitly calls for the fuller state machine, and lifecycle rules should remain authoritative in main.
-- **How it fits the larger picture**: This prevents lifecycle logic from scattering across the app and prepares the codebase for M4 enhancement without redesigning state later.
+- **How it fits the larger picture**: This prevents lifecycle logic from scattering across the app and prepares the codebase for M4-M6 enhancement without redesigning state later.
 - **Implementation**:
   - Extend states to include `enhancing`, `enhance_failed`, and `done`
   - Add explicit transition methods with guardrails
@@ -563,7 +563,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 8: Build the Tiptap notepad component with a minimal authorship mark
 - **Why this task exists**: The notepad is the core M3 deliverable.
-- **How it fits the larger picture**: Adding the authorship mark now gives M4 a compatible editor foundation for AI-authored blocks.
+- **How it fits the larger picture**: Adding the authorship mark now gives M4-M6 a compatible editor foundation for AI-authored blocks.
 - **Implementation**:
   - Add Tiptap dependencies
   - Build `Notepad.tsx`
@@ -571,7 +571,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
   - Default user-authored content to the human style
 - **Acceptance focus**:
   - User can type notes freely during recording
-  - The editor stores structured content that M4 can build on
+  - The editor stores structured content that M4-M6 can build on
 - **Verification**:
   - Renderer test that the editor renders initial content
   - Renderer/unit test that content serializes to JSON and back
@@ -593,7 +593,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 10: Add debounced note autosave
 - **Why this task exists**: Without autosave, the product fails the notepad-first reliability goal and misses a core M3 acceptance criterion.
-- **How it fits the larger picture**: M4 enhancement and M5 history both depend on trustworthy saved notes.
+- **How it fits the larger picture**: M4-M6 enhancement and M7 history both depend on trustworthy saved notes.
 - **Implementation**:
   - Watch editor content changes
   - Debounce saves before sending `notes:save`
@@ -609,7 +609,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 11: Hydrate saved notes when loading or returning to a meeting
 - **Why this task exists**: Autosave is only useful if persisted data can be restored back into the editor.
-- **How it fits the larger picture**: This closes the persistence loop for M3 and ensures M4 enhancement reads durable artifacts rather than transient UI state.
+- **How it fits the larger picture**: This closes the persistence loop for M3 and ensures M4-M6 enhancement reads durable artifacts rather than transient UI state.
 - **Implementation**:
   - Load meeting data through `meeting:get`
   - Populate transcript and note content from stored values
@@ -622,7 +622,7 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 
 ##### Task 12: Tighten M3 verification and manual flow checks
 - **Why this task exists**: M3 touches persistence, state, and renderer behavior together, so we need a final pass that verifies the whole flow.
-- **How it fits the larger picture**: This reduces risk before M4 builds enhancement logic on top of the saved meeting artifacts.
+- **How it fits the larger picture**: This reduces risk before M4-M6 builds enhancement logic on top of the saved meeting artifacts.
 - **Implementation**:
   - Add missing repository/state/editor tests
   - Run typecheck and test suite
@@ -662,32 +662,60 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 - **M3 testing expectations** are covered by Tasks 2, 5, 8, 10, 11, and 12
 
 This plan intentionally stays inside M3 scope:
-- It does not introduce a meeting history panel yet; that remains M5 scope
-- It does not implement enhancement UI or LLM orchestration yet; that remains M4 scope
+- It does not introduce a meeting history panel yet; that remains M7 scope
+- It does not implement enhancement UI or LLM orchestration yet; that remains M4-M6 scope
 - It preserves the AGENTS invariants by keeping raw audio in-memory only and keeping storage/main-process authority explicit
 
 Implementation note:
-- Keep Task 5 modest. Define the future-ready lifecycle states and guards now, but do not pull full enhancement behavior forward from M4 unless it is required to complete a transition contract.
+- Keep Task 5 modest. Define the future-ready lifecycle states and guards now, but do not pull full enhancement behavior forward from M4-M6 unless it is required to complete a transition contract.
 
-### M4: AI Enhancement Engine
-1. Add LLM provider selection + API key input to setup wizard / settings page
-2. Build note-transcript merge prompt (the core AI feature)
-3. Implement `llm-client.ts` with `@anthropic-ai/sdk` (streaming response)
-4. "Enhance Notes" button: sends user notes + transcript to LLM
-5. Render enhanced output with black (human) / gray (AI) visual distinction:
-   - Transform `EnhancedOutput.blocks[]` into Tiptap `JSONContent` nodes, applying the custom `authorship` mark (`source: 'human'` → no mark/black, `source: 'ai'` → mark/gray)
-   - `action_items`, `decisions`, and `summary` render as AI-authored sections appended after the block content
-   - When user edits any AI-marked node, the `authorship` mark is removed (flips to human/black)
-6. Support `openai` npm package as alternative LLM backend
-- **Testing (M4)**: Unit tests for LLM client abstraction (mock provider responses), EnhancedOutput JSON→Tiptap doc transform, and authorship mark rendering. Integration test: full enhance flow with mocked LLM.
+The original M4 enhancement scope was too broad for one milestone, so it is split across M4-M6:
+- M4 proves the end-to-end enhancement loop with local persistence and deterministic/mock orchestration
+- M5 adds real OpenAI-backed enhancement and settings integration while keeping a future provider seam in code
+- M6 tightens authorship semantics, progress, retry UX, and disclosure polish
 
-### M5: Polish & Packaging
+### M4: Enhancement Foundation
+1. Define the shared enhancement contract:
+   - `EnhancedOutput` schema
+   - `meeting:enhance` request/response types
+   - persisted enhancement model shape
+2. Add `enhanced_outputs` SQLite persistence and meeting-state persistence needed for enhancement lifecycle
+3. Implement a mock enhancement service in the main process that reads saved notes + transcript and returns deterministic `EnhancedOutput`
+4. Add the first `Enhance Notes` user flow:
+   - stopped meeting -> enhance action
+   - enhancement request runs through typed IPC
+   - successful result is persisted locally
+5. Render enhanced output in the editor with black (human) / gray (AI) visual distinction:
+   - Transform `EnhancedOutput.blocks[]` into Tiptap `JSONContent` nodes
+   - `source: 'human'` stays unmarked/black
+   - `source: 'ai'` uses the `authorship` mark/gray
+   - `action_items`, `decisions`, and `summary` render as appended AI-authored sections
+- **Testing (M4)**: Unit tests for schema/repository changes and `EnhancedOutput` JSON→Tiptap doc transform. Integration test: full enhance flow with a mocked enhancement service.
+
+### M5: OpenAI-Backed Enhancement
+1. Build the note-transcript merge prompt as a pure module
+2. Implement `llm-client.ts` as a small enhancement client interface owned by the main process
+3. Add an OpenAI enhancement client behind that interface
+4. Add OpenAI API key input/validation to setup wizard / settings
+5. Add timeout, retry, and feature-scoped failure handling for enhancement requests
+6. Keep provider-specific logic isolated so a second adapter can be added later without changing renderer code or core orchestration
+- **Testing (M5)**: Unit tests for prompt construction, OpenAI client behavior, and the enhancement client abstraction with mocked responses. Integration test: enhancement orchestration with a mocked OpenAI adapter.
+
+### M6: Authorship Semantics & Enhancement UX
+1. Stream or stage enhancement progress to the renderer via `enhance:progress`
+2. Add retry and failure UX for enhancement without blocking note-taking
+3. When user edits AI-marked content, remove the `authorship` mark so the edited content becomes human-authored
+4. Tighten OpenAI disclosure copy so enhancement data flow is explicit in-product
+5. Add renderer/store coverage for enhancement progress, retry, and authorship transitions
+- **Testing (M6)**: Renderer tests for progress/failure/retry flows and editor tests that confirm edited AI content flips to human-authored rendering.
+
+### M7: Polish & Packaging
 1. Meeting history view (past enhanced notes, searchable)
 2. Keyboard shortcuts (Cmd/Ctrl+E for enhance)
 3. App icon, system tray / menu bar presence
 4. README, setup docs, contributing guide
 5. electron-builder packaging for macOS only (.dmg)
-- **Testing (M5)**: End-to-end smoke test: packaged .dmg installs, launches, and completes a mock meeting flow. Meeting history search test.
+- **Testing (M7)**: End-to-end smoke test: packaged .dmg installs, launches, and completes a mock meeting flow. Meeting history search test.
 
 ## Error Handling & Degradation Modes
 
@@ -728,7 +756,7 @@ function createAudioCapture() {
 3. **Note-transcript merge prompt** — Prompt engineering to intelligently blend sparse notes with verbose transcript
 4. **Tiptap authorship marks** — Custom ProseMirror mark to track and render human vs AI text origin
 5. **Audio capture permissions** — macOS requires "System Audio Recording" permission; need clean permission flow UX
-6. **Provider privacy disclosure** — Ensure explicit UX disclosure for off-device processing and provider-level retention controls
+6. **OpenAI privacy disclosure** — Ensure explicit UX disclosure for off-device processing and provider-level retention controls
 
 ## Verification
 
@@ -741,7 +769,7 @@ function createAudioCapture() {
 - [ ] Manual start/stop recording with user-entered meeting title
 - [ ] Meeting notes persist in SQLite and are searchable
 - [ ] Raw audio is never persisted to disk (validated via storage/path audit)
-- [ ] First-run settings clearly disclose Deepgram/Claude/OpenAI off-device processing
+- [ ] First-run settings clearly disclose Deepgram/OpenAI off-device processing
 - [ ] API keys are stored via Electron `safeStorage` (not plaintext config)
 - [ ] Cloud/STT/LLM failure does not block note-taking flow
 - [ ] `audioteejs` unavailability degrades cleanly to mic-only mode
