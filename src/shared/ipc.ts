@@ -2,6 +2,7 @@ export const IPC_CHANNELS = {
   meetingStart: 'meeting:start',
   meetingStop: 'meeting:stop',
   meetingGet: 'meeting:get',
+  meetingEnhance: 'meeting:enhance',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsValidateKey: 'settings:validate-key',

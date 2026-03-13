@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  IPC_CHANNELS,
   isEnhanceMeetingRequest,
   isMeetingGetRequest,
   isNotesSaveRequest,
@@ -10,6 +11,10 @@ import {
 } from '../../src/shared/ipc';
 
 describe('ipc contract validators', () => {
+  it('defines the enhancement channel constant', () => {
+    expect(IPC_CHANNELS.meetingEnhance).toBe('meeting:enhance');
+  });
+
   it('accepts deepgram key validation payloads', () => {
     const payload: SettingsValidateKeyRequest = {
       provider: 'deepgram',

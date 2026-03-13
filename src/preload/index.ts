@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   IPC_CHANNELS,
   type AudioLevelEvent,
+  type EnhanceMeetingRequest,
+  type EnhanceMeetingResponse,
   type ErrorDisplayEvent,
   type MeetingStartRequest,
   type MeetingStartResponse,
@@ -25,6 +27,7 @@ interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
+  enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
   saveNotes: (payload: NotesSaveRequest) => void;
@@ -42,6 +45,7 @@ const api: ScribejamApi = {
   startMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStart, payload),
   stopMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStop, payload),
   getMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingGet, payload),
+  enhanceMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingEnhance, payload),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
   saveSettings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsSave, payload),
   saveNotes: (payload) => {

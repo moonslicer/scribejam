@@ -2,10 +2,12 @@ import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
+  isEnhanceMeetingRequest,
   isMeetingGetRequest,
   isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
+  type EnhanceMeetingRequest,
   type ErrorDisplayEvent,
   type MeetingGetRequest,
   type MeetingStartRequest,
@@ -18,9 +20,12 @@ import { AudioManager } from './audio/audio-manager';
 import { MeetingStateMachine } from './meeting/state-machine';
 import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
+import { EnhancementOrchestrator } from './enhancement/enhancement-orchestrator';
+import { MockEnhancementService } from './enhancement/mock-enhancement-service';
 import { createStorageDatabase } from './storage/db';
 import { MeetingRecordsService } from './storage/meeting-records-service';
 import {
+  EnhancedOutputsRepository,
   MeetingArtifactsRepository,
   MeetingsRepository,
   NotesRepository,
@@ -39,6 +44,7 @@ interface MainServices {
   transcriptionService: TranscriptionService;
   meetingRecordsService: MeetingRecordsService;
   notesRepository: NotesRepository;
+  enhancementOrchestrator: EnhancementOrchestrator;
 }
 
 export function createMainServices(context: HandlerContext): MainServices {
@@ -51,6 +57,7 @@ export function createMainServices(context: HandlerContext): MainServices {
   const transcriptRepository = new TranscriptRepository(storageDb);
   const notesRepository = new NotesRepository(storageDb);
   const meetingArtifactsRepository = new MeetingArtifactsRepository(storageDb);
+  const enhancedOutputsRepository = new EnhancedOutputsRepository(storageDb);
   const stateMachine = new MeetingStateMachine();
   const sttAdapter = createSttAdapter({
     getDeepgramApiKey: () => settingsStore.getSecret('deepgramApiKey')
@@ -60,6 +67,13 @@ export function createMainServices(context: HandlerContext): MainServices {
     meetingsRepository,
     meetingArtifactsRepository,
     transcriptRepository
+  );
+  const enhancementOrchestrator = new EnhancementOrchestrator(
+    stateMachine,
+    meetingRecordsService,
+    meetingArtifactsRepository,
+    enhancedOutputsRepository,
+    new MockEnhancementService()
   );
 
   const audioManager = new AudioManager({
@@ -92,7 +106,8 @@ export function createMainServices(context: HandlerContext): MainServices {
     audioManager,
     transcriptionService,
     meetingRecordsService,
-    notesRepository
+    notesRepository,
+    enhancementOrchestrator
   };
 }
 
@@ -100,6 +115,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.removeHandler(IPC_CHANNELS.meetingStart);
   ipcMain.removeHandler(IPC_CHANNELS.meetingStop);
   ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingEnhance);
   ipcMain.removeHandler(IPC_CHANNELS.settingsGet);
   ipcMain.removeHandler(IPC_CHANNELS.settingsSave);
   ipcMain.removeHandler(IPC_CHANNELS.settingsValidateKey);
@@ -165,6 +181,16 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     }
 
     return services.meetingRecordsService.getMeeting((payload as MeetingGetRequest).meetingId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingEnhance, async (_event, payload: unknown) => {
+    if (!isEnhanceMeetingRequest(payload)) {
+      throw new Error('Invalid meeting enhancement payload.');
+    }
+
+    return services.enhancementOrchestrator.enhanceMeeting(
+      (payload as EnhanceMeetingRequest).meetingId
+    );
   });
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, async () => {
