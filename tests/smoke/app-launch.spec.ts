@@ -85,8 +85,11 @@ async function readPercent(page: Page, testId: string): Promise<number> {
 async function completeFirstRunSetup(page: Page): Promise<void> {
   await expect(page.getByTestId('setup-wizard')).toBeVisible();
   await page.getByTestId('setup-input-deepgram').fill('dg-test-key');
-  await page.getByTestId('setup-validate-button').click();
-  await expect(page.getByTestId('setup-validation-result')).toContainText('Key is valid');
+  await page.getByTestId('setup-validate-deepgram-button').click();
+  await expect(page.getByTestId('setup-validation-deepgram')).toContainText('Key is valid');
+  await page.getByTestId('setup-input-openai').fill('sk-openai-test');
+  await page.getByTestId('setup-validate-openai-button').click();
+  await expect(page.getByTestId('setup-validation-openai')).toContainText('Key is valid');
   await page.getByTestId('setup-disclosure-ack').check();
   await expect(page.getByTestId('setup-continue-button')).toBeEnabled();
   await page.getByTestId('setup-continue-button').click();

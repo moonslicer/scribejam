@@ -194,3 +194,45 @@ function normalizeOpenAIError(error: unknown): EnhancementProviderError {
     fallbackMessage: 'OpenAI enhancement request failed.'
   });
 }
+
+export async function validateOpenAIApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+  const trimmedKey = apiKey.trim();
+  if (trimmedKey.length === 0) {
+    return {
+      valid: false,
+      error: 'OpenAI API key is required.'
+    };
+  }
+
+  if (process.env.SCRIBEJAM_TEST_MODE === '1') {
+    return {
+      valid: trimmedKey.startsWith('sk-'),
+      ...(trimmedKey.startsWith('sk-')
+        ? {}
+        : { error: 'OpenAI test keys must start with sk-.' })
+    };
+  }
+
+  try {
+    const client = new OpenAI({
+      apiKey: trimmedKey,
+      timeout: 15_000,
+      maxRetries: 0
+    });
+
+    await client.responses.create({
+      model: DEFAULT_MODEL,
+      input: 'Reply with OK.',
+      max_output_tokens: 8,
+      store: false
+    });
+
+    return { valid: true };
+  } catch (error) {
+    const normalized = normalizeOpenAIError(error);
+    return {
+      valid: false,
+      error: normalized.message
+    };
+  }
+}

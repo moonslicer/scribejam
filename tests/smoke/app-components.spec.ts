@@ -18,11 +18,14 @@ test('setup wizard validates invalid and valid keys before completion', async ()
   try {
     await expect(context.page.getByTestId('setup-wizard')).toBeVisible();
     await context.page.getByTestId('setup-input-deepgram').fill('');
-    await expect(context.page.getByTestId('setup-validate-button')).toBeDisabled();
+    await expect(context.page.getByTestId('setup-validate-deepgram-button')).toBeDisabled();
 
     await context.page.getByTestId('setup-input-deepgram').fill('dg-valid-key');
-    await context.page.getByTestId('setup-validate-button').click();
-    await expect(context.page.getByTestId('setup-validation-result')).toContainText('Key is valid');
+    await context.page.getByTestId('setup-validate-deepgram-button').click();
+    await expect(context.page.getByTestId('setup-validation-deepgram')).toContainText('Key is valid');
+    await context.page.getByTestId('setup-input-openai').fill('sk-openai-test');
+    await context.page.getByTestId('setup-validate-openai-button').click();
+    await expect(context.page.getByTestId('setup-validation-openai')).toContainText('Key is valid');
     await context.page.getByTestId('setup-disclosure-ack').check();
     await context.page.getByTestId('setup-continue-button').click();
 

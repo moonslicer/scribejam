@@ -1,5 +1,6 @@
 import { EnhancementProviderError, type LlmClient } from './llm-client';
 import { OpenAIEnhancementClient } from './openai-enhancement-client';
+import { MockLlmClient } from './mock-llm-client';
 
 export interface CreateLlmClientOptions {
   provider: 'openai' | 'anthropic';
@@ -8,6 +9,10 @@ export interface CreateLlmClientOptions {
 
 export function createLlmClient(options: CreateLlmClientOptions): LlmClient {
   if (options.provider === 'openai') {
+    if (process.env.SCRIBEJAM_TEST_MODE === '1') {
+      return new MockLlmClient();
+    }
+
     const apiKey = options.getOpenAIApiKey()?.trim() ?? '';
     if (apiKey.length === 0) {
       throw new EnhancementProviderError(

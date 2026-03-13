@@ -22,6 +22,7 @@ import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
 import { EnhancementOrchestrator } from './enhancement/enhancement-orchestrator';
 import { createLlmClient } from './enhancement/create-llm-client';
+import { validateOpenAIApiKey } from './enhancement/openai-enhancement-client';
 import { createStorageDatabase } from './storage/db';
 import { MeetingRecordsService } from './storage/meeting-records-service';
 import {
@@ -233,14 +234,18 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     }
 
     const request = payload as SettingsValidateKeyRequest;
-    if (request.provider !== 'deepgram') {
-      return {
-        valid: false,
-        error: 'Unsupported STT provider.'
-      };
+    if (request.provider === 'deepgram') {
+      return services.transcriptionService.validateDeepgramKey(request.key);
     }
 
-    return services.transcriptionService.validateDeepgramKey(request.key);
+    if (request.provider === 'openai') {
+      return validateOpenAIApiKey(request.key);
+    }
+
+    return {
+      valid: false,
+      error: 'Unsupported provider.'
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.testSimulateSttDisconnect, async () => {

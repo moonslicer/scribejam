@@ -250,15 +250,22 @@ export default function App(): JSX.Element {
     setSettings(refreshed);
   };
 
-  const completeFirstRunSetup = async (payload: { deepgramApiKey: string }): Promise<void> => {
+  const completeFirstRunSetup = async (payload: {
+    deepgramApiKey: string;
+    openaiApiKey: string;
+  }): Promise<void> => {
     await saveSettings({
       deepgramApiKey: payload.deepgramApiKey,
+      openaiApiKey: payload.openaiApiKey,
       firstRunAcknowledged: true
     });
     setErrorMessage(null);
   };
 
-  const validateDeepgramKey = async (key: string): Promise<{ valid: boolean; error?: string }> => {
+  const validateProviderKey = async (
+    provider: 'deepgram' | 'openai',
+    key: string
+  ): Promise<{ valid: boolean; error?: string }> => {
     if (!api) {
       return {
         valid: false,
@@ -266,8 +273,8 @@ export default function App(): JSX.Element {
       };
     }
 
-    return api.validateSttKey({
-      provider: 'deepgram',
+    return (api.validateProviderKey ?? api.validateSttKey)({
+      provider,
       key
     });
   };
@@ -287,7 +294,7 @@ export default function App(): JSX.Element {
       </header>
 
       {setupRequired ? (
-        <SetupWizard onValidateKey={validateDeepgramKey} onComplete={completeFirstRunSetup} />
+        <SetupWizard onValidateKey={validateProviderKey} onComplete={completeFirstRunSetup} />
       ) : null}
 
       <MeetingBar
@@ -319,7 +326,11 @@ export default function App(): JSX.Element {
         </div>
       </section>
 
-      <SettingsPanel settings={settings} onSave={saveSettings} />
+      <SettingsPanel
+        settings={settings}
+        onSave={saveSettings}
+        onValidateKey={validateProviderKey}
+      />
     </main>
   );
 }
