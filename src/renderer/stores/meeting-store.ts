@@ -43,9 +43,17 @@ export const createMeetingStore = () =>
         transcriptEntries: applyTranscriptEvent(state.transcriptEntries, event)
       })),
     setNoteContent: (noteContent) =>
-      set({
-        noteContent,
-        noteSaveState: noteContent ? 'dirty' : 'idle'
+      set((state) => {
+        const previousSerialized = JSON.stringify(state.noteContent);
+        const nextSerialized = JSON.stringify(noteContent);
+        if (previousSerialized === nextSerialized) {
+          return state;
+        }
+
+        return {
+          noteContent,
+          noteSaveState: noteContent ? 'dirty' : 'idle'
+        };
       }),
     setNoteSaveState: (noteSaveState) => set({ noteSaveState }),
     hydrateMeeting: (meeting) =>

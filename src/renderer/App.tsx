@@ -3,6 +3,7 @@ import type { MeetingState, Settings, TranscriptionStatusEvent } from '../shared
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
+import { Notepad } from './components/Notepad';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
@@ -19,11 +20,13 @@ export default function App(): JSX.Element {
   const meetingId = useMeetingStore((state) => state.meetingId);
   const meetingTitle = useMeetingStore((state) => state.meetingTitle);
   const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
+  const noteContent = useMeetingStore((state) => state.noteContent);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
   const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
   const applyTranscriptUpdate = useMeetingStore((state) => state.applyTranscriptUpdate);
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
+  const setNoteContent = useMeetingStore((state) => state.setNoteContent);
 
   useMicCapture({
     enabled: meetingState === 'recording',
@@ -175,12 +178,23 @@ export default function App(): JSX.Element {
       />
       <StatusBanner message={bannerMessage} />
 
-      <section className="grid gap-3 md:grid-cols-2">
-        <AudioLevel source="mic" label="Microphone" value={levels.mic} />
-        <AudioLevel source="system" label="System Audio" value={levels.system} />
-      </section>
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+        <div className="rounded-2xl bg-zinc-50/70 p-3">
+          <Notepad
+            content={noteContent}
+            editable={meetingState !== 'enhancing'}
+            onChange={setNoteContent}
+          />
+        </div>
 
-      <TranscriptPanel entries={transcriptEntries} />
+        <div className="flex flex-col gap-3">
+          <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
+            <AudioLevel source="mic" label="Microphone" value={levels.mic} />
+            <AudioLevel source="system" label="System Audio" value={levels.system} />
+          </section>
+          <TranscriptPanel entries={transcriptEntries} />
+        </div>
+      </section>
 
       <SettingsPanel settings={settings} onSave={saveSettings} />
     </main>
