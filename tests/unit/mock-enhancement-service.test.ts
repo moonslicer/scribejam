@@ -6,6 +6,8 @@ describe('MockEnhancementService', () => {
     const service = new MockEnhancementService();
 
     const output = service.enhance({
+      meetingId: 'meeting-1',
+      meetingTitle: 'Weekly sync',
       noteContent: {
         type: 'doc',
         content: [
@@ -79,6 +81,8 @@ describe('MockEnhancementService', () => {
     const service = new MockEnhancementService();
 
     const output = service.enhance({
+      meetingId: 'meeting-2',
+      meetingTitle: 'No context',
       noteContent: null,
       transcriptSegments: []
     });

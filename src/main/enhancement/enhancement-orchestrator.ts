@@ -1,10 +1,11 @@
-import type { EnhanceMeetingResponse, JsonObject } from '../../shared/ipc';
+import type { EnhanceMeetingResponse } from '../../shared/ipc';
 import { MeetingStateMachine } from '../meeting/state-machine';
 import { MeetingRecordsService } from '../storage/meeting-records-service';
 import {
   EnhancedOutputsRepository,
   MeetingArtifactsRepository
 } from '../storage/repositories';
+import { toEnhancementArtifacts } from './enhancement-artifacts';
 import { MockEnhancementService } from './mock-enhancement-service';
 
 export class EnhancementOrchestrator {
@@ -26,17 +27,9 @@ export class EnhancementOrchestrator {
         throw new Error('Meeting not found for enhancement.');
       }
 
-      const output = this.mockEnhancementService.enhance({
-        noteContent: parseNoteContent(artifacts.note?.content),
-        transcriptSegments: artifacts.transcriptSegments.map((segment) => ({
-          id: segment.id,
-          speaker: segment.speaker,
-          text: segment.text,
-          startTs: segment.startTs,
-          endTs: segment.endTs,
-          isFinal: segment.isFinal
-        }))
-      });
+      const output = this.mockEnhancementService.enhance(
+        toEnhancementArtifacts(artifacts)
+      );
       const completedAt = new Date().toISOString();
       this.enhancedOutputsRepository.save({
         meetingId,
@@ -58,21 +51,4 @@ export class EnhancementOrchestrator {
       throw error;
     }
   }
-}
-
-function parseNoteContent(content: string | undefined): JsonObject | null {
-  if (!content) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(content) as JsonObject;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
 }
