@@ -36,9 +36,20 @@ export default function App(): JSX.Element {
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
 
   useMicCapture({
-    enabled: meetingState === 'recording',
+    enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
     onError: setErrorMessage
   });
+
+  useEffect(() => {
+    if (settings?.captureSource === 'system') {
+      setLevels((previous) => ({ ...previous, mic: 0 }));
+      return;
+    }
+
+    if (settings?.captureSource === 'mic') {
+      setLevels((previous) => ({ ...previous, system: 0 }));
+    }
+  }, [settings?.captureSource]);
 
   useNoteAutosave({
     enabled: meetingState === 'recording' || meetingState === 'stopped',
@@ -142,17 +153,12 @@ export default function App(): JSX.Element {
         setErrorMessage('Enhancement controls are not wired in this milestone yet.');
         return;
       }
-      const trimmedTitle = meetingTitle.trim();
-      if (trimmedTitle.length === 0) {
-        setErrorMessage('Meeting title is required.');
-        return;
-      }
-
       if (!api) {
         setErrorMessage('Desktop bridge unavailable.');
         return;
       }
-      const response = await api.startMeeting({ title: trimmedTitle });
+      const response = await api.startMeeting({ title: meetingTitle.trim() });
+      setMeetingTitle(response.title);
       setMeetingId(response.meetingId);
       resetTranscript();
     } catch (error) {

@@ -10,6 +10,11 @@ export interface TranscriptEntry {
   isFinal: boolean;
 }
 
+// Keep source-based labels until diarization gives us a real speaker identity to show.
+export function formatTranscriptSpeakerLabel(speaker: TranscriptEntry['speaker']): string {
+  return speaker === 'you' ? 'Mic' : 'System audio';
+}
+
 export function transcriptEntriesToText(entries: TranscriptEntry[]): string {
   return entries
     .map((entry) => {
@@ -17,7 +22,7 @@ export function transcriptEntriesToText(entries: TranscriptEntry[]): string {
       if (normalized.length === 0) {
         return '';
       }
-      return `${entry.speaker.toUpperCase()}: ${normalized}`;
+      return `${formatTranscriptSpeakerLabel(entry.speaker).toUpperCase()}: ${normalized}`;
     })
     .filter((line) => line.length > 0)
     .join('\n');

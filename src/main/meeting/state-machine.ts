@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { MeetingState } from '../../shared/ipc';
+import { resolveMeetingTitle } from '../../shared/meeting-title';
 
 export interface MeetingSnapshot {
   state: MeetingState;
@@ -17,10 +18,6 @@ export class MeetingStateMachine {
   }
 
   public start(title: string): MeetingSnapshot {
-    const trimmed = title.trim();
-    if (trimmed.length === 0) {
-      throw new Error('Meeting title is required.');
-    }
     if (this.snapshot.state === 'recording' || this.snapshot.state === 'enhancing') {
       throw new Error('Cannot start a meeting from the current state.');
     }
@@ -31,11 +28,14 @@ export class MeetingStateMachine {
       throw new Error('Reset to idle before starting a new meeting.');
     }
 
+    const startedAt = Date.now();
+    const resolvedTitle = resolveMeetingTitle(title, new Date(startedAt));
+
     this.snapshot = {
       state: 'recording',
       meetingId: randomUUID(),
-      title: trimmed,
-      startedAt: Date.now()
+      title: resolvedTitle,
+      startedAt
     };
 
     return this.getSnapshot();

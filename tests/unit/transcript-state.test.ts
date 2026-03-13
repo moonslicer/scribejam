@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TranscriptUpdateEvent } from '../../src/shared/ipc';
 import {
   applyTranscriptEvent,
+  formatTranscriptSpeakerLabel,
   transcriptEntriesToText,
   type TranscriptEntry
 } from '../../src/renderer/transcript/transcript-state';
@@ -73,6 +74,11 @@ describe('applyTranscriptEvent', () => {
       }
     ];
 
-    expect(transcriptEntriesToText(entries)).toBe('YOU: Hello world\nTHEM: Got it.');
+    expect(transcriptEntriesToText(entries)).toBe('MIC: Hello world\nSYSTEM AUDIO: Got it.');
+  });
+
+  it('uses source-based transcript labels', () => {
+    expect(formatTranscriptSpeakerLabel('you')).toBe('Mic');
+    expect(formatTranscriptSpeakerLabel('them')).toBe('System audio');
   });
 });

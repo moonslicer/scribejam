@@ -203,7 +203,7 @@ The prompt receives two inputs and produces structured JSON:
 
 **Inputs:**
 1. `user_notes` — the user's raw typed notes (sparse, freeform)
-2. `transcript` — the full meeting transcript with speaker labels and timestamps
+2. `transcript` — the full meeting transcript with source labels/timestamps today, and speaker IDs later if diarization is enabled
 
 **System prompt (draft):**
 ```
@@ -272,7 +272,7 @@ CREATE TABLE notes (
 CREATE TABLE transcript_segments (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   meeting_id    TEXT NOT NULL REFERENCES meetings(id),
-  speaker       TEXT NOT NULL,      -- 'you' | 'them'
+  speaker       TEXT NOT NULL,      -- internal source hint ('you' | 'them'), rendered as source-based labels in MVP
   text          TEXT NOT NULL,
   start_ts      REAL NOT NULL,      -- seconds from meeting start
   end_ts        REAL,
@@ -425,13 +425,14 @@ scribejam/
 4. Align/mix frames deterministically, then stream to Deepgram WebSocket
 5. Display live transcript in TranscriptPanel (scrolling text)
 6. ~~`whisper-node` local fallback~~ — deferred to post-MVP (local-only mode)
-7. Binary speaker labeling: system audio = "them", mic = "you" (per-speaker diarization within system audio is deferred to post-MVP)
+7. Source-based transcript labeling for MVP: system audio and mic remain visually distinct without claiming true speaker identity (per-speaker diarization within system audio is deferred to post-MVP)
 - **Testing (M2)**: Unit tests for ring buffer, frame alignment/mixing, and Deepgram reconnect logic. Integration test: mock WebSocket validates transcript event flow end-to-end.
 
 **M2 implementation decisions (as-built):**
 - Deepgram reconnect policy uses bounded retries with exponential backoff (max 3 attempts, base 500ms) and explicit renderer status events.
 - Frame defaults use M0-selected CFG-B values: 16kHz PCM16 mono, 20ms frame size, 100ms mix cadence, 250-frame bounded source buffers.
-- Binary `you/them` speaker labels are derived from recent source activity timestamps (heuristic), not full diarization.
+- Internal `you/them` source hints use recent single-source activity as a heuristic and keep attribution stable for an utterance across interim/final updates; the renderer presents them as source-based labels (`Mic`, `System audio`) so MVP does not overclaim speaker identity.
+- If diarization is added later, transcript presentation can switch from source-based labels to provider speaker IDs or similarly neutral diarized labels.
 - Renderer transcript handling coalesces live partial updates into one active line per speaker and only appends finalized segments.
 - Transcript panel includes one-click full-text copy for fast handoff/sharing.
 - First-run wizard is mandatory for cloud transcription activation; if bypassed at IPC level, transcription remains paused and meeting controls stay stable.
@@ -538,13 +539,13 @@ Goal: turn the current capture/transcript shell into a real notepad-first meetin
 - **How it fits the larger picture**: The title becomes part of each meeting's durable identity and later powers history/search UX.
 - **Implementation**:
   - Add a title input near the primary start action
-  - Validate non-empty title before calling `meeting:start`
+  - If the title is blank on start, generate a default title from the local start timestamp
   - Show the active title while recording or stopped
 - **Acceptance focus**:
-  - Starting a meeting requires explicit title input
+  - Starting a meeting with no typed title uses a readable timestamp title
   - Renderer no longer hardcodes meeting titles
 - **Verification**:
-  - Renderer test that empty title blocks start
+  - Renderer test that empty title starts with a generated title
   - Renderer test that the typed title is sent to `meeting:start`
 
 ##### Task 7: Introduce a small renderer meeting store

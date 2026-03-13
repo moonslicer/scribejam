@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
+import { useMeetingStore } from '../../src/renderer/stores/meeting-store';
 
 const api = {
   startMeeting: vi.fn(),
@@ -23,6 +24,15 @@ const api = {
 
 describe('App meeting title flow', () => {
   beforeEach(() => {
+    useMeetingStore.setState({
+      meetingState: 'idle',
+      meetingId: null,
+      meetingTitle: '',
+      transcriptEntries: [],
+      noteContent: null,
+      noteSaveState: 'idle'
+    });
+
     api.startMeeting.mockReset();
     api.stopMeeting.mockReset();
     api.getMeeting.mockReset();
@@ -42,11 +52,12 @@ describe('App meeting title flow', () => {
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',
       llmProvider: 'openai',
+      captureSource: 'mixed',
       deepgramApiKeySet: true,
       openaiApiKeySet: false,
       anthropicApiKeySet: false
     });
-    api.startMeeting.mockResolvedValue({ meetingId: 'meeting-1' });
+    api.startMeeting.mockResolvedValue({ meetingId: 'meeting-1', title: 'Design review' });
     api.getMeeting.mockResolvedValue(null);
 
     Object.defineProperty(window, 'scribejam', {
@@ -59,16 +70,21 @@ describe('App meeting title flow', () => {
     cleanup();
   });
 
-  it('blocks meeting start when the title is empty', async () => {
+  it('starts the meeting with a generated title when the input is empty', async () => {
     const user = userEvent.setup();
+    api.startMeeting.mockResolvedValue({ meetingId: 'meeting-1', title: 'Mar 12 09:07' });
     render(<App />);
 
     const button = await screen.findByTestId('meeting-primary-action');
     await waitFor(() => expect(button).toBeEnabled());
     await user.click(button);
 
-    expect(api.startMeeting).not.toHaveBeenCalled();
-    expect(screen.getByText('Meeting title is required.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.startMeeting).toHaveBeenCalledWith({
+        title: ''
+      })
+    );
+    expect(screen.getByDisplayValue('Mar 12 09:07')).toBeInTheDocument();
   });
 
   it('starts the meeting with the typed title', async () => {

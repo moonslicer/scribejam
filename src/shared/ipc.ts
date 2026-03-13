@@ -26,6 +26,7 @@ export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
+export type CaptureSource = 'mixed' | 'mic' | 'system';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
 
@@ -35,6 +36,7 @@ export interface MeetingStartRequest {
 
 export interface MeetingStartResponse {
   meetingId: string;
+  title: string;
 }
 
 export interface MeetingStopRequest {
@@ -113,6 +115,7 @@ export interface Settings {
   firstRunAcknowledged: boolean;
   sttProvider: SttProvider;
   llmProvider: LlmProvider;
+  captureSource: CaptureSource;
   deepgramApiKeySet: boolean;
   openaiApiKeySet: boolean;
   anthropicApiKeySet: boolean;
@@ -122,6 +125,7 @@ export interface SettingsSaveRequest {
   firstRunAcknowledged?: boolean;
   sttProvider?: SttProvider;
   llmProvider?: LlmProvider;
+  captureSource?: CaptureSource;
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
@@ -178,6 +182,14 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
     candidate.llmProvider !== undefined &&
     candidate.llmProvider !== 'openai' &&
     candidate.llmProvider !== 'anthropic'
+  ) {
+    return false;
+  }
+  if (
+    candidate.captureSource !== undefined &&
+    candidate.captureSource !== 'mixed' &&
+    candidate.captureSource !== 'mic' &&
+    candidate.captureSource !== 'system'
   ) {
     return false;
   }
