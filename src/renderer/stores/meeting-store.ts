@@ -27,6 +27,7 @@ export interface MeetingStoreActions {
   setMeetingState: (meetingState: MeetingState) => void;
   setMeetingId: (meetingId: string | null) => void;
   setMeetingTitle: (meetingTitle: string) => void;
+  clearMeeting: () => void;
   resetTranscript: () => void;
   applyTranscriptUpdate: (event: TranscriptUpdateEvent) => void;
   setNoteContent: (content: JsonObject | null) => void;
@@ -60,6 +61,18 @@ export const createMeetingStore = () =>
     setMeetingState: (meetingState) => set({ meetingState }),
     setMeetingId: (meetingId) => set({ meetingId }),
     setMeetingTitle: (meetingTitle) => set({ meetingTitle }),
+    clearMeeting: () =>
+      set((state) => ({
+        meetingState: 'idle',
+        meetingId: null,
+        meetingTitle: '',
+        transcriptEntries: [],
+        noteContent: null,
+        editorContent: null,
+        enhancedOutput: null,
+        editorInstanceKey: state.editorInstanceKey + 1,
+        noteSaveState: 'idle'
+      })),
     resetTranscript: () => set({ transcriptEntries: [] }),
     applyTranscriptUpdate: (event) =>
       set((state) => ({

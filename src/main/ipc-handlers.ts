@@ -114,6 +114,7 @@ export function createMainServices(context: HandlerContext): MainServices {
 export function registerIpcHandlers(context: HandlerContext, services: MainServices): void {
   ipcMain.removeHandler(IPC_CHANNELS.meetingStart);
   ipcMain.removeHandler(IPC_CHANNELS.meetingStop);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingReset);
   ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
   ipcMain.removeHandler(IPC_CHANNELS.meetingEnhance);
   ipcMain.removeHandler(IPC_CHANNELS.settingsGet);
@@ -180,6 +181,14 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
             state: snapshot.state
           }
     );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingReset, async () => {
+    const snapshot = services.stateMachine.resetToIdle();
+    context.window.webContents.send(IPC_CHANNELS.transcriptionStatus, { status: 'idle' });
+    emitMeetingState(context.window, { state: snapshot.state });
+
+    return { state: snapshot.state };
   });
 
   ipcMain.handle(IPC_CHANNELS.meetingGet, async (_event, payload: unknown) => {

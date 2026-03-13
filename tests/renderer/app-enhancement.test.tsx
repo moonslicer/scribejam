@@ -12,6 +12,7 @@ let stateListener:
 const api = {
   startMeeting: vi.fn(),
   stopMeeting: vi.fn(),
+  resetMeeting: vi.fn(),
   getMeeting: vi.fn(),
   enhanceMeeting: vi.fn(),
   getSettings: vi.fn(),
@@ -56,6 +57,7 @@ describe('App enhancement flow', () => {
 
     api.startMeeting.mockReset();
     api.stopMeeting.mockReset();
+    api.resetMeeting.mockReset();
     api.getMeeting.mockReset();
     api.enhanceMeeting.mockReset();
     api.getSettings.mockReset();
@@ -125,6 +127,9 @@ describe('App enhancement flow', () => {
     api.startMeeting.mockResolvedValue({
       meetingId: 'meeting-1',
       title: 'Weekly sync'
+    });
+    api.resetMeeting.mockResolvedValue({
+      state: 'idle'
     });
 
     Object.defineProperty(window, 'scribejam', {
@@ -224,5 +229,111 @@ describe('App enhancement flow', () => {
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('recording');
     await waitFor(() => expect(screen.queryByText('AI expansion')).not.toBeInTheDocument());
     expect(screen.getByText('Follow up with design')).toBeInTheDocument();
+  });
+
+  it('offers a new meeting action from done state and clears the completed meeting view', async () => {
+    const user = userEvent.setup();
+    api.getMeeting.mockResolvedValue({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Follow up with design'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Follow up with design'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      transcriptSegments: []
+    });
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    expect(await screen.findByText('AI expansion')).toBeInTheDocument();
+    await user.click(screen.getByTestId('meeting-secondary-action'));
+
+    await waitFor(() => expect(api.resetMeeting).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('idle');
+    expect(screen.getByTestId('meeting-title-input')).toHaveValue('');
+    await waitFor(() => expect(screen.queryByText('AI expansion')).not.toBeInTheDocument());
+    expect(screen.getByTestId('meeting-primary-action')).toHaveTextContent('Start Recording');
+  });
+
+  it('disables the meeting action while stop is in flight to avoid duplicate stop requests', async () => {
+    const user = userEvent.setup();
+    let resolveStop: (() => void) | null = null;
+    api.getMeeting.mockResolvedValue({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'recording',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:05:00.000Z',
+      durationMs: null,
+      noteContent: null,
+      enhancedOutput: null,
+      transcriptSegments: []
+    });
+    api.stopMeeting.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStop = resolve;
+        })
+    );
+
+    render(<App />);
+    await screen.findByTestId('meeting-bar');
+
+    await act(async () => {
+      stateListener?.({
+        state: 'recording',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+
+    const button = screen.getByTestId('meeting-primary-action');
+    await user.click(button);
+
+    expect(api.stopMeeting).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+
+    await user.click(button);
+    expect(api.stopMeeting).toHaveBeenCalledTimes(1);
+
+    resolveStop?.();
+    await waitFor(() => expect(button).not.toBeDisabled());
   });
 });

@@ -10,6 +10,7 @@ import {
   type MeetingDetails,
   type MeetingGetRequest,
   type MeetingStateChangedEvent,
+  type MeetingResetResponse,
   type MeetingStopRequest,
   type MicFramesPayload,
   type NotesSaveRequest,
@@ -26,6 +27,7 @@ type Unsubscribe = () => void;
 interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
+  resetMeeting: () => Promise<MeetingResetResponse>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
   getSettings: () => Promise<Settings>;
@@ -44,6 +46,7 @@ interface ScribejamApi {
 const api: ScribejamApi = {
   startMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStart, payload),
   stopMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStop, payload),
+  resetMeeting: () => ipcRenderer.invoke(IPC_CHANNELS.meetingReset),
   getMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingGet, payload),
   enhanceMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingEnhance, payload),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
