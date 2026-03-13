@@ -297,13 +297,13 @@ CREATE TABLE settings (
 ```
 
 ### API Key Onboarding & Settings
-- **First-run flow**: On first launch, a setup wizard collects:
+- **First-run flow (implemented in M2)**: On first launch, a setup wizard collects:
   1. Deepgram API key (required for MVP transcription)
-  2. LLM provider choice (Claude or OpenAI) + API key
-  3. Data flow disclosure: clear explanation that audio goes to Deepgram, notes+transcript go to LLM provider
-  4. User must explicitly acknowledge before proceeding
+  2. Data flow disclosure acknowledgement (audio is sent to Deepgram in cloud-assisted mode)
+  3. Explicit consent checkbox before recording/transcription can begin
+- **LLM key/provider onboarding**: deferred to M4 milestone settings enhancements.
 - **Storage**: API keys stored in Electron `safeStorage` (OS keychain-backed encryption)
-- **Settings page**: Accessible anytime to change keys, switch providers, view data flow info
+- **Settings page**: temporary inline panel in M2; move to a dedicated settings surface in later milestones.
 - **Validation**: Keys are tested on save (small API call) with clear error messages for invalid/expired keys
 
 ### Cloud Provider Data Flow (MVP Default)
@@ -341,36 +341,42 @@ scribejam/
 │   │   ├── index.ts                 # App entry, window management
 │   │   ├── ipc-handlers.ts          # IPC channel definitions
 │   │   ├── audio/
-│   │   │   ├── audio-manager.ts     # audioteejs integration, manage audio streams
-│   │   │   └── mic-capture.ts       # Microphone capture via IPC from renderer
+│   │   │   ├── audio-manager.ts     # capture + level + source frame ingest
+│   │   │   ├── frame-types.ts       # typed mic/system/mixed frame contracts
+│   │   │   ├── level-meter.ts       # audio RMS level computation
+│   │   │   ├── mic-capture.ts       # mic frame payload parsing/validation
+│   │   │   ├── mixer.ts             # deterministic cadence mixer
+│   │   │   ├── ring-buffer.ts       # bounded ring buffer primitive
+│   │   │   └── system-capture.ts    # audioteejs system capture adapter
 │   │   ├── stt/
-│   │   │   ├── stt-engine.ts        # STT interface + factory
-│   │   │   ├── whisper-local.ts     # whisper-node integration
-│   │   │   └── deepgram-api.ts      # Deepgram streaming (optional)
-│   │   ├── enhance/
-│   │   │   ├── merger.ts            # Note-transcript merge orchestration
-│   │   │   ├── prompts.ts           # Enhancement prompt templates
-│   │   │   └── llm-client.ts        # Claude/GPT client abstraction
-│   │   ├── storage/
-│   │   │   ├── db.ts                # better-sqlite3 operations
-│   │   │   └── models.ts            # TypeScript types (Meeting, Note, Transcript)
+│   │   │   ├── create-stt-adapter.ts
+│   │   │   ├── deepgram-adapter.ts
+│   │   │   ├── mock-stt-adapter.ts
+│   │   │   └── types.ts
+│   │   ├── transcription/
+│   │   │   └── transcription-service.ts
 │   │   └── meeting/
-│   │       └── state-machine.ts     # Meeting state: idle→recording→enhancing→done
+│   │       └── state-machine.ts     # Meeting state: idle→recording→stopped
 │   ├── renderer/                    # React frontend
 │   │   ├── App.tsx
+│   │   ├── audio/
+│   │   │   ├── mic-worklet.ts
+│   │   │   └── useMicCapture.ts
 │   │   ├── components/
-│   │   │   ├── Notepad.tsx          # Tiptap editor with authorship marks
-│   │   │   ├── MeetingBar.tsx       # Start/stop button, timer, status
-│   │   │   ├── EnhancedView.tsx     # Post-meeting enhanced notes
-│   │   │   ├── MeetingList.tsx      # Past meetings sidebar
-│   │   │   └── TranscriptPanel.tsx  # Live transcript display
-│   │   ├── hooks/
-│   │   │   ├── useMeeting.ts        # Meeting state management
-│   │   │   └── useTranscript.ts     # Real-time transcript updates
-│   │   └── stores/
-│   │       └── meeting-store.ts     # Zustand for app state
+│   │   │   ├── AudioLevel.tsx
+│   │   │   ├── MeetingBar.tsx
+│   │   │   ├── SettingsPanel.tsx
+│   │   │   ├── SetupWizard.tsx
+│   │   │   ├── StatusBanner.tsx
+│   │   │   └── TranscriptPanel.tsx
+│   │   └── transcript/
+│   │       └── transcript-state.ts  # transcript event coalescing + copy formatter
 │   └── preload/
 │       └── index.ts                 # contextBridge API exposure
+├── tests/
+│   ├── integration/
+│   ├── smoke/
+│   └── unit/
 ├── package.json
 ├── tsconfig.json
 ├── electron-builder.yml             # Build/packaging config
@@ -422,6 +428,22 @@ scribejam/
 7. Binary speaker labeling: system audio = "them", mic = "you" (per-speaker diarization within system audio is deferred to post-MVP)
 - **Testing (M2)**: Unit tests for ring buffer, frame alignment/mixing, and Deepgram reconnect logic. Integration test: mock WebSocket validates transcript event flow end-to-end.
 
+**M2 implementation decisions (as-built):**
+- Deepgram reconnect policy uses bounded retries with exponential backoff (max 3 attempts, base 500ms) and explicit renderer status events.
+- Frame defaults use M0-selected CFG-B values: 16kHz PCM16 mono, 20ms frame size, 100ms mix cadence, 250-frame bounded source buffers.
+- Binary `you/them` speaker labels are derived from recent source activity timestamps (heuristic), not full diarization.
+- Renderer transcript handling coalesces live partial updates into one active line per speaker and only appends finalized segments.
+- Transcript panel includes one-click full-text copy for fast handoff/sharing.
+- First-run wizard is mandatory for cloud transcription activation; if bypassed at IPC level, transcription remains paused and meeting controls stay stable.
+
+**M2 closure artifacts:**
+- `docs/m2-exit-report.md`
+- `tests/unit/ring-buffer.test.ts`
+- `tests/unit/mixer.test.ts`
+- `tests/unit/deepgram-adapter.test.ts`
+- `tests/integration/transcription-service.test.ts`
+- `tests/smoke/app-launch.spec.ts` (S1 scenarios)
+
 ### M3: Notepad Editor
 1. Integrate Tiptap editor with custom `authorship` mark (human vs AI)
 2. Split-pane layout: notepad (left) + live transcript (right)
@@ -429,7 +451,222 @@ scribejam/
 4. Notes auto-saved to SQLite via `better-sqlite3`
 5. Implement meeting state machine per the state machine definition above (including `enhance_failed` state and re-record transition)
 6. Meeting title input field on start
+7. Move the temporary inline settings panel to a dedicated settings surface (menu/modal/page), keeping meeting view focused on notes + transcript
 - **Testing (M3)**: Unit tests for SQLite CRUD operations, note auto-save debounce, state machine transition guards. Renderer test: Tiptap editor renders and persists content round-trip.
+
+#### M3 Delivery Breakdown (Junior-Friendly)
+
+Goal: turn the current capture/transcript shell into a real notepad-first meeting workspace where the user can title a meeting, type notes during recording, and trust that notes and transcript persist locally for later recovery and future enhancement.
+
+##### Task 1: Define the M3 data model and storage boundaries
+- **Why this task exists**: Before changing UI, we need a clear definition of what a persisted meeting contains so title, notes, and transcript save consistently.
+- **How it fits the larger picture**: This creates the local-first foundation for M3 note persistence, M4 enhancement input, and M5 meeting history.
+- **Implementation**:
+  - Define TypeScript models for `Meeting`, `Note`, and `TranscriptSegment`
+  - Define the minimum SQLite schema for `meetings`, `notes`, and `transcript_segments`
+  - Keep raw audio out of storage entirely
+- **Acceptance focus**:
+  - Schema supports title, lifecycle timestamps/state, notes content, and transcript segments
+  - No schema persists raw audio
+- **Verification**:
+  - Unit test that schema bootstrap succeeds on an empty database
+  - Unit test that reopening the database does not destroy existing data
+
+##### Task 2: Build the SQLite storage module and repositories
+- **Why this task exists**: M3 requires note autosave to SQLite, and SQL should live behind explicit main-process interfaces rather than inside IPC handlers.
+- **How it fits the larger picture**: This keeps persistence simple and debuggable, matching the AGENTS architecture rules.
+- **Implementation**:
+  - Add a storage bootstrap module in `src/main/storage`
+  - Add repository methods for `createMeeting`, `updateMeetingStop`, `saveNotes`, `appendTranscriptSegment`, and `getMeetingWithArtifacts`
+  - Keep `better-sqlite3` usage in main process only
+- **Acceptance focus**:
+  - Repositories support the M3 flows without leaking SQL into UI or IPC code
+  - Saving notes updates the current note row instead of duplicating it
+- **Verification**:
+  - Unit tests for repository CRUD behavior
+  - Unit test that repeated note saves update the existing record
+  - Unit test that fetching a meeting returns notes and transcript together
+
+##### Task 3: Extend the shared IPC contract for M3 persistence
+- **Why this task exists**: The renderer needs a typed way to save notes and load a meeting while keeping process boundaries explicit.
+- **How it fits the larger picture**: This becomes the stable contract for M3 note editing and later for M5 history views.
+- **Implementation**:
+  - Add `meeting:get`
+  - Add `notes:save`
+  - Add shared request/response types for persisted meeting payloads
+  - Expose these APIs through preload only
+- **Acceptance focus**:
+  - IPC remains typed and minimal
+  - Renderer never talks to SQLite directly
+- **Verification**:
+  - Unit tests for IPC type guards and payload validation
+  - Update preload typing tests or contract tests as needed
+
+##### Task 4: Persist meeting lifecycle events in the main process
+- **Why this task exists**: Starting and stopping a meeting should create durable records immediately, not just update in-memory state.
+- **How it fits the larger picture**: This makes M3 recoverable after app restarts and gives M4 stored notes/transcript artifacts to work from.
+- **Implementation**:
+  - On `meeting:start`, create a meeting row with title and start time
+  - On transcript events, append transcript segments
+  - On `meeting:stop`, persist stop time and duration
+  - Implement `meeting:get` using the repositories
+- **Acceptance focus**:
+  - Meetings, notes, and transcript are persisted locally
+  - Raw audio remains in-memory only
+- **Verification**:
+  - Unit/integration test that start creates a meeting record
+  - Unit/integration test that stop finalizes duration and state
+  - Unit/integration test that transcript updates persist as text segments
+
+##### Task 5: Expand the meeting state machine to match the planned lifecycle
+- **Why this task exists**: M3 explicitly calls for the fuller state machine, and lifecycle rules should remain authoritative in main.
+- **How it fits the larger picture**: This prevents lifecycle logic from scattering across the app and prepares the codebase for M4 enhancement without redesigning state later.
+- **Implementation**:
+  - Extend states to include `enhancing`, `enhance_failed`, and `done`
+  - Add explicit transition methods with guardrails
+  - Preserve the existing recording flow
+  - Support the re-record/new-meeting transitions cleanly
+- **Acceptance focus**:
+  - Invalid transitions fail fast
+  - The state machine remains the single authority for lifecycle changes
+- **Verification**:
+  - Unit tests for each valid transition
+  - Unit tests for invalid transitions and guard behavior
+
+##### Task 6: Add a meeting title draft flow in the renderer
+- **Why this task exists**: M3 requires a title input on start, and the current app hardcodes `"Untitled Meeting"`.
+- **How it fits the larger picture**: The title becomes part of each meeting's durable identity and later powers history/search UX.
+- **Implementation**:
+  - Add a title input near the primary start action
+  - Validate non-empty title before calling `meeting:start`
+  - Show the active title while recording or stopped
+- **Acceptance focus**:
+  - Starting a meeting requires explicit title input
+  - Renderer no longer hardcodes meeting titles
+- **Verification**:
+  - Renderer test that empty title blocks start
+  - Renderer test that the typed title is sent to `meeting:start`
+
+##### Task 7: Introduce a small renderer meeting store
+- **Why this task exists**: Autosave, active meeting hydration, transcript, title draft, and editor content are becoming too coordinated for local component state.
+- **How it fits the larger picture**: This aligns the implementation with the planned renderer architecture and keeps `App.tsx` from becoming a control blob.
+- **Implementation**:
+  - Add a small meeting store (planned default: Zustand)
+  - Store active meeting id/state/title, transcript entries, editor content, and dirty/saving status
+  - Move orchestration out of `App.tsx` where practical
+- **Acceptance focus**:
+  - Renderer state has one clear home
+  - Meeting/editor state is easier to test in isolation
+- **Verification**:
+  - Unit tests for store updates from meeting and transcript events
+
+##### Task 8: Build the Tiptap notepad component with a minimal authorship mark
+- **Why this task exists**: The notepad is the core M3 deliverable.
+- **How it fits the larger picture**: Adding the authorship mark now gives M4 a compatible editor foundation for AI-authored blocks.
+- **Implementation**:
+  - Add Tiptap dependencies
+  - Build `Notepad.tsx`
+  - Define the `authorship` mark in the editor schema
+  - Default user-authored content to the human style
+- **Acceptance focus**:
+  - User can type notes freely during recording
+  - The editor stores structured content that M4 can build on
+- **Verification**:
+  - Renderer test that the editor renders initial content
+  - Renderer/unit test that content serializes to JSON and back
+  - Test that normal user typing does not incorrectly get AI styling
+
+##### Task 9: Move the renderer to a split-pane layout
+- **Why this task exists**: M3 is specifically a note editor beside the live transcript, not just a generic text area added to the current shell.
+- **How it fits the larger picture**: This is the core notepad-first workspace the user uses during the meeting.
+- **Implementation**:
+  - Place the notepad on the left and transcript on the right
+  - Keep controls/status visible without dominating the layout
+  - Preserve note-taking during degraded transcription/cloud states
+- **Acceptance focus**:
+  - Both note editor and transcript are visible in the main workspace
+  - The note editor is the primary focus of the screen
+- **Verification**:
+  - Renderer layout test confirming both panes render
+  - Existing transcript rendering tests continue to pass
+
+##### Task 10: Add debounced note autosave
+- **Why this task exists**: Without autosave, the product fails the notepad-first reliability goal and misses a core M3 acceptance criterion.
+- **How it fits the larger picture**: M4 enhancement and M5 history both depend on trustworthy saved notes.
+- **Implementation**:
+  - Watch editor content changes
+  - Debounce saves before sending `notes:save`
+  - Persist editor JSON only
+  - Track `dirty` and `saving` state if useful for UX
+- **Acceptance focus**:
+  - Frequent typing does not cause excessive writes
+  - The latest editor content is what gets persisted
+- **Verification**:
+  - Unit test for debounce behavior
+  - Unit/integration test that rapid edits collapse into one final save
+  - Unit/integration test that saves are scoped to the active meeting
+
+##### Task 11: Hydrate saved notes when loading or returning to a meeting
+- **Why this task exists**: Autosave is only useful if persisted data can be restored back into the editor.
+- **How it fits the larger picture**: This closes the persistence loop for M3 and ensures M4 enhancement reads durable artifacts rather than transient UI state.
+- **Implementation**:
+  - Load meeting data through `meeting:get`
+  - Populate transcript and note content from stored values
+  - Keep stopped meetings viewable/editable if that remains the chosen M3 behavior
+- **Acceptance focus**:
+  - Notes and transcript survive reload/reopen
+  - Stored content round-trips cleanly back into the UI
+- **Verification**:
+  - Renderer round-trip test: type notes, save, reload, restore same content
+
+##### Task 12: Tighten M3 verification and manual flow checks
+- **Why this task exists**: M3 touches persistence, state, and renderer behavior together, so we need a final pass that verifies the whole flow.
+- **How it fits the larger picture**: This reduces risk before M4 builds enhancement logic on top of the saved meeting artifacts.
+- **Implementation**:
+  - Add missing repository/state/editor tests
+  - Run typecheck and test suite
+  - Execute a short manual smoke flow
+- **Acceptance focus**:
+  - M3 acceptance criteria have direct verification evidence
+  - Regressions are caught before the next milestone
+- **Verification**:
+  - Manual smoke flow:
+    - enter title
+    - start meeting
+    - type notes while transcript updates
+    - stop meeting
+    - reload app and confirm notes/transcript still exist
+
+#### Suggested Build Order
+1. Task 1: Define the M3 data model and storage boundaries
+2. Task 2: Build the SQLite storage module and repositories
+3. Task 3: Extend the shared IPC contract for M3 persistence
+4. Task 4: Persist meeting lifecycle events in the main process
+5. Task 5: Expand the meeting state machine to match the planned lifecycle
+6. Task 6: Add a meeting title draft flow in the renderer
+7. Task 7: Introduce a small renderer meeting store
+8. Task 8: Build the Tiptap notepad component with a minimal authorship mark
+9. Task 9: Move the renderer to a split-pane layout
+10. Task 10: Add debounced note autosave
+11. Task 11: Hydrate saved notes when loading or returning to a meeting
+12. Task 12: Tighten M3 verification and manual flow checks
+
+#### Step-Back Review: How This Plan Matches M3
+- **M3.1 Tiptap editor with authorship mark** is covered by Task 8
+- **M3.2 Split-pane layout** is covered by Task 9
+- **M3.3 User types notes during recording** is covered by Tasks 8 and 9
+- **M3.4 Notes auto-saved to SQLite** is covered by Tasks 1, 2, 3, 4, and 10
+- **M3.5 Expanded meeting state machine** is covered by Task 5
+- **M3.6 Meeting title input on start** is covered by Task 6
+- **M3 testing expectations** are covered by Tasks 2, 5, 8, 10, 11, and 12
+
+This plan intentionally stays inside M3 scope:
+- It does not introduce a meeting history panel yet; that remains M5 scope
+- It does not implement enhancement UI or LLM orchestration yet; that remains M4 scope
+- It preserves the AGENTS invariants by keeping raw audio in-memory only and keeping storage/main-process authority explicit
+
+Implementation note:
+- Keep Task 5 modest. Define the future-ready lifecycle states and guards now, but do not pull full enhancement behavior forward from M4 unless it is required to complete a transition contract.
 
 ### M4: AI Enhancement Engine
 1. Add LLM provider selection + API key input to setup wizard / settings page
@@ -455,7 +692,7 @@ scribejam/
 
 | Failure | Detection | Response | User Feedback |
 |---------|-----------|----------|---------------|
-| **Deepgram WebSocket disconnects** | `close`/`error` event on WS | Auto-reconnect with exponential backoff (max 3 retries). Buffer audio frames during reconnect window. If reconnect fails, fall back to whisper-node if available, else pause transcription. | Toast: "Transcription reconnecting..." → "Transcription paused — check network" |
+| **Deepgram WebSocket disconnects** | `close`/`error` event on WS | Auto-reconnect with exponential backoff (max 3 retries). Keep capture active with bounded in-memory buffering during reconnect window. If reconnect fails, pause transcription and preserve meeting flow. | Toast: "Transcription reconnecting..." → "Transcription paused — check network" |
 | **LLM API rate-limit / timeout** | HTTP 429 or timeout >30s | Retry once after delay. If second attempt fails, save raw notes+transcript and let user retry enhancement later. | Toast: "Enhancement delayed — will retry" with manual "Retry" button |
 | **audioteejs permission denied** | Error on `start()` call | Show a guided permission flow: open System Settings > Privacy > System Audio Recording. Cannot proceed without permission. | Modal with step-by-step macOS permission instructions |
 | **audioteejs crashes / unavailable** | Process exit or import failure | Degrade to mic-only mode (no system audio). User can still capture their own voice and type notes. | Banner: "System audio unavailable — recording microphone only" |
