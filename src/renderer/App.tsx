@@ -8,10 +8,14 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
 import { TranscriptPanel } from './components/TranscriptPanel';
+import { useNoteAutosave } from './hooks/use-note-autosave';
 import { useMeetingStore } from './stores/meeting-store';
+
+const NOOP_SAVE_NOTES = (): void => {};
 
 export default function App(): JSX.Element {
   const api = window.scribejam;
+  const saveNotes = api?.saveNotes ?? NOOP_SAVE_NOTES;
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
@@ -21,15 +25,27 @@ export default function App(): JSX.Element {
   const meetingTitle = useMeetingStore((state) => state.meetingTitle);
   const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
   const noteContent = useMeetingStore((state) => state.noteContent);
+  const noteSaveState = useMeetingStore((state) => state.noteSaveState);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
   const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
   const applyTranscriptUpdate = useMeetingStore((state) => state.applyTranscriptUpdate);
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
   const setNoteContent = useMeetingStore((state) => state.setNoteContent);
+  const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
 
   useMicCapture({
     enabled: meetingState === 'recording',
+    onError: setErrorMessage
+  });
+
+  useNoteAutosave({
+    enabled: meetingState === 'recording' || meetingState === 'stopped',
+    meetingId,
+    noteContent,
+    noteSaveState,
+    setNoteSaveState,
+    saveNotes,
     onError: setErrorMessage
   });
 
