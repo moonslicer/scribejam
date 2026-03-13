@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
 
@@ -97,5 +97,6 @@ describe('App hydration', () => {
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(await screen.findByText('Follow up with design')).toBeInTheDocument();
     expect(screen.getByText('Please send the revised mockups.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('transcript-panel')).getByText(/System audio/i)).toBeInTheDocument();
   });
 });

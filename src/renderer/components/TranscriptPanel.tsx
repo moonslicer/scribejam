@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { transcriptEntriesToText, type TranscriptEntry } from '../transcript/transcript-state';
+import {
+  formatTranscriptSpeakerLabel,
+  transcriptEntriesToText,
+  type TranscriptEntry
+} from '../transcript/transcript-state';
 
 interface TranscriptPanelProps {
   entries: TranscriptEntry[];
@@ -80,7 +84,7 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps): JSX.Element 
         {entries.map((entry) => (
           <div key={entry.id} className="rounded border border-zinc-100 bg-zinc-50 px-3 py-2">
             <p className="text-xs uppercase tracking-wide text-zinc-500">
-              {entry.speaker} • {formatTime(entry.ts)} {!entry.isFinal ? '• live' : ''}
+              {formatTranscriptSpeakerLabel(entry.speaker)} • {formatTime(entry.ts)} {!entry.isFinal ? '• live' : ''}
             </p>
             <p className="mt-1 text-sm text-zinc-800">{entry.text}</p>
           </div>
