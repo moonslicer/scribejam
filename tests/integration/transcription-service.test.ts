@@ -163,4 +163,34 @@ describe('TranscriptionService', () => {
     expect(statusEvents.some((event) => event.status === 'reconnecting')).toBe(true);
     expect(statusEvents.some((event) => event.status === 'streaming')).toBe(true);
   });
+
+  it('ignores transcript events that arrive after stop', async () => {
+    const transcriptEvents: TranscriptUpdateEvent[] = [];
+    const sttAdapter = new ScriptedSttAdapter();
+    const service = new TranscriptionService({
+      sttAdapter,
+      mixCadenceMs: 10,
+      events: {
+        onTranscript: (event) => transcriptEvents.push(event),
+        onStatus: () => {
+          // no-op
+        },
+        onErrorDisplay: () => {
+          // no-op
+        }
+      }
+    });
+
+    await service.start();
+    await service.stop();
+
+    sttAdapter.emitTranscript({
+      ts: 200,
+      text: 'Late transcript update',
+      isFinal: true,
+      latencyMs: 10
+    });
+
+    expect(transcriptEvents).toHaveLength(0);
+  });
 });

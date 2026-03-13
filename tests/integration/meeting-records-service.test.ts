@@ -90,6 +90,44 @@ describe('MeetingRecordsService', () => {
     ]);
   });
 
+  it('persists only finalized transcript segments for the active meeting', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
+    tempDirs.push(dir);
+    const service = createService(join(dir, 'scribejam.sqlite'));
+
+    service.recordMeetingStarted({
+      state: 'recording',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      startedAt: Date.parse('2026-03-12T18:00:00.000Z')
+    });
+    service.appendTranscriptSegment('meeting-1', {
+      text: 'Can you send',
+      speaker: 'them',
+      ts: 14,
+      isFinal: false
+    });
+    service.appendTranscriptSegment('meeting-1', {
+      text: 'Can you send the draft?',
+      speaker: 'them',
+      ts: 14.25,
+      isFinal: true
+    });
+
+    const meeting = service.getMeeting('meeting-1');
+
+    expect(meeting?.transcriptSegments).toEqual([
+      {
+        id: 1,
+        speaker: 'them',
+        text: 'Can you send the draft?',
+        startTs: 14.25,
+        endTs: 14.25,
+        isFinal: true
+      }
+    ]);
+  });
+
   it('persists enhancement lifecycle state changes', () => {
     const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
     tempDirs.push(dir);

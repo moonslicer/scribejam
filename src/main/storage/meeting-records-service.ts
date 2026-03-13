@@ -75,7 +75,7 @@ export class MeetingRecordsService {
   }
 
   public appendTranscriptSegment(meetingId: string | undefined, event: TranscriptUpdateEvent): void {
-    if (!meetingId) {
+    if (!meetingId || !event.isFinal) {
       return;
     }
 

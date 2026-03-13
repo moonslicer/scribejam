@@ -104,4 +104,44 @@ describe('EnhancementOrchestrator', () => {
 
     harness.db.close();
   });
+
+  it('enhances against compacted finalized transcript context', () => {
+    const harness = createHarness();
+    const started = harness.stateMachine.start('Weekly sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    harness.transcript.append({
+      meetingId: started.meetingId ?? '',
+      speaker: 'you',
+      text: 'I wanna be',
+      startTs: 10,
+      isFinal: false
+    });
+    harness.transcript.append({
+      meetingId: started.meetingId ?? '',
+      speaker: 'you',
+      text: 'I wanna be the very best.',
+      startTs: 11,
+      endTs: 11,
+      isFinal: true
+    });
+    harness.transcript.append({
+      meetingId: started.meetingId ?? '',
+      speaker: 'you',
+      text: 'I wanna be the very best. The best there ever was.',
+      startTs: 12,
+      endTs: 12,
+      isFinal: true
+    });
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    const response = harness.orchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    expect(response.output.summary).toContain('Transcript captured 1 segment(s)');
+    expect(response.output.blocks[0]?.content).toContain(
+      'I wanna be the very best. The best there ever was.'
+    );
+
+    harness.db.close();
+  });
 });
