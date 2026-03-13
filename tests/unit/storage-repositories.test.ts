@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createStorageDatabase } from '../../src/main/storage/db';
 import {
+  EnhancedOutputsRepository,
   MeetingArtifactsRepository,
   MeetingsRepository,
   NotesRepository,
@@ -99,6 +100,7 @@ describe('storage repositories', () => {
     const meetings = new MeetingsRepository(db);
     const notes = new NotesRepository(db);
     const transcript = new TranscriptRepository(db);
+    const enhancedOutputs = new EnhancedOutputsRepository(db);
     const artifacts = new MeetingArtifactsRepository(db);
 
     meetings.create({
@@ -122,6 +124,12 @@ describe('storage repositories', () => {
       endTs: 15.1,
       isFinal: true
     });
+    enhancedOutputs.save({
+      meetingId: 'meeting-1',
+      content:
+        '{"blocks":[{"source":"human","content":"Follow up"},{"source":"ai","content":"Draft is due Friday."}],"actionItems":[],"decisions":[],"summary":"Send the draft Friday."}',
+      createdAt: '2026-03-12T17:31:00.000Z'
+    });
 
     const meeting = artifacts.getMeetingWithArtifacts('meeting-1');
 
@@ -133,6 +141,38 @@ describe('storage repositories', () => {
       text: 'Ship the draft on Friday.',
       isFinal: true
     });
+    expect(meeting?.enhancedOutput?.content).toContain('Draft is due Friday.');
+
+    db.close();
+  });
+
+  it('returns the latest enhancement for a meeting', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
+    tempDirs.push(dir);
+    const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
+    const meetings = new MeetingsRepository(db);
+    const enhancedOutputs = new EnhancedOutputsRepository(db);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'stopped',
+      createdAt: '2026-03-12T17:00:00.000Z',
+      updatedAt: '2026-03-12T17:30:00.000Z'
+    });
+
+    enhancedOutputs.save({
+      meetingId: 'meeting-1',
+      content: '{"summary":"First summary","blocks":[],"actionItems":[],"decisions":[]}',
+      createdAt: '2026-03-12T17:31:00.000Z'
+    });
+    const latest = enhancedOutputs.save({
+      meetingId: 'meeting-1',
+      content: '{"summary":"Latest summary","blocks":[],"actionItems":[],"decisions":[]}',
+      createdAt: '2026-03-12T17:32:00.000Z'
+    });
+
+    expect(enhancedOutputs.getLatestByMeetingId('meeting-1')).toEqual(latest);
 
     db.close();
   });
