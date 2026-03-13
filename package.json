@@ -22,6 +22,7 @@
     "postinstall": "npm run rebuild-native || echo 'native rebuild skipped'"
   },
   "dependencies": {
+    "@deepgram/sdk": "^5.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

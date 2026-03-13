@@ -3,10 +3,14 @@ export const IPC_CHANNELS = {
   meetingStop: 'meeting:stop',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
+  settingsValidateKey: 'settings:validate-key',
   audioMicFrames: 'audio:mic-frames',
   meetingStateChanged: 'meeting:state-changed',
   audioLevel: 'audio:level',
-  errorDisplay: 'error:display'
+  transcriptUpdate: 'transcript:update',
+  transcriptionStatus: 'transcription:status',
+  errorDisplay: 'error:display',
+  testSimulateSttDisconnect: 'test:simulate-stt-disconnect'
 } as const;
 
 export type MeetingState = 'idle' | 'recording' | 'stopped';
@@ -14,6 +18,8 @@ export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
+export type TranscriptSpeaker = 'you' | 'them';
+export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
 
 export interface MeetingStartRequest {
   title: string;
@@ -48,6 +54,18 @@ export interface ErrorDisplayEvent {
   action?: ErrorAction;
 }
 
+export interface TranscriptUpdateEvent {
+  text: string;
+  speaker: TranscriptSpeaker;
+  ts: number;
+  isFinal: boolean;
+}
+
+export interface TranscriptionStatusEvent {
+  status: TranscriptionStatus;
+  detail?: string;
+}
+
 export interface Settings {
   firstRunAcknowledged: boolean;
   sttProvider: SttProvider;
@@ -64,6 +82,16 @@ export interface SettingsSaveRequest {
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
+}
+
+export interface SettingsValidateKeyRequest {
+  provider: SttProvider;
+  key: string;
+}
+
+export interface SettingsValidateKeyResponse {
+  valid: boolean;
+  error?: string;
 }
 
 export function isMicFramesPayload(value: unknown): value is MicFramesPayload {
@@ -116,4 +144,13 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
     (candidate.openaiApiKey === undefined || typeof candidate.openaiApiKey === 'string') &&
     (candidate.anthropicApiKey === undefined || typeof candidate.anthropicApiKey === 'string')
   );
+}
+
+export function isSettingsValidateKeyRequest(value: unknown): value is SettingsValidateKeyRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<SettingsValidateKeyRequest>;
+  return candidate.provider === 'deepgram' && typeof candidate.key === 'string';
 }

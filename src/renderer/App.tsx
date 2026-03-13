@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { MeetingState, Settings } from '../shared/ipc';
+import type { MeetingState, Settings, TranscriptionStatusEvent } from '../shared/ipc';
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
 import { SettingsPanel } from './components/SettingsPanel';
+import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
+import { TranscriptPanel } from './components/TranscriptPanel';
+import { applyTranscriptEvent, type TranscriptEntry } from './transcript/transcript-state';
 
 export default function App(): JSX.Element {
   const api = window.scribejam;
@@ -12,7 +15,9 @@ export default function App(): JSX.Element {
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
+  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
 
   useMicCapture({
     enabled: meetingState === 'recording',
@@ -46,13 +51,23 @@ export default function App(): JSX.Element {
     const unsubError = api.onErrorDisplay((event) => {
       setErrorMessage(event.message);
     });
+    const unsubTranscript = api.onTranscriptUpdate((event) => {
+      setTranscriptEntries((previous) => applyTranscriptEvent(previous, event));
+    });
+    const unsubTranscriptionStatus = api.onTranscriptionStatus((event) => {
+      setTranscriptionStatus(event);
+    });
 
     return () => {
       unsubState();
       unsubLevel();
       unsubError();
+      unsubTranscript();
+      unsubTranscriptionStatus();
     };
   }, [api]);
+
+  const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
   const onPrimaryAction = async (): Promise<void> => {
     try {
@@ -69,6 +84,10 @@ export default function App(): JSX.Element {
         await api.stopMeeting({ meetingId });
         return;
       }
+      if (setupRequired) {
+        setErrorMessage('Complete first-run setup to enable cloud transcription.');
+        return;
+      }
 
       if (!api) {
         setErrorMessage('Desktop bridge unavailable.');
@@ -76,6 +95,7 @@ export default function App(): JSX.Element {
       }
       const response = await api.startMeeting({ title: 'Untitled Meeting' });
       setMeetingId(response.meetingId);
+      setTranscriptEntries([]);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update meeting state.');
     }
@@ -91,6 +111,30 @@ export default function App(): JSX.Element {
     setSettings(refreshed);
   };
 
+  const completeFirstRunSetup = async (payload: { deepgramApiKey: string }): Promise<void> => {
+    await saveSettings({
+      deepgramApiKey: payload.deepgramApiKey,
+      firstRunAcknowledged: true
+    });
+    setErrorMessage(null);
+  };
+
+  const validateDeepgramKey = async (key: string): Promise<{ valid: boolean; error?: string }> => {
+    if (!api) {
+      return {
+        valid: false,
+        error: 'Desktop bridge unavailable.'
+      };
+    }
+
+    return api.validateSttKey({
+      provider: 'deepgram',
+      key
+    });
+  };
+
+  const bannerMessage = errorMessage ?? transcriptionStatus.detail ?? null;
+
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <header>
@@ -98,15 +142,28 @@ export default function App(): JSX.Element {
         <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">
           Notepad-first meeting capture shell
         </h1>
+        <p data-testid="transcription-status" className="mt-1 text-xs text-zinc-500">
+          Transcription: {transcriptionStatus.status}
+        </p>
       </header>
 
-      <MeetingBar meetingState={meetingState} onPrimaryAction={() => void onPrimaryAction()} />
-      <StatusBanner message={errorMessage} />
+      {setupRequired ? (
+        <SetupWizard onValidateKey={validateDeepgramKey} onComplete={completeFirstRunSetup} />
+      ) : null}
+
+      <MeetingBar
+        meetingState={meetingState}
+        onPrimaryAction={() => void onPrimaryAction()}
+        disabled={settings === null}
+      />
+      <StatusBanner message={bannerMessage} />
 
       <section className="grid gap-3 md:grid-cols-2">
         <AudioLevel source="mic" label="Microphone" value={levels.mic} />
         <AudioLevel source="system" label="System Audio" value={levels.system} />
       </section>
+
+      <TranscriptPanel entries={transcriptEntries} />
 
       <SettingsPanel settings={settings} onSave={saveSettings} />
     </main>

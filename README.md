@@ -14,14 +14,16 @@ Authoritative docs:
 - M0 evidence and report: [docs/m0](./docs/m0), [docs/m0-spike-report.md](./docs/m0-spike-report.md)
 - M1 implementation handoff: [docs/m1-implementation-plan.md](./docs/m1-implementation-plan.md)
 - M1 closure evidence: [docs/m1/validation](./docs/m1/validation), [docs/m1-exit-report.md](./docs/m1-exit-report.md)
+- M2 closure evidence: [docs/m2-exit-report.md](./docs/m2-exit-report.md)
 
 ## Current Repo Status
 
 The repository now contains:
 - M0 technical spike harness under `spike/m0-harness/`
 - M1 Electron scaffold in `src/` with typed IPC, audio capture shell, settings shell, and smoke/unit tests
+- M2 real-time transcription flow with first-run disclosure wizard, deterministic mixer pipeline, Deepgram STT integration, and live transcript panel
 
-M1 closure details and verification are documented in `docs/m1-exit-report.md`.
+Milestone closure details and verification are documented in `docs/m1-exit-report.md` and `docs/m2-exit-report.md`.
 
 ## Prerequisites
 

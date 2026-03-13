@@ -1,18 +1,14 @@
 import type { AudioLevelEvent, ErrorDisplayEvent } from '../../shared/ipc';
 import { parseMicFramesPayload } from './mic-capture';
 import { computeRms } from './level-meter';
+import type { SourceAudioFrame } from './frame-types';
 import type { AudioFrame } from './system-capture';
 import { SystemCapture } from './system-capture';
-
-const MAX_BUFFER_FRAMES = 250;
 
 export interface AudioManagerEvents {
   onAudioLevel: (event: AudioLevelEvent) => void;
   onErrorDisplay: (event: ErrorDisplayEvent) => void;
-}
-
-interface SourceBuffer {
-  frames: Int16Array[];
+  onSourceFrame: (frame: SourceAudioFrame) => void;
 }
 
 export class AudioManager {
@@ -20,10 +16,6 @@ export class AudioManager {
   private readonly events: AudioManagerEvents;
   private isRecording = false;
   private micLastSeq = -1;
-  private readonly buffers: Record<'mic' | 'system', SourceBuffer> = {
-    mic: { frames: [] },
-    system: { frames: [] }
-  };
 
   public constructor(events: AudioManagerEvents, sampleRate = 16_000, frameSizeMs = 20) {
     this.events = events;
@@ -33,8 +25,6 @@ export class AudioManager {
   public async startRecording(): Promise<void> {
     this.isRecording = true;
     this.micLastSeq = -1;
-    this.buffers.mic.frames.length = 0;
-    this.buffers.system.frames.length = 0;
 
     await this.systemCapture.start({
       onFrame: (frame) => this.ingestSystemFrame(frame),
@@ -54,8 +44,6 @@ export class AudioManager {
   public async stopRecording(): Promise<void> {
     this.isRecording = false;
     await this.systemCapture.stop();
-    this.buffers.mic.frames.length = 0;
-    this.buffers.system.frames.length = 0;
   }
 
   public ingestMicPayload(payload: unknown): void {
@@ -76,7 +64,12 @@ export class AudioManager {
     }
 
     this.micLastSeq = parsed.seq;
-    this.pushFrame('mic', parsed.frames);
+    this.events.onSourceFrame({
+      source: 'mic',
+      seq: parsed.seq,
+      ts: parsed.ts,
+      frames: parsed.frames
+    });
     this.emitLevel('mic', parsed.frames);
   }
 
@@ -85,16 +78,8 @@ export class AudioManager {
       return;
     }
 
-    this.pushFrame('system', frame.frames);
+    this.events.onSourceFrame(frame);
     this.emitLevel('system', frame.frames);
-  }
-
-  private pushFrame(source: 'mic' | 'system', frame: Int16Array): void {
-    const queue = this.buffers[source].frames;
-    queue.push(frame);
-    if (queue.length > MAX_BUFFER_FRAMES) {
-      queue.shift();
-    }
   }
 
   private emitLevel(source: 'mic' | 'system', frame: Int16Array): void {

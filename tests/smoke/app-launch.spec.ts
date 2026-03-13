@@ -82,6 +82,17 @@ async function readPercent(page: Page, testId: string): Promise<number> {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+async function completeFirstRunSetup(page: Page): Promise<void> {
+  await expect(page.getByTestId('setup-wizard')).toBeVisible();
+  await page.getByTestId('setup-input-deepgram').fill('dg-test-key');
+  await page.getByTestId('setup-validate-button').click();
+  await expect(page.getByTestId('setup-validation-result')).toContainText('Key is valid');
+  await page.getByTestId('setup-disclosure-ack').check();
+  await expect(page.getByTestId('setup-continue-button')).toBeEnabled();
+  await page.getByTestId('setup-continue-button').click();
+  await expect(page.getByTestId('setup-wizard')).toHaveCount(0);
+}
+
 function assertNoFatalRendererErrors(pageErrors: string[], consoleErrors: string[]): void {
   const allowedNoise: string[] = [];
   const filteredConsoleErrors = consoleErrors.filter(
@@ -108,10 +119,14 @@ test('startup renders shell and preload bridge', async () => {
         'stopMeeting',
         'getSettings',
         'saveSettings',
+        'validateSttKey',
         'sendMicFrames',
         'onMeetingStateChanged',
         'onAudioLevel',
-        'onErrorDisplay'
+        'onTranscriptUpdate',
+        'onTranscriptionStatus',
+        'onErrorDisplay',
+        'simulateSttDisconnect'
       ];
       return expectedMethods.every((method) => typeof api[method] === 'function');
     });
@@ -123,10 +138,28 @@ test('startup renders shell and preload bridge', async () => {
   }
 });
 
+test('first-run disclosure is required before recording starts', async () => {
+  const context = await launchApp();
+
+  try {
+    await expect(context.page.getByTestId('setup-wizard')).toBeVisible();
+    await expect(context.page.getByTestId('setup-continue-button')).toBeDisabled();
+
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('idle');
+    await expect(context.page.getByTestId('status-banner')).toContainText(
+      'Complete first-run setup to enable cloud transcription.'
+    );
+  } finally {
+    await context.close();
+  }
+});
+
 test('meeting start and stop roundtrip updates state', async () => {
   const context = await launchApp();
 
   try {
+    await completeFirstRunSetup(context.page);
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('idle');
 
     await context.page.getByTestId('meeting-primary-action').click();
@@ -145,6 +178,8 @@ test('audio level UI reacts to mic frame events', async () => {
   const context = await launchApp();
 
   try {
+    await completeFirstRunSetup(context.page);
+
     await context.page.getByTestId('meeting-primary-action').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
 
@@ -172,21 +207,89 @@ test('audio level UI reacts to mic frame events', async () => {
   }
 });
 
-test('settings key indicator persists across relaunch', async () => {
+test('live transcript renders streaming updates', async () => {
+  const context = await launchApp();
+
+  try {
+    await completeFirstRunSetup(context.page);
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    await context.page.evaluate(() => {
+      const typedWindow = window as Window & {
+        scribejam: {
+          sendMicFrames: (payload: { seq: number; ts: number; frames: number[] }) => void;
+        };
+      };
+      const samples = Array.from({ length: 320 }, () => 8000);
+      for (let i = 0; i < 12; i += 1) {
+        typedWindow.scribejam.sendMicFrames({ seq: i + 1, ts: Date.now() + i, frames: samples });
+      }
+    });
+
+    await expect
+      .poll(async () => {
+        const text = await context.page.getByTestId('transcript-count').textContent();
+        const parsed = Number.parseInt((text ?? '0').split(' ')[0] ?? '0', 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+      })
+      .toBeGreaterThan(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('transcription status reflects disconnect and recovery', async () => {
+  const context = await launchApp();
+
+  try {
+    await completeFirstRunSetup(context.page);
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    await context.page.evaluate(async () => {
+      await window.scribejam.simulateSttDisconnect();
+    });
+
+    await expect(context.page.getByTestId('transcription-status')).toContainText('reconnecting');
+    await expect(context.page.getByTestId('transcription-status')).toContainText('streaming');
+  } finally {
+    await context.close();
+  }
+});
+
+test('invalid key blocks only transcription while meeting controls remain usable', async () => {
+  const context = await launchApp();
+
+  try {
+    await completeFirstRunSetup(context.page);
+    await context.page.getByTestId('settings-input-deepgram').fill('');
+    await context.page.getByTestId('settings-save-button').click();
+    await expect(context.page.getByTestId('settings-deepgram-configured')).toContainText('no');
+
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
+    await expect(context.page.getByTestId('transcription-status')).toContainText('paused');
+  } finally {
+    await context.close();
+  }
+});
+
+test('setup state persists across relaunch', async () => {
   const userDataDir = mkdtempSync(join(tmpdir(), 'scribejam-pw-settings-'));
   const first = await launchApp({ userDataDir });
 
   try {
-    await expect(first.page.getByTestId('settings-deepgram-configured')).toContainText('no');
-    await first.page.getByTestId('settings-input-deepgram').fill('phase-a-test-key');
-    await first.page.getByTestId('settings-save-button').click();
+    await completeFirstRunSetup(first.page);
     await expect(first.page.getByTestId('settings-deepgram-configured')).toContainText('yes');
+    await expect(first.page.getByTestId('settings-first-run-ack')).toContainText('yes');
   } finally {
     await first.close();
   }
 
   const second = await launchApp({ userDataDir });
   try {
+    await expect(second.page.getByTestId('setup-wizard')).toHaveCount(0);
     await expect(second.page.getByTestId('settings-deepgram-configured')).toContainText('yes');
     assertNoFatalRendererErrors(second.pageErrors, second.consoleErrors);
   } finally {
@@ -199,6 +302,7 @@ test('forced system unavailable shows degradation banner and remains usable', as
   const context = await launchApp({ forceSystemUnavailable: true });
 
   try {
+    await completeFirstRunSetup(context.page);
     await context.page.getByTestId('meeting-primary-action').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
     await expect(context.page.getByTestId('status-banner')).toContainText(

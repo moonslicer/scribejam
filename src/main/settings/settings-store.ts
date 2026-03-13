@@ -64,6 +64,12 @@ export class SettingsStore {
     this.writeSettings(next);
   }
 
+  public getSecret(
+    name: 'deepgramApiKey' | 'openaiApiKey' | 'anthropicApiKey'
+  ): string | undefined {
+    return this.secrets.get(name);
+  }
+
   private readSettings(): PersistedSettings {
     if (!existsSync(this.settingsPath)) {
       return { ...DEFAULT_SETTINGS };
