@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isMeetingGetRequest,
   isNotesSaveRequest,
+  isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
   type SettingsValidateKeyRequest
 } from '../../src/shared/ipc';
@@ -41,5 +42,12 @@ describe('ipc contract validators', () => {
     expect(isNotesSaveRequest({ meetingId: 'meeting-1', content: [] })).toBe(false);
     expect(isNotesSaveRequest({ meetingId: '', content: { type: 'doc' } })).toBe(false);
     expect(isNotesSaveRequest({ meetingId: 'meeting-1', content: null })).toBe(false);
+  });
+
+  it('accepts valid capture source settings and rejects unknown values', () => {
+    expect(isSettingsSaveRequest({ captureSource: 'system' })).toBe(true);
+    expect(isSettingsSaveRequest({ captureSource: 'mic' })).toBe(true);
+    expect(isSettingsSaveRequest({ captureSource: 'mixed' })).toBe(true);
+    expect(isSettingsSaveRequest({ captureSource: 'loopback' })).toBe(false);
   });
 });

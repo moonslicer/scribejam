@@ -1,4 +1,4 @@
-import type { AudioLevelEvent, ErrorDisplayEvent } from '../../shared/ipc';
+import type { AudioLevelEvent, CaptureSource, ErrorDisplayEvent } from '../../shared/ipc';
 import { parseMicFramesPayload } from './mic-capture';
 import { computeRms } from './level-meter';
 import type { SourceAudioFrame } from './frame-types';
@@ -20,9 +20,12 @@ export interface SystemCaptureAdapter {
   stop: () => Promise<void>;
 }
 
+type CaptureSourceResolver = () => CaptureSource;
+
 export class AudioManager {
   private readonly systemCapture: SystemCaptureAdapter;
   private readonly events: AudioManagerEvents;
+  private readonly getCaptureSource: CaptureSourceResolver;
   private isRecording = false;
   private micLastSeq = -1;
 
@@ -30,15 +33,21 @@ export class AudioManager {
     events: AudioManagerEvents,
     sampleRate = 16_000,
     frameSizeMs = 20,
-    systemCapture: SystemCaptureAdapter = new SystemCapture(sampleRate, frameSizeMs)
+    systemCapture: SystemCaptureAdapter = new SystemCapture(sampleRate, frameSizeMs),
+    getCaptureSource: CaptureSourceResolver = () => 'mixed'
   ) {
     this.events = events;
     this.systemCapture = systemCapture;
+    this.getCaptureSource = getCaptureSource;
   }
 
   public async startRecording(): Promise<void> {
     this.isRecording = true;
     this.micLastSeq = -1;
+
+    if (this.getCaptureSource() === 'mic') {
+      return;
+    }
 
     await this.systemCapture.start({
       onFrame: (frame) => this.ingestSystemFrame(frame),
@@ -60,6 +69,9 @@ export class AudioManager {
 
   public ingestMicPayload(payload: unknown): void {
     if (!this.isRecording) {
+      return;
+    }
+    if (this.getCaptureSource() === 'system') {
       return;
     }
 
@@ -87,6 +99,9 @@ export class AudioManager {
 
   private ingestSystemFrame(frame: AudioFrame): void {
     if (!this.isRecording) {
+      return;
+    }
+    if (this.getCaptureSource() === 'mic') {
       return;
     }
 

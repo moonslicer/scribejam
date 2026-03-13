@@ -80,4 +80,24 @@ describe('AudioManager', () => {
         'System audio module failed to load (audiotee). Recording microphone only. Detail: The module \'<path>\' was compiled against a different Node.js version using NODE_MODULE_VERSION 127.'
     });
   });
+
+  it('ignores microphone payloads in system-only capture mode', async () => {
+    const events = createEvents();
+    const systemCapture: SystemCaptureAdapter = {
+      start: async () => {},
+      stop: async () => {}
+    };
+
+    const manager = new AudioManager(events, 16_000, 20, systemCapture, () => 'system');
+
+    await manager.startRecording();
+    manager.ingestMicPayload({
+      seq: 1,
+      ts: Date.now(),
+      frames: new Int16Array(320).fill(8_000)
+    });
+
+    expect(events.onSourceFrame).not.toHaveBeenCalled();
+    expect(events.onAudioLevel).not.toHaveBeenCalled();
+  });
 });

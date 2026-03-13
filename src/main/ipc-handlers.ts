@@ -70,7 +70,7 @@ export function createMainServices(context: HandlerContext): MainServices {
     onSourceFrame: (frame) => {
       transcriptionService.ingestSourceFrame(frame);
     }
-  });
+  }, 16_000, 20, undefined, () => settingsStore.getSettings().captureSource);
 
   transcriptionService = new TranscriptionService({
     sttAdapter,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Settings, SettingsSaveRequest } from '../../shared/ipc';
 
 interface SettingsPanelProps {
@@ -10,14 +10,22 @@ export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Ele
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
+  const [captureSource, setCaptureSource] = useState<Settings['captureSource']>('mixed');
   const [saving, setSaving] = useState(false);
 
   const hasLoaded = useMemo(() => settings !== null, [settings]);
+
+  useEffect(() => {
+    if (settings) {
+      setCaptureSource(settings.captureSource);
+    }
+  }, [settings]);
 
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     try {
       await onSave({
+        captureSource,
         deepgramApiKey,
         openaiApiKey,
         anthropicApiKey
@@ -44,9 +52,27 @@ export function SettingsPanel({ settings, onSave }: SettingsPanelProps): JSX.Ele
           Anthropic key configured: {settings?.anthropicApiKeySet ? 'yes' : 'no'}
         </span>
         <span data-testid="settings-first-run-ack">First-run acknowledged: {settings?.firstRunAcknowledged ? 'yes' : 'no'}</span>
+        <span data-testid="settings-capture-source">Capture source: {settings?.captureSource ?? 'mixed'}</span>
       </div>
 
       <div className="mt-3 grid gap-2">
+        <label className="grid gap-1 text-sm text-zinc-700" htmlFor="settings-capture-source-input">
+          <span className="font-medium">Capture source</span>
+          <select
+            id="settings-capture-source-input"
+            data-testid="settings-input-capture-source"
+            value={captureSource}
+            onChange={(event) => setCaptureSource(event.target.value as Settings['captureSource'])}
+            className="rounded border border-zinc-300 px-3 py-2 text-sm"
+          >
+            <option value="mixed">System audio + microphone</option>
+            <option value="system">System audio only</option>
+            <option value="mic">Microphone only</option>
+          </select>
+        </label>
+        <p className="text-xs text-zinc-500">
+          Use `system audio only` to debug lyric pickup without mic bleed. Changes apply fully on the next meeting start.
+        </p>
         <input
           data-testid="settings-input-deepgram"
           value={deepgramApiKey}

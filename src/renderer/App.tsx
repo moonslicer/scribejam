@@ -36,9 +36,20 @@ export default function App(): JSX.Element {
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
 
   useMicCapture({
-    enabled: meetingState === 'recording',
+    enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
     onError: setErrorMessage
   });
+
+  useEffect(() => {
+    if (settings?.captureSource === 'system') {
+      setLevels((previous) => ({ ...previous, mic: 0 }));
+      return;
+    }
+
+    if (settings?.captureSource === 'mic') {
+      setLevels((previous) => ({ ...previous, system: 0 }));
+    }
+  }, [settings?.captureSource]);
 
   useNoteAutosave({
     enabled: meetingState === 'recording' || meetingState === 'stopped',
