@@ -64,7 +64,7 @@ From `AGENTS.md`:
 - Deliverables:
   - `package.json` scripts: `dev`, `build`, `typecheck`, `test`, `smoke`, `rebuild-native`
   - `src/main/index.ts`, `src/preload/index.ts`, `src/renderer/App.tsx`
-  - `electron-builder.yml`, `tsconfig*.json`, Vite config
+  - `electron-builder.yml`, `tsconfig*.json`, Vite config (`vite.config.mts`)
 - Verification:
   - `npm run typecheck` passes
   - `npm run dev` opens app window

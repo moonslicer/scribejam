@@ -1,28 +1,95 @@
 import { useEffect, useState } from 'react';
-import type { MeetingState, Settings, TranscriptionStatusEvent } from '../shared/ipc';
+import type { Settings, TranscriptionStatusEvent } from '../shared/ipc';
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
+import { Notepad } from './components/Notepad';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
 import { TranscriptPanel } from './components/TranscriptPanel';
-import { applyTranscriptEvent, type TranscriptEntry } from './transcript/transcript-state';
+import { useNoteAutosave } from './hooks/use-note-autosave';
+import { useMeetingStore } from './stores/meeting-store';
+
+const NOOP_SAVE_NOTES = (): void => {};
 
 export default function App(): JSX.Element {
   const api = window.scribejam;
-  const [meetingState, setMeetingState] = useState<MeetingState>('idle');
-  const [meetingId, setMeetingId] = useState<string | null>(null);
+  const saveNotes = api?.saveNotes ?? NOOP_SAVE_NOTES;
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [meetingActionPending, setMeetingActionPending] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
-  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
+  const meetingState = useMeetingStore((state) => state.meetingState);
+  const meetingId = useMeetingStore((state) => state.meetingId);
+  const meetingTitle = useMeetingStore((state) => state.meetingTitle);
+  const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
+  const noteContent = useMeetingStore((state) => state.noteContent);
+  const editorContent = useMeetingStore((state) => state.editorContent);
+  const noteSaveState = useMeetingStore((state) => state.noteSaveState);
+  const setMeetingState = useMeetingStore((state) => state.setMeetingState);
+  const setMeetingId = useMeetingStore((state) => state.setMeetingId);
+  const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
+  const clearMeeting = useMeetingStore((state) => state.clearMeeting);
+  const applyTranscriptUpdate = useMeetingStore((state) => state.applyTranscriptUpdate);
+  const hydrateMeeting = useMeetingStore((state) => state.hydrateMeeting);
+  const resetTranscript = useMeetingStore((state) => state.resetTranscript);
+  const setNoteContent = useMeetingStore((state) => state.setNoteContent);
+  const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
+  const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
+  const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
+  const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
 
   useMicCapture({
-    enabled: meetingState === 'recording',
+    enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
     onError: setErrorMessage
   });
+
+  useEffect(() => {
+    if (settings?.captureSource === 'system') {
+      setLevels((previous) => ({ ...previous, mic: 0 }));
+      return;
+    }
+
+    if (settings?.captureSource === 'mic') {
+      setLevels((previous) => ({ ...previous, system: 0 }));
+    }
+  }, [settings?.captureSource]);
+
+  useNoteAutosave({
+    enabled: meetingState === 'recording' || meetingState === 'stopped',
+    meetingId,
+    noteContent,
+    noteSaveState,
+    setNoteSaveState,
+    saveNotes,
+    onError: setErrorMessage
+  });
+
+  useEffect(() => {
+    if (!api || !meetingId) {
+      return;
+    }
+
+    let cancelled = false;
+    void api
+      .getMeeting({ meetingId })
+      .then((meeting) => {
+        if (!cancelled && meeting) {
+          hydrateMeeting(meeting);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setErrorMessage('Failed to load saved meeting notes.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, hydrateMeeting, meetingId]);
 
   useEffect(() => {
     if (!api) {
@@ -52,7 +119,7 @@ export default function App(): JSX.Element {
       setErrorMessage(event.message);
     });
     const unsubTranscript = api.onTranscriptUpdate((event) => {
-      setTranscriptEntries((previous) => applyTranscriptEvent(previous, event));
+      applyTranscriptUpdate(event);
     });
     const unsubTranscriptionStatus = api.onTranscriptionStatus((event) => {
       setTranscriptionStatus(event);
@@ -65,11 +132,16 @@ export default function App(): JSX.Element {
       unsubTranscript();
       unsubTranscriptionStatus();
     };
-  }, [api]);
+  }, [api, applyTranscriptUpdate, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
   const onPrimaryAction = async (): Promise<void> => {
+    if (meetingActionPending) {
+      return;
+    }
+
+    setMeetingActionPending(true);
     try {
       setErrorMessage(null);
       if (meetingState === 'recording') {
@@ -84,20 +156,87 @@ export default function App(): JSX.Element {
         await api.stopMeeting({ meetingId });
         return;
       }
+      if (meetingState === 'stopped') {
+        if (!api) {
+          setErrorMessage('Desktop bridge unavailable.');
+          return;
+        }
+        if (!meetingId) {
+          setErrorMessage('No stopped meeting id found.');
+          return;
+        }
+
+        setMeetingState('enhancing');
+        const response = await api.enhanceMeeting({ meetingId });
+        setEnhancedOutput(response.output);
+        setMeetingState('done');
+        return;
+      }
+      if (meetingState === 'done') {
+        if (!api) {
+          setErrorMessage('Desktop bridge unavailable.');
+          return;
+        }
+        if (!meetingId) {
+          setErrorMessage('No completed meeting id found.');
+          return;
+        }
+
+        const response = await api.startMeeting({
+          title: meetingTitle.trim(),
+          meetingId
+        });
+        setMeetingTitle(response.title);
+        setMeetingId(response.meetingId);
+        resumeEditingNotes();
+        setMeetingState('recording');
+        return;
+      }
       if (setupRequired) {
         setErrorMessage('Complete first-run setup to enable cloud transcription.');
         return;
       }
-
+      if (meetingState === 'enhancing' || meetingState === 'enhance_failed') {
+        setErrorMessage('This meeting is not ready for another action yet.');
+        return;
+      }
       if (!api) {
         setErrorMessage('Desktop bridge unavailable.');
         return;
       }
-      const response = await api.startMeeting({ title: 'Untitled Meeting' });
+      const response = await api.startMeeting({ title: meetingTitle.trim() });
+      setMeetingTitle(response.title);
       setMeetingId(response.meetingId);
-      setTranscriptEntries([]);
+      resetTranscript();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update meeting state.');
+    } finally {
+      setMeetingActionPending(false);
+    }
+  };
+
+  const onSecondaryAction = async (): Promise<void> => {
+    if (meetingActionPending) {
+      return;
+    }
+
+    setMeetingActionPending(true);
+    try {
+      setErrorMessage(null);
+      if (meetingState !== 'done') {
+        return;
+      }
+      if (!api) {
+        setErrorMessage('Desktop bridge unavailable.');
+        return;
+      }
+
+      await api.resetMeeting();
+      clearMeeting();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to prepare a new meeting.');
+    } finally {
+      setMeetingActionPending(false);
     }
   };
 
@@ -153,17 +292,32 @@ export default function App(): JSX.Element {
 
       <MeetingBar
         meetingState={meetingState}
+        meetingTitle={meetingTitle}
+        onMeetingTitleChange={setMeetingTitle}
         onPrimaryAction={() => void onPrimaryAction()}
-        disabled={settings === null}
+        onSecondaryAction={() => void onSecondaryAction()}
+        disabled={settings === null || meetingActionPending}
       />
       <StatusBanner message={bannerMessage} />
 
-      <section className="grid gap-3 md:grid-cols-2">
-        <AudioLevel source="mic" label="Microphone" value={levels.mic} />
-        <AudioLevel source="system" label="System Audio" value={levels.system} />
-      </section>
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+        <div className="rounded-2xl bg-zinc-50/70 p-3">
+          <Notepad
+            key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
+            content={editorContent}
+            editable={meetingState === 'recording' || meetingState === 'stopped'}
+            onChange={setNoteContent}
+          />
+        </div>
 
-      <TranscriptPanel entries={transcriptEntries} />
+        <div className="flex flex-col gap-3">
+          <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
+            <AudioLevel source="mic" label="Microphone" value={levels.mic} />
+            <AudioLevel source="system" label="System Audio" value={levels.system} />
+          </section>
+          <TranscriptPanel entries={transcriptEntries} />
+        </div>
+      </section>
 
       <SettingsPanel settings={settings} onSave={saveSettings} />
     </main>

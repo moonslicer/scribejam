@@ -2,11 +2,17 @@ import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
+  isEnhanceMeetingRequest,
+  isMeetingGetRequest,
+  isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
+  type EnhanceMeetingRequest,
   type ErrorDisplayEvent,
+  type MeetingGetRequest,
   type MeetingStartRequest,
   type MeetingStateChangedEvent,
+  type NotesSaveRequest,
   type SettingsSaveRequest,
   type SettingsValidateKeyRequest
 } from '../shared/ipc';
@@ -14,6 +20,17 @@ import { AudioManager } from './audio/audio-manager';
 import { MeetingStateMachine } from './meeting/state-machine';
 import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
+import { EnhancementOrchestrator } from './enhancement/enhancement-orchestrator';
+import { MockEnhancementService } from './enhancement/mock-enhancement-service';
+import { createStorageDatabase } from './storage/db';
+import { MeetingRecordsService } from './storage/meeting-records-service';
+import {
+  EnhancedOutputsRepository,
+  MeetingArtifactsRepository,
+  MeetingsRepository,
+  NotesRepository,
+  TranscriptRepository
+} from './storage/repositories';
 import { TranscriptionService } from './transcription/transcription-service';
 
 interface HandlerContext {
@@ -25,6 +42,9 @@ interface MainServices {
   settingsStore: SettingsStore;
   audioManager: AudioManager;
   transcriptionService: TranscriptionService;
+  meetingRecordsService: MeetingRecordsService;
+  notesRepository: NotesRepository;
+  enhancementOrchestrator: EnhancementOrchestrator;
 }
 
 export function createMainServices(context: HandlerContext): MainServices {
@@ -32,10 +52,29 @@ export function createMainServices(context: HandlerContext): MainServices {
     context.window.webContents.send(IPC_CHANNELS.errorDisplay, event);
   };
   const settingsStore = new SettingsStore();
+  const storageDb = createStorageDatabase();
+  const meetingsRepository = new MeetingsRepository(storageDb);
+  const transcriptRepository = new TranscriptRepository(storageDb);
+  const notesRepository = new NotesRepository(storageDb);
+  const meetingArtifactsRepository = new MeetingArtifactsRepository(storageDb);
+  const enhancedOutputsRepository = new EnhancedOutputsRepository(storageDb);
+  const stateMachine = new MeetingStateMachine();
   const sttAdapter = createSttAdapter({
     getDeepgramApiKey: () => settingsStore.getSecret('deepgramApiKey')
   });
   let transcriptionService!: TranscriptionService;
+  const meetingRecordsService = new MeetingRecordsService(
+    meetingsRepository,
+    meetingArtifactsRepository,
+    transcriptRepository
+  );
+  const enhancementOrchestrator = new EnhancementOrchestrator(
+    stateMachine,
+    meetingRecordsService,
+    meetingArtifactsRepository,
+    enhancedOutputsRepository,
+    new MockEnhancementService()
+  );
 
   const audioManager = new AudioManager({
     onAudioLevel: (event) => {
@@ -45,12 +84,13 @@ export function createMainServices(context: HandlerContext): MainServices {
     onSourceFrame: (frame) => {
       transcriptionService.ingestSourceFrame(frame);
     }
-  });
+  }, 16_000, 20, undefined, () => settingsStore.getSettings().captureSource);
 
   transcriptionService = new TranscriptionService({
     sttAdapter,
     events: {
       onTranscript: (event) => {
+        meetingRecordsService.appendTranscriptSegment(stateMachine.getSnapshot().meetingId, event);
         context.window.webContents.send(IPC_CHANNELS.transcriptUpdate, event);
       },
       onStatus: (event) => {
@@ -61,25 +101,35 @@ export function createMainServices(context: HandlerContext): MainServices {
   });
 
   return {
-    stateMachine: new MeetingStateMachine(),
+    stateMachine,
     settingsStore,
     audioManager,
-    transcriptionService
+    transcriptionService,
+    meetingRecordsService,
+    notesRepository,
+    enhancementOrchestrator
   };
 }
 
 export function registerIpcHandlers(context: HandlerContext, services: MainServices): void {
   ipcMain.removeHandler(IPC_CHANNELS.meetingStart);
   ipcMain.removeHandler(IPC_CHANNELS.meetingStop);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingReset);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingEnhance);
   ipcMain.removeHandler(IPC_CHANNELS.settingsGet);
   ipcMain.removeHandler(IPC_CHANNELS.settingsSave);
   ipcMain.removeHandler(IPC_CHANNELS.settingsValidateKey);
   ipcMain.removeHandler(IPC_CHANNELS.testSimulateSttDisconnect);
   ipcMain.removeAllListeners(IPC_CHANNELS.audioMicFrames);
+  ipcMain.removeAllListeners(IPC_CHANNELS.notesSave);
 
   ipcMain.handle(IPC_CHANNELS.meetingStart, async (_event, payload: unknown) => {
     const validated = parseMeetingStart(payload);
-    const snapshot = services.stateMachine.start(validated.title);
+    const snapshot =
+      validated.meetingId !== undefined
+        ? services.stateMachine.resume(validated.meetingId)
+        : services.stateMachine.start(validated.title);
     if (!snapshot.meetingId) {
       throw new Error('Failed to create meeting id.');
     }
@@ -97,12 +147,20 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
         action: 'open-settings'
       });
     }
+    if (validated.meetingId !== undefined) {
+      services.meetingRecordsService.recordMeetingResumed(snapshot);
+    } else {
+      services.meetingRecordsService.recordMeetingStarted(snapshot);
+    }
     emitMeetingState(context.window, {
       state: snapshot.state,
       meetingId: snapshot.meetingId
     });
 
-    return { meetingId: snapshot.meetingId };
+    return {
+      meetingId: snapshot.meetingId,
+      title: snapshot.title ?? validated.title
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.meetingStop, async (_event, payload: unknown) => {
@@ -110,6 +168,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     const snapshot = services.stateMachine.stop(meetingId);
     await services.audioManager.stopRecording();
     await services.transcriptionService.stop();
+    services.meetingRecordsService.recordMeetingStopped(snapshot);
 
     emitMeetingState(
       context.window,
@@ -121,6 +180,32 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
         : {
             state: snapshot.state
           }
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingReset, async () => {
+    const snapshot = services.stateMachine.resetToIdle();
+    context.window.webContents.send(IPC_CHANNELS.transcriptionStatus, { status: 'idle' });
+    emitMeetingState(context.window, { state: snapshot.state });
+
+    return { state: snapshot.state };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingGet, async (_event, payload: unknown) => {
+    if (!isMeetingGetRequest(payload)) {
+      throw new Error('Invalid meeting get payload.');
+    }
+
+    return services.meetingRecordsService.getMeeting((payload as MeetingGetRequest).meetingId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingEnhance, async (_event, payload: unknown) => {
+    if (!isEnhanceMeetingRequest(payload)) {
+      throw new Error('Invalid meeting enhancement payload.');
+    }
+
+    return services.enhancementOrchestrator.enhanceMeeting(
+      (payload as EnhanceMeetingRequest).meetingId
     );
   });
 
@@ -165,6 +250,21 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     services.audioManager.ingestMicPayload(payload);
   });
 
+  ipcMain.on(IPC_CHANNELS.notesSave, (_event, payload: unknown) => {
+    if (!isNotesSaveRequest(payload)) {
+      throw new Error('Invalid notes save payload.');
+    }
+
+    const request = payload as NotesSaveRequest;
+    const now = new Date().toISOString();
+    services.notesRepository.save({
+      id: `${request.meetingId}-note`,
+      meetingId: request.meetingId,
+      content: JSON.stringify(request.content),
+      updatedAt: now
+    });
+  });
+
   emitMeetingState(context.window, { state: services.stateMachine.getSnapshot().state });
   context.window.webContents.send(IPC_CHANNELS.transcriptionStatus, { status: 'idle' });
 }
@@ -181,7 +281,13 @@ function parseMeetingStart(payload: unknown): MeetingStartRequest {
   if (typeof candidate.title !== 'string') {
     throw new Error('Meeting title is required.');
   }
-  return { title: candidate.title };
+  if (candidate.meetingId !== undefined && (typeof candidate.meetingId !== 'string' || candidate.meetingId.length === 0)) {
+    throw new Error('Meeting id must be a non-empty string when provided.');
+  }
+  return {
+    title: candidate.title,
+    ...(candidate.meetingId !== undefined ? { meetingId: candidate.meetingId } : {})
+  };
 }
 
 function parseMeetingStop(payload: unknown): string {

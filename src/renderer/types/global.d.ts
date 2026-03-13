@@ -1,11 +1,17 @@
 import type {
   AudioLevelEvent,
+  EnhanceMeetingRequest,
+  EnhanceMeetingResponse,
   ErrorDisplayEvent,
   MeetingStartRequest,
   MeetingStartResponse,
+  MeetingDetails,
+  MeetingGetRequest,
+  MeetingResetResponse,
   MeetingStateChangedEvent,
   MeetingStopRequest,
   MicFramesPayload,
+  NotesSaveRequest,
   Settings,
   SettingsValidateKeyRequest,
   SettingsValidateKeyResponse,
@@ -19,8 +25,12 @@ type Unsubscribe = () => void;
 interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
+  resetMeeting: () => Promise<MeetingResetResponse>;
+  getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
+  enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
+  saveNotes: (payload: NotesSaveRequest) => void;
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;
   onMeetingStateChanged: (listener: (event: MeetingStateChangedEvent) => void) => Unsubscribe;

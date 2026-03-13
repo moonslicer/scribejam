@@ -1,9 +1,13 @@
 export const IPC_CHANNELS = {
   meetingStart: 'meeting:start',
   meetingStop: 'meeting:stop',
+  meetingReset: 'meeting:reset',
+  meetingGet: 'meeting:get',
+  meetingEnhance: 'meeting:enhance',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsValidateKey: 'settings:validate-key',
+  notesSave: 'notes:save',
   audioMicFrames: 'audio:mic-frames',
   meetingStateChanged: 'meeting:state-changed',
   audioLevel: 'audio:level',
@@ -13,24 +17,106 @@ export const IPC_CHANNELS = {
   testSimulateSttDisconnect: 'test:simulate-stt-disconnect'
 } as const;
 
-export type MeetingState = 'idle' | 'recording' | 'stopped';
+export type MeetingState =
+  | 'idle'
+  | 'recording'
+  | 'stopped'
+  | 'enhancing'
+  | 'enhance_failed'
+  | 'done';
 export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
+export type CaptureSource = 'mixed' | 'mic' | 'system';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
 
 export interface MeetingStartRequest {
   title: string;
+  meetingId?: string;
 }
 
 export interface MeetingStartResponse {
   meetingId: string;
+  title: string;
 }
 
 export interface MeetingStopRequest {
   meetingId: string;
+}
+
+export interface MeetingResetResponse {
+  state: Extract<MeetingState, 'idle'>;
+}
+
+export interface MeetingGetRequest {
+  meetingId: string;
+}
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+export interface EnhancedBlock {
+  source: 'human' | 'ai';
+  content: string;
+}
+
+export interface EnhancedActionItem {
+  owner: string;
+  description: string;
+  due?: string;
+}
+
+export interface EnhancedDecision {
+  description: string;
+  context: string;
+}
+
+export interface EnhancedOutput {
+  blocks: EnhancedBlock[];
+  actionItems: EnhancedActionItem[];
+  decisions: EnhancedDecision[];
+  summary: string;
+}
+
+export interface EnhanceMeetingRequest {
+  meetingId: string;
+}
+
+export interface EnhanceMeetingResponse {
+  meetingId: string;
+  output: EnhancedOutput;
+  completedAt: string;
+}
+
+export interface TranscriptSegment {
+  id: number;
+  speaker: TranscriptSpeaker;
+  text: string;
+  startTs: number;
+  endTs: number | null;
+  isFinal: boolean;
+}
+
+export interface MeetingDetails {
+  id: string;
+  title: string;
+  state: MeetingState;
+  createdAt: string;
+  updatedAt: string;
+  durationMs: number | null;
+  noteContent: JsonObject | null;
+  enhancedOutput: EnhancedOutput | null;
+  transcriptSegments: TranscriptSegment[];
+}
+
+export interface NotesSaveRequest {
+  meetingId: string;
+  content: JsonObject;
 }
 
 export interface MicFramesPayload {
@@ -70,6 +156,7 @@ export interface Settings {
   firstRunAcknowledged: boolean;
   sttProvider: SttProvider;
   llmProvider: LlmProvider;
+  captureSource: CaptureSource;
   deepgramApiKeySet: boolean;
   openaiApiKeySet: boolean;
   anthropicApiKeySet: boolean;
@@ -79,6 +166,7 @@ export interface SettingsSaveRequest {
   firstRunAcknowledged?: boolean;
   sttProvider?: SttProvider;
   llmProvider?: LlmProvider;
+  captureSource?: CaptureSource;
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
@@ -138,6 +226,14 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
   ) {
     return false;
   }
+  if (
+    candidate.captureSource !== undefined &&
+    candidate.captureSource !== 'mixed' &&
+    candidate.captureSource !== 'mic' &&
+    candidate.captureSource !== 'system'
+  ) {
+    return false;
+  }
 
   return (
     (candidate.deepgramApiKey === undefined || typeof candidate.deepgramApiKey === 'string') &&
@@ -153,4 +249,39 @@ export function isSettingsValidateKeyRequest(value: unknown): value is SettingsV
 
   const candidate = value as Partial<SettingsValidateKeyRequest>;
   return candidate.provider === 'deepgram' && typeof candidate.key === 'string';
+}
+
+export function isMeetingGetRequest(value: unknown): value is MeetingGetRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<MeetingGetRequest>;
+  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
+}
+
+export function isNotesSaveRequest(value: unknown): value is NotesSaveRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<NotesSaveRequest>;
+  return (
+    typeof candidate.meetingId === 'string' &&
+    candidate.meetingId.length > 0 &&
+    isJsonObject(candidate.content)
+  );
+}
+
+export function isEnhanceMeetingRequest(value: unknown): value is EnhanceMeetingRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<EnhanceMeetingRequest>;
+  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
