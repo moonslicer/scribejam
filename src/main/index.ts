@@ -13,6 +13,25 @@ if (userDataOverride) {
   app.setPath('userData', userDataOverride);
 }
 
+function applyDevelopmentAppIdentity(): void {
+  if (app.isPackaged) {
+    return;
+  }
+
+  app.setName('Scribejam');
+
+  if (process.platform !== 'darwin') {
+    return;
+  }
+
+  const dock = app.dock;
+  if (!dock) {
+    return;
+  }
+
+  dock.setIcon(join(app.getAppPath(), 'assets/icons/scribejam-1024.png'));
+}
+
 async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -85,6 +104,7 @@ app.whenReady().then(async () => {
     return;
   }
 
+  applyDevelopmentAppIdentity();
   await createWindow();
 
   app.on('activate', async () => {
