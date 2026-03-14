@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 export interface StorageDatabaseOptions {
   dbPath?: string;
@@ -92,6 +92,12 @@ export function migrate(db: Database.Database): void {
 
         CREATE INDEX IF NOT EXISTS idx_enhanced_note_documents_meeting_id
           ON enhanced_note_documents (meeting_id);
+      `);
+    }
+
+    if (currentVersion < 4) {
+      db.exec(`
+        ALTER TABLE meetings ADD COLUMN archived_at TEXT;
       `);
     }
 

@@ -149,6 +149,10 @@ export class MeetingRecordsService {
     };
   }
 
+  public archiveMeeting(meetingId: string): void {
+    this.meetings.archiveMeeting(meetingId, new Date().toISOString());
+  }
+
   public listMeetingHistory(query?: string): MeetingHistoryItem[] {
     return this.artifacts.listMeetingHistory(query);
   }

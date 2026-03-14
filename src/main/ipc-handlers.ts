@@ -6,6 +6,7 @@ import {
   isTestConfigureEnhancementMockRequest,
   isDismissEnhancementFailureRequest,
   isEnhanceMeetingRequest,
+  isMeetingArchiveRequest,
   isMeetingGetRequest,
   isMeetingListRequest,
   isNotesSaveRequest,
@@ -13,6 +14,7 @@ import {
   isSettingsValidateKeyRequest,
   type EnhanceMeetingRequest,
   type ErrorDisplayEvent,
+  type MeetingArchiveRequest,
   type MeetingGetRequest,
   type MeetingListRequest,
   type MeetingStartRequest,
@@ -137,6 +139,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.removeHandler(IPC_CHANNELS.meetingStart);
   ipcMain.removeHandler(IPC_CHANNELS.meetingStop);
   ipcMain.removeHandler(IPC_CHANNELS.meetingReset);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingArchive);
   ipcMain.removeHandler(IPC_CHANNELS.meetingList);
   ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
   ipcMain.removeHandler(IPC_CHANNELS.meetingEnhance);
@@ -215,6 +218,16 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     emitMeetingState(context.window, { state: snapshot.state });
 
     return { state: snapshot.state };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingArchive, async (_event, payload: unknown) => {
+    if (!isMeetingArchiveRequest(payload)) {
+      throw new Error('Invalid meeting archive payload.');
+    }
+
+    const { meetingId } = payload as MeetingArchiveRequest;
+    services.meetingRecordsService.archiveMeeting(meetingId);
+    return { meetingId };
   });
 
   ipcMain.handle(IPC_CHANNELS.meetingList, async (_event, payload: unknown) => {

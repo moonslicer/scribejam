@@ -3,7 +3,7 @@ import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
-import { MeetingHistoryPanel } from './components/MeetingHistoryPanel';
+import { MeetingsSidebar } from './components/MeetingsSidebar';
 import { Notepad } from './components/Notepad';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
@@ -25,6 +25,7 @@ export default function App(): JSX.Element {
   const [errorAction, setErrorAction] = useState<ErrorAction | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
   const meetingState = useMeetingStore((state) => state.meetingState);
@@ -424,6 +425,32 @@ export default function App(): JSX.Element {
     setNoteSaveState('saved');
   };
 
+  const onNewMeeting = async (): Promise<void> => {
+    if (meetingState === 'recording' || meetingState === 'enhancing' || meetingActionPending) {
+      return;
+    }
+    if (meetingState === 'idle') {
+      return;
+    }
+    setMeetingActionPending(true);
+    try {
+      setErrorMessage(null);
+      setErrorAction(null);
+      setEnhancementProgress(null);
+      if (!api) {
+        setErrorMessage('Desktop bridge unavailable.');
+        return;
+      }
+      flushPendingEnhancedNote();
+      await api.resetMeeting();
+      clearMeeting();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to prepare a new meeting.');
+    } finally {
+      setMeetingActionPending(false);
+    }
+  };
+
   useEffect(() => {
     if (!api) {
       return;
@@ -451,6 +478,23 @@ export default function App(): JSX.Element {
     };
   }, [api, meetingActionPending, meetingState, onPrimaryAction, setupRequired]);
 
+  const onArchiveMeeting = async (meetingIdToArchive: string): Promise<void> => {
+    if (!api?.archiveMeeting) {
+      return;
+    }
+    try {
+      await api.archiveMeeting({ meetingId: meetingIdToArchive });
+      if (meetingIdToArchive === meetingId) {
+        clearMeeting();
+      }
+      if (api.listMeetings) {
+        void loadHistory(api.listMeetings, historySearchQuery);
+      }
+    } catch {
+      setErrorMessage('Failed to archive meeting.');
+    }
+  };
+
   const onHistorySearchChange = (value: string): void => {
     if (!api?.listMeetings) {
       return;
@@ -469,90 +513,122 @@ export default function App(): JSX.Element {
   };
 
   return (
-    <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
-      <header>
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
-        <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">
-          Notepad-first meeting capture shell
-        </h1>
-        <p data-testid="transcription-status" className="mt-1 text-xs text-zinc-500">
-          Transcription: {transcriptionStatus.status}
-        </p>
-      </header>
-
-      {setupRequired ? (
-        <SetupWizard
-          hasStoredDeepgramKey={settings?.deepgramApiKeySet === true}
-          onValidateKey={validateProviderKey}
-          onComplete={completeFirstRunSetup}
-        />
-      ) : null}
-
-      <MeetingBar
-        meetingState={meetingState}
-        meetingTitle={meetingTitle}
-        onMeetingTitleChange={setMeetingTitle}
-        onPrimaryAction={() => void onPrimaryAction()}
-        {...(meetingPrimaryShortcutLabel
-          ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
-          : {})}
-        onSecondaryAction={() => void onSecondaryAction()}
-        disabled={settings === null || meetingActionPending}
-        {...(meetingSecondaryActionLabel
-          ? { secondaryActionLabel: meetingSecondaryActionLabel }
-          : {})}
+    <div className="flex h-screen overflow-hidden">
+      <MeetingsSidebar
+        isOpen={sidebarOpen}
+        items={historyItems}
+        isLoading={historyLoading}
+        errorMessage={historyErrorMessage}
+        searchQuery={historySearchQuery}
+        selectedMeetingId={selectedHistoryMeetingId}
+        selectionDisabled={meetingState === 'recording' || meetingState === 'enhancing'}
+        newMeetingDisabled={meetingState === 'recording' || meetingState === 'enhancing'}
+        onToggle={() => setSidebarOpen(false)}
+        onSearchChange={onHistorySearchChange}
+        onSelectMeeting={onHistorySelectMeeting}
+        onNewMeeting={() => void onNewMeeting()}
+        onArchiveMeeting={(id) => void onArchiveMeeting(id)}
       />
-      <StatusBanner
-        message={bannerMessage}
-        {...(bannerActionLabel
-          ? {
-              actionLabel: bannerActionLabel,
-              onAction: onBannerAction
-            }
-          : {})}
-      />
-      <section className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
-        <MeetingHistoryPanel
-          items={historyItems}
-          isLoading={historyLoading}
-          errorMessage={historyErrorMessage}
-          searchQuery={historySearchQuery}
-          selectedMeetingId={selectedHistoryMeetingId}
-          selectionDisabled={meetingState === 'recording' || meetingState === 'enhancing'}
-          onSearchChange={onHistorySearchChange}
-          onSelectMeeting={onHistorySelectMeeting}
-        />
-        <div className="rounded-2xl bg-zinc-50/70 p-3">
-          <Notepad
-            key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
-            content={editorContent}
-            editable={
-              meetingState === 'recording' ||
-              meetingState === 'stopped' ||
-              meetingState === 'enhance_failed' ||
-              meetingState === 'done'
-            }
-            editorMode={editorMode}
-            showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
-            onShowOriginalNotes={resumeEditingNotes}
-            onShowEnhancedNotes={showEnhancedNotes}
-            onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
+
+      <div className="flex flex-1 flex-col overflow-auto">
+        <main
+          data-testid="app-shell"
+          className="flex flex-col gap-4 px-4 py-6"
+        >
+          <header className="flex items-center gap-3">
+            {!sidebarOpen ? (
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+                className="-ml-1 flex-shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-ink"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 4.5h10M3 8h10M3 11.5h10"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            ) : null}
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
+              <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">
+                Notepad-first meeting capture shell
+              </h1>
+              <p data-testid="transcription-status" className="mt-1 text-xs text-zinc-500">
+                Transcription: {transcriptionStatus.status}
+              </p>
+            </div>
+          </header>
+
+          {setupRequired ? (
+            <SetupWizard
+              hasStoredDeepgramKey={settings?.deepgramApiKeySet === true}
+              onValidateKey={validateProviderKey}
+              onComplete={completeFirstRunSetup}
+            />
+          ) : null}
+
+          <MeetingBar
+            meetingState={meetingState}
+            meetingTitle={meetingTitle}
+            onMeetingTitleChange={setMeetingTitle}
+            onPrimaryAction={() => void onPrimaryAction()}
+            {...(meetingPrimaryShortcutLabel
+              ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
+              : {})}
+            onSecondaryAction={() => void onSecondaryAction()}
+            disabled={settings === null || meetingActionPending}
+            {...(meetingSecondaryActionLabel
+              ? { secondaryActionLabel: meetingSecondaryActionLabel }
+              : {})}
           />
-        </div>
-        <div className="flex flex-col gap-3">
-          <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
-            <AudioLevel source="mic" label="Microphone" value={levels.mic} />
-            <AudioLevel source="system" label="System Audio" value={levels.system} />
+          <StatusBanner
+            message={bannerMessage}
+            {...(bannerActionLabel
+              ? {
+                  actionLabel: bannerActionLabel,
+                  onAction: onBannerAction
+                }
+              : {})}
+          />
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+            <div className="rounded-2xl bg-zinc-50/70 p-3">
+              <Notepad
+                key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
+                content={editorContent}
+                editable={
+                  meetingState === 'recording' ||
+                  meetingState === 'stopped' ||
+                  meetingState === 'enhance_failed' ||
+                  meetingState === 'done'
+                }
+                editorMode={editorMode}
+                showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
+                onShowOriginalNotes={resumeEditingNotes}
+                onShowEnhancedNotes={showEnhancedNotes}
+                onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
+              />
+            </div>
+            <div className="flex flex-col gap-3">
+              <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
+                <AudioLevel source="mic" label="Microphone" value={levels.mic} />
+                <AudioLevel source="system" label="System Audio" value={levels.system} />
+              </section>
+              <TranscriptPanel entries={transcriptEntries} />
+            </div>
           </section>
-          <TranscriptPanel entries={transcriptEntries} />
-        </div>
-      </section>
 
-      <SettingsPanel
-        settings={settings}
-        onSave={saveSettings}
-        onValidateKey={validateProviderKey}
-      />
-    </main>
+          <SettingsPanel
+            settings={settings}
+            onSave={saveSettings}
+            onValidateKey={validateProviderKey}
+          />
+        </main>
+      </div>
+    </div>
   );
 }

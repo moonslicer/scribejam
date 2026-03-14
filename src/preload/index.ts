@@ -9,6 +9,8 @@ import {
   type EnhanceProgressEvent,
   type EnhanceMeetingResponse,
   type ErrorDisplayEvent,
+  type MeetingArchiveRequest,
+  type MeetingArchiveResponse,
   type MeetingStartRequest,
   type MeetingStartResponse,
   type MeetingDetails,
@@ -35,6 +37,7 @@ interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
   resetMeeting: () => Promise<MeetingResetResponse>;
+  archiveMeeting: (payload: MeetingArchiveRequest) => Promise<MeetingArchiveResponse>;
   listMeetings: (payload?: MeetingListRequest) => Promise<MeetingListResponse>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
@@ -62,6 +65,7 @@ const api: ScribejamApi = {
   startMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStart, payload),
   stopMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingStop, payload),
   resetMeeting: () => ipcRenderer.invoke(IPC_CHANNELS.meetingReset),
+  archiveMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingArchive, payload),
   listMeetings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingList, payload),
   getMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingGet, payload),
   enhanceMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingEnhance, payload),

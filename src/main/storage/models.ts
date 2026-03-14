@@ -13,6 +13,7 @@ export interface MeetingRecord {
   createdAt: string;
   updatedAt: string;
   durationMs: number | null;
+  archivedAt: string | null;
 }
 
 export interface NoteRecord {

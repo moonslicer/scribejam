@@ -2,6 +2,7 @@ export const IPC_CHANNELS = {
   meetingStart: 'meeting:start',
   meetingStop: 'meeting:stop',
   meetingReset: 'meeting:reset',
+  meetingArchive: 'meeting:archive',
   meetingList: 'meeting:list',
   meetingGet: 'meeting:get',
   meetingEnhance: 'meeting:enhance',
@@ -62,6 +63,14 @@ export interface MeetingStopRequest {
 
 export interface MeetingResetResponse {
   state: Extract<MeetingState, 'idle'>;
+}
+
+export interface MeetingArchiveRequest {
+  meetingId: string;
+}
+
+export interface MeetingArchiveResponse {
+  meetingId: string;
 }
 
 export interface MeetingGetRequest {
@@ -332,6 +341,15 @@ export function isTestConfigureEnhancementMockRequest(
       outcome === 'timeout' ||
       outcome === 'network'
   );
+}
+
+export function isMeetingArchiveRequest(value: unknown): value is MeetingArchiveRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<MeetingArchiveRequest>;
+  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
 }
 
 export function isMeetingGetRequest(value: unknown): value is MeetingGetRequest {

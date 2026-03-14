@@ -72,6 +72,7 @@ interface MeetingRow {
   created_at: string;
   updated_at: string;
   duration_ms: number | null;
+  archived_at: string | null;
 }
 
 interface NoteRow {
@@ -171,11 +172,23 @@ export class MeetingsRepository {
     return meeting;
   }
 
+  public archiveMeeting(id: string, archivedAt: string): void {
+    this.db
+      .prepare(
+        `
+          UPDATE meetings
+          SET archived_at = @archivedAt
+          WHERE id = @id
+        `
+      )
+      .run({ id, archivedAt });
+  }
+
   public getById(id: string): MeetingRecord | null {
     const row = this.db
       .prepare(
         `
-          SELECT id, title, state, created_at, updated_at, duration_ms
+          SELECT id, title, state, created_at, updated_at, duration_ms, archived_at
           FROM meetings
           WHERE id = ?
         `
@@ -426,6 +439,7 @@ export class MeetingArtifactsRepository {
               ORDER BY id DESC
               LIMIT 1
             )
+          WHERE m.archived_at IS NULL
           ORDER BY m.updated_at DESC, m.created_at DESC, m.id DESC
         `
       )
@@ -450,7 +464,8 @@ function mapMeetingRow(row: MeetingRow): MeetingRecord {
     state: row.state,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    durationMs: row.duration_ms
+    durationMs: row.duration_ms,
+    archivedAt: row.archived_at
   };
 }
 
