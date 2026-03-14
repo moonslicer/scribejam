@@ -1,7 +1,9 @@
 import { app, BrowserWindow } from 'electron';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { IPC_CHANNELS } from '../shared/ipc';
 import { createMainServices, registerIpcHandlers } from './ipc-handlers';
+import { installAppMenu } from './shell/app-menu';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -28,6 +30,42 @@ async function createWindow(): Promise<void> {
 
   const services = createMainServices({ window: mainWindow });
   registerIpcHandlers({ window: mainWindow }, services);
+  installAppMenu({
+    showApp: () => {
+      mainWindow?.show();
+      mainWindow?.focus();
+    },
+    stopRecordingIfActive: async () => {
+      const snapshot = services.stateMachine.getSnapshot();
+      if (snapshot.state !== 'recording' || !snapshot.meetingId) {
+        mainWindow?.show();
+        mainWindow?.focus();
+        return;
+      }
+
+      try {
+        await services.audioManager.stopRecording();
+        await services.transcriptionService.stop();
+        const stopped = services.stateMachine.stop(snapshot.meetingId);
+        services.meetingRecordsService.recordMeetingStopped(stopped);
+        mainWindow?.webContents.send(IPC_CHANNELS.meetingStateChanged, {
+          state: stopped.state,
+          meetingId: stopped.meetingId
+        });
+      } catch (error) {
+        mainWindow?.webContents.send(IPC_CHANNELS.errorDisplay, {
+          message: error instanceof Error ? error.message : 'Unable to stop the active recording.'
+        });
+      } finally {
+        mainWindow?.show();
+        mainWindow?.focus();
+      }
+    },
+    getMeetingState: () => services.stateMachine.getSnapshot().state,
+    quitApp: () => {
+      app.quit();
+    }
+  });
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
   if (devServerUrl) {
