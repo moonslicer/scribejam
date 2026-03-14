@@ -169,6 +169,50 @@ test('enhancement flow renders AI content and persists the enhanced output', asy
   }
 });
 
+test('latest enhanced meeting is restored after relaunch', async () => {
+  const userDataDir = mkdtempSync(join(tmpdir(), 'scribejam-pw-enhanced-'));
+  const first = await launchApp({ userDataDir });
+
+  try {
+    await completeFirstRunSetup(first.page);
+    await installMeetingEventCapture(first.page);
+
+    await first.page.getByTestId('meeting-primary-action').click();
+    await expect(first.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    const editor = first.page.getByTestId('notepad-editor-input');
+    await editor.click();
+    await editor.type('Need follow-up summary');
+    await sendMicFrames(first.page, { count: 12, amplitude: 9000 });
+
+    const meetingId = await getLastMeetingId(first.page);
+    expect(meetingId).not.toBeNull();
+
+    await first.page.evaluate(async (id) => {
+      await window.scribejam.stopMeeting({ meetingId: id });
+    }, meetingId ?? '');
+    await expect(first.page.getByTestId('meeting-state-value')).toHaveText('stopped');
+
+    await first.page.getByTestId('meeting-primary-action').click();
+    await expect(first.page.getByTestId('meeting-state-value')).toHaveText('done');
+    await expect(first.page.locator('[data-authorship="ai"]').first()).toBeVisible();
+  } finally {
+    await first.close();
+  }
+
+  const second = await launchApp({ userDataDir });
+  try {
+    await expect(second.page.getByTestId('setup-wizard')).toHaveCount(0);
+    await expect(second.page.getByTestId('meeting-state-value')).toHaveText('done');
+    await expect(second.page.locator('[data-authorship="ai"]').first()).toBeVisible();
+    await expect(second.page.getByRole('heading', { name: 'Summary' })).toBeVisible();
+    assertNoFatalRendererErrors(second.pageErrors, second.consoleErrors);
+  } finally {
+    await second.close();
+    rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
 test('enhancement failure keeps note-taking available and supports manual retry', async () => {
   const context = await launchApp();
 

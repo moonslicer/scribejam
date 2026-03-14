@@ -16,6 +16,7 @@ import {
   type MeetingGetRequest,
   type MeetingListRequest,
   type MeetingStartRequest,
+  type MeetingState,
   type MeetingStateChangedEvent,
   type NotesSaveRequest,
   type SettingsSaveRequest,
@@ -269,6 +270,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     }
 
     const meetingId = payload.meetingId;
+    primeSavedMeetingState(services, meetingId, ['enhance_failed']);
     const snapshot = services.stateMachine.dismissEnhancementFailure(meetingId);
     services.meetingRecordsService.recordMeetingEnhancementDismissed(snapshot);
     emitMeetingState(context.window, {
@@ -429,20 +431,42 @@ function resumeSavedMeeting(services: MainServices, meetingId: string) {
     current.meetingId === meetingId && (current.state === 'stopped' || current.state === 'done');
 
   if (!hasMatchingInMemoryMeeting) {
-    const meeting = services.meetingRecordsService.getMeeting(meetingId);
-    if (!meeting) {
-      throw new Error('Cannot resume a meeting that does not exist.');
-    }
-    if (meeting.state !== 'stopped' && meeting.state !== 'done') {
-      throw new Error(`Cannot resume meeting from ${meeting.state} state.`);
-    }
-
-    services.stateMachine.primeForResume({
-      meetingId: meeting.id,
-      title: meeting.title,
-      state: meeting.state
-    });
+    primeSavedMeetingState(services, meetingId, ['stopped', 'done']);
   }
 
   return services.stateMachine.resume(meetingId);
+}
+
+function primeSavedMeetingState(
+  services: MainServices,
+  meetingId: string,
+  allowedStates: Array<'stopped' | 'done' | 'enhance_failed'>
+) {
+  const current = services.stateMachine.getSnapshot();
+  if (
+    current.meetingId === meetingId &&
+    allowedStates.includes(current.state as (typeof allowedStates)[number])
+  ) {
+    return;
+  }
+
+  const meeting = services.meetingRecordsService.getMeeting(meetingId);
+  if (!meeting) {
+    throw new Error('Cannot load a meeting that does not exist.');
+  }
+  if (!isAllowedResumableState(meeting.state) || !allowedStates.includes(meeting.state)) {
+    throw new Error(`Cannot load meeting from ${meeting.state} state.`);
+  }
+
+  services.stateMachine.primeForResume({
+    meetingId: meeting.id,
+    title: meeting.title,
+    state: meeting.state
+  });
+}
+
+function isAllowedResumableState(
+  state: MeetingState
+): state is 'stopped' | 'done' | 'enhance_failed' {
+  return state === 'stopped' || state === 'done' || state === 'enhance_failed';
 }
