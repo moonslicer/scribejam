@@ -259,11 +259,18 @@ export default function App(): JSX.Element {
     deepgramApiKey: string;
     openaiApiKey: string;
   }): Promise<void> => {
-    await saveSettings({
-      deepgramApiKey: payload.deepgramApiKey,
-      openaiApiKey: payload.openaiApiKey,
+    const savePayload: Parameters<typeof window.scribejam.saveSettings>[0] = {
       firstRunAcknowledged: true
-    });
+    };
+
+    if (payload.deepgramApiKey.trim().length > 0) {
+      savePayload.deepgramApiKey = payload.deepgramApiKey;
+    }
+    if (payload.openaiApiKey.trim().length > 0) {
+      savePayload.openaiApiKey = payload.openaiApiKey;
+    }
+
+    await saveSettings(savePayload);
     setErrorMessage(null);
   };
 
@@ -299,7 +306,11 @@ export default function App(): JSX.Element {
       </header>
 
       {setupRequired ? (
-        <SetupWizard onValidateKey={validateProviderKey} onComplete={completeFirstRunSetup} />
+        <SetupWizard
+          hasStoredDeepgramKey={settings?.deepgramApiKeySet === true}
+          onValidateKey={validateProviderKey}
+          onComplete={completeFirstRunSetup}
+        />
       ) : null}
 
       <MeetingBar

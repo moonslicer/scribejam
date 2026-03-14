@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 interface SetupWizardProps {
+  hasStoredDeepgramKey: boolean;
   onValidateKey: (
     provider: 'deepgram' | 'openai',
     key: string
@@ -8,7 +9,11 @@ interface SetupWizardProps {
   onComplete: (payload: { deepgramApiKey: string; openaiApiKey: string }) => Promise<void>;
 }
 
-export function SetupWizard({ onValidateKey, onComplete }: SetupWizardProps): JSX.Element {
+export function SetupWizard({
+  hasStoredDeepgramKey,
+  onValidateKey,
+  onComplete
+}: SetupWizardProps): JSX.Element {
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
@@ -19,12 +24,8 @@ export function SetupWizard({ onValidateKey, onComplete }: SetupWizardProps): JS
   const [openaiValidation, setOpenaiValidation] = useState<{ valid: boolean; error?: string } | null>(null);
 
   const canContinue = useMemo(() => {
-    return (
-      deepgramValidation?.valid === true &&
-      hasAcknowledged &&
-      !isSaving
-    );
-  }, [deepgramValidation, hasAcknowledged, isSaving]);
+    return (hasStoredDeepgramKey || deepgramValidation?.valid === true) && hasAcknowledged && !isSaving;
+  }, [deepgramValidation, hasAcknowledged, hasStoredDeepgramKey, isSaving]);
 
   const validateKey = async (provider: 'deepgram' | 'openai'): Promise<void> => {
     if (provider === 'deepgram') {
@@ -81,6 +82,11 @@ export function SetupWizard({ onValidateKey, onComplete }: SetupWizardProps): JS
         <label className="text-sm font-medium text-zinc-700" htmlFor="setup-deepgram-key">
           Deepgram API key
         </label>
+        {hasStoredDeepgramKey ? (
+          <p className="text-xs text-zinc-500">
+            A Deepgram key is already stored on this device. Leave this blank to keep it, or enter a new one to replace it.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <input
             id="setup-deepgram-key"

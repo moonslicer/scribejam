@@ -1,8 +1,12 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SetupWizard } from '../../src/renderer/components/SetupWizard';
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('SetupWizard', () => {
   it('allows setup completion with Deepgram validation only', async () => {
@@ -12,7 +16,13 @@ describe('SetupWizard', () => {
     );
     const onComplete = vi.fn(async () => {});
 
-    render(<SetupWizard onValidateKey={onValidateKey} onComplete={onComplete} />);
+    render(
+      <SetupWizard
+        hasStoredDeepgramKey={false}
+        onValidateKey={onValidateKey}
+        onComplete={onComplete}
+      />
+    );
 
     await user.type(screen.getByTestId('setup-input-deepgram'), 'dg-test-key');
     await user.click(screen.getByTestId('setup-validate-deepgram-button'));
@@ -29,5 +39,33 @@ describe('SetupWizard', () => {
         openaiApiKey: ''
       })
     );
+  });
+
+  it('allows acknowledgement with an already stored Deepgram key', async () => {
+    const user = userEvent.setup();
+    const onValidateKey = vi.fn(async () => ({ valid: true }));
+    const onComplete = vi.fn(async () => {});
+
+    render(
+      <SetupWizard
+        hasStoredDeepgramKey={true}
+        onValidateKey={onValidateKey}
+        onComplete={onComplete}
+      />
+    );
+
+    expect(screen.getByText(/already stored on this device/i)).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('setup-disclosure-ack'));
+    await waitFor(() => expect(screen.getByTestId('setup-continue-button')).toBeEnabled());
+    await user.click(screen.getByTestId('setup-continue-button'));
+
+    await waitFor(() =>
+      expect(onComplete).toHaveBeenCalledWith({
+        deepgramApiKey: '',
+        openaiApiKey: ''
+      })
+    );
+    expect(onValidateKey).not.toHaveBeenCalled();
   });
 });

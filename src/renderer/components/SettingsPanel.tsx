@@ -32,12 +32,21 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     try {
-      await onSave({
-        captureSource,
-        deepgramApiKey,
-        openaiApiKey,
-        anthropicApiKey
-      });
+      const payload: SettingsSaveRequest = {
+        captureSource
+      };
+
+      if (deepgramApiKey.trim().length > 0) {
+        payload.deepgramApiKey = deepgramApiKey;
+      }
+      if (openaiApiKey.trim().length > 0) {
+        payload.openaiApiKey = openaiApiKey;
+      }
+      if (anthropicApiKey.trim().length > 0) {
+        payload.anthropicApiKey = anthropicApiKey;
+      }
+
+      await onSave(payload);
       setDeepgramApiKey('');
       setOpenaiApiKey('');
       setAnthropicApiKey('');
