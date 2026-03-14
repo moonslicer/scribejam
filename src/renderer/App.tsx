@@ -3,6 +3,7 @@ import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
+import { MeetingHistoryPanel } from './components/MeetingHistoryPanel';
 import { Notepad } from './components/Notepad';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
@@ -49,6 +50,10 @@ export default function App(): JSX.Element {
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
   const loadHistory = useHistoryStore((state) => state.loadHistory);
+  const historyItems = useHistoryStore((state) => state.items);
+  const historyLoading = useHistoryStore((state) => state.isLoading);
+  const historyErrorMessage = useHistoryStore((state) => state.errorMessage);
+  const historySearchQuery = useHistoryStore((state) => state.searchQuery);
 
   useMicCapture({
     enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
@@ -385,6 +390,14 @@ export default function App(): JSX.Element {
     setNoteSaveState('saved');
   };
 
+  const onHistorySearchChange = (value: string): void => {
+    if (!api?.listMeetings) {
+      return;
+    }
+
+    void loadHistory(api.listMeetings, value);
+  };
+
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <header>
@@ -439,7 +452,14 @@ export default function App(): JSX.Element {
         </section>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+      <section className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+        <MeetingHistoryPanel
+          items={historyItems}
+          isLoading={historyLoading}
+          errorMessage={historyErrorMessage}
+          searchQuery={historySearchQuery}
+          onSearchChange={onHistorySearchChange}
+        />
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
             key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
