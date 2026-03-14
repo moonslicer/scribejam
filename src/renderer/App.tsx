@@ -14,6 +14,7 @@ import { useHistoryStore } from './stores/history-store';
 import { useMeetingStore } from './stores/meeting-store';
 
 const NOOP_SAVE_NOTES = (): void => {};
+type AppPage = 'workspace' | 'settings';
 
 export default function App(): JSX.Element {
   const api = window.scribejam;
@@ -26,6 +27,7 @@ export default function App(): JSX.Element {
   const [historyReady, setHistoryReady] = useState(false);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activePage, setActivePage] = useState<AppPage>('workspace');
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
   const meetingState = useMeetingStore((state) => state.meetingState);
@@ -402,9 +404,8 @@ export default function App(): JSX.Element {
     }
 
     if (errorAction === 'open-settings') {
-      document
-        .querySelector<HTMLElement>('[data-testid="settings-panel"]')
-        ?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+      setActivePage('settings');
+      setSidebarOpen(true);
     }
   };
 
@@ -508,6 +509,7 @@ export default function App(): JSX.Element {
       return;
     }
 
+    setActivePage('workspace');
     setSelectedHistoryMeetingId(nextMeetingId);
     setMeetingId(nextMeetingId);
   };
@@ -541,6 +543,7 @@ export default function App(): JSX.Element {
 
       <MeetingsSidebar
         isOpen={sidebarOpen}
+        activePage={activePage}
         items={historyItems}
         isLoading={historyLoading}
         errorMessage={historyErrorMessage}
@@ -551,7 +554,11 @@ export default function App(): JSX.Element {
         onToggle={() => setSidebarOpen(false)}
         onSearchChange={onHistorySearchChange}
         onSelectMeeting={onHistorySelectMeeting}
-        onNewMeeting={() => void onNewMeeting()}
+        onNewMeeting={() => {
+          setActivePage('workspace');
+          void onNewMeeting();
+        }}
+        onOpenSettings={() => setActivePage('settings')}
         onArchiveMeeting={(id) => void onArchiveMeeting(id)}
       />
 
@@ -564,15 +571,21 @@ export default function App(): JSX.Element {
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
               <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">
-                Notepad-first meeting capture shell
+                {activePage === 'settings' ? 'Settings' : 'Notepad-first meeting capture shell'}
               </h1>
-              <p data-testid="transcription-status" className="mt-1 text-xs text-zinc-500">
-                Transcription: {transcriptionStatus.status}
-              </p>
+              {activePage === 'workspace' ? (
+                <p data-testid="transcription-status" className="mt-1 text-xs text-zinc-500">
+                  Transcription: {transcriptionStatus.status}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-zinc-500">
+                  Provider keys and capture preferences stay separate from the meeting workspace.
+                </p>
+              )}
             </div>
           </header>
 
-          {setupRequired ? (
+          {setupRequired && activePage === 'workspace' ? (
             <SetupWizard
               hasStoredDeepgramKey={settings?.deepgramApiKeySet === true}
               onValidateKey={validateProviderKey}
@@ -580,20 +593,6 @@ export default function App(): JSX.Element {
             />
           ) : null}
 
-          <MeetingBar
-            meetingState={meetingState}
-            meetingTitle={meetingTitle}
-            onMeetingTitleChange={setMeetingTitle}
-            onPrimaryAction={() => void onPrimaryAction()}
-            {...(meetingPrimaryShortcutLabel
-              ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
-              : {})}
-            onSecondaryAction={() => void onSecondaryAction()}
-            disabled={settings === null || meetingActionPending}
-            {...(meetingSecondaryActionLabel
-              ? { secondaryActionLabel: meetingSecondaryActionLabel }
-              : {})}
-          />
           <StatusBanner
             message={bannerMessage}
             {...(bannerActionLabel
@@ -603,38 +602,59 @@ export default function App(): JSX.Element {
                 }
               : {})}
           />
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
-            <div className="rounded-2xl bg-zinc-50/70 p-3">
-              <Notepad
-                key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
-                content={editorContent}
-                editable={
-                  meetingState === 'recording' ||
-                  meetingState === 'stopped' ||
-                  meetingState === 'enhance_failed' ||
-                  meetingState === 'done'
-                }
-                editorMode={editorMode}
-                showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
-                onShowOriginalNotes={resumeEditingNotes}
-                onShowEnhancedNotes={showEnhancedNotes}
-                onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
-              />
-            </div>
-            <div className="flex flex-col gap-3">
-              <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
-                <AudioLevel source="mic" label="Microphone" value={levels.mic} />
-                <AudioLevel source="system" label="System Audio" value={levels.system} />
-              </section>
-              <TranscriptPanel entries={transcriptEntries} />
-            </div>
-          </section>
 
-          <SettingsPanel
-            settings={settings}
-            onSave={saveSettings}
-            onValidateKey={validateProviderKey}
-          />
+          {activePage === 'workspace' ? (
+            <>
+              <MeetingBar
+                meetingState={meetingState}
+                meetingTitle={meetingTitle}
+                onMeetingTitleChange={setMeetingTitle}
+                onPrimaryAction={() => void onPrimaryAction()}
+                {...(meetingPrimaryShortcutLabel
+                  ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
+                  : {})}
+                onSecondaryAction={() => void onSecondaryAction()}
+                disabled={settings === null || meetingActionPending}
+                {...(meetingSecondaryActionLabel
+                  ? { secondaryActionLabel: meetingSecondaryActionLabel }
+                  : {})}
+              />
+              <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+                <div className="rounded-2xl bg-zinc-50/70 p-3">
+                  <Notepad
+                    key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
+                    content={editorContent}
+                    editable={
+                      meetingState === 'recording' ||
+                      meetingState === 'stopped' ||
+                      meetingState === 'enhance_failed' ||
+                      meetingState === 'done'
+                    }
+                    editorMode={editorMode}
+                    showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
+                    onShowOriginalNotes={resumeEditingNotes}
+                    onShowEnhancedNotes={showEnhancedNotes}
+                    onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
+                  />
+                </div>
+                <div className="flex flex-col gap-3">
+                  <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
+                    <AudioLevel source="mic" label="Microphone" value={levels.mic} />
+                    <AudioLevel source="system" label="System Audio" value={levels.system} />
+                  </section>
+                  <TranscriptPanel entries={transcriptEntries} />
+                </div>
+              </section>
+            </>
+          ) : (
+            <section data-testid="settings-page" className="mx-auto w-full max-w-3xl">
+              <SettingsPanel
+                settings={settings}
+                onSave={saveSettings}
+                onValidateKey={validateProviderKey}
+              />
+            </section>
+          )}
         </main>
       </div>
     </div>

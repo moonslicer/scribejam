@@ -10,6 +10,7 @@ import {
   getMeeting,
   installMeetingEventCapture,
   launchApp,
+  openSettingsPage,
   sendMicFrames
 } from './helpers';
 
@@ -31,6 +32,7 @@ test('setup wizard validates invalid and valid keys before completion', async ()
     await context.page.getByTestId('setup-continue-button').click();
 
     await expect(context.page.getByTestId('setup-wizard')).toHaveCount(0);
+    await openSettingsPage(context.page);
     await expect(context.page.getByTestId('settings-first-run-ack')).toContainText('yes');
     assertNoFatalRendererErrors(context.pageErrors, context.consoleErrors);
   } finally {
@@ -101,6 +103,7 @@ test('settings panel saves provider keys and capture source across relaunch', as
 
   try {
     await completeFirstRunSetup(first.page);
+    await openSettingsPage(first.page);
 
     await first.page.getByTestId('settings-input-capture-source').selectOption('mic');
     await first.page.getByTestId('settings-input-openai').fill('sk-openai-test');
@@ -117,6 +120,7 @@ test('settings panel saves provider keys and capture source across relaunch', as
   const second = await launchApp({ userDataDir: first.userDataDir });
   try {
     await expect(second.page.getByTestId('setup-wizard')).toHaveCount(0);
+    await openSettingsPage(second.page);
     await expect(second.page.getByTestId('settings-capture-source')).toContainText('mic');
     await expect(second.page.getByTestId('settings-openai-configured')).toContainText('yes');
     await expect(second.page.getByTestId('settings-anthropic-configured')).toContainText('yes');

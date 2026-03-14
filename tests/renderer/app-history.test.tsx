@@ -196,10 +196,10 @@ describe('App meeting history', () => {
 
     render(<App />);
 
-    const historyButton = await screen.findByRole('button', {
-      name: /architecture review/i
-    });
-    fireEvent.click(historyButton);
+    const historyLabel = await screen.findByText('Architecture review');
+    const historyButton = historyLabel.closest('[role="button"]');
+    expect(historyButton).not.toBeNull();
+    fireEvent.click(historyButton as HTMLElement);
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-2' }));
     await waitFor(() =>

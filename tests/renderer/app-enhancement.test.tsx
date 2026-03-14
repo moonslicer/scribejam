@@ -542,12 +542,7 @@ describe('App enhancement flow', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    const settingsPanel = await screen.findByTestId('settings-panel');
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(settingsPanel, 'scrollIntoView', {
-      value: scrollIntoView,
-      configurable: true
-    });
+    await screen.findByTestId('meeting-bar');
 
     await act(async () => {
       errorListener?.({
@@ -559,7 +554,8 @@ describe('App enhancement flow', () => {
     expect(await screen.findByTestId('status-banner-action')).toHaveTextContent('Open Settings');
     await user.click(screen.getByTestId('status-banner-action'));
 
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(await screen.findByTestId('settings-page')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
   });
 
   it('autosaves edited enhanced content separately from raw notes', async () => {

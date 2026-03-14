@@ -97,6 +97,11 @@ export async function completeFirstRunSetup(page: Page): Promise<void> {
   await expect(page.getByTestId('setup-wizard')).toHaveCount(0);
 }
 
+export async function openSettingsPage(page: Page): Promise<void> {
+  await page.getByTestId('sidebar-settings-button').click();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+}
+
 export async function sendMicFrames(
   page: Page,
   options?: { count?: number; amplitude?: number }

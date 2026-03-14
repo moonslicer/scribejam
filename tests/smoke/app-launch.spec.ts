@@ -80,6 +80,11 @@ async function launchApp(options: LaunchOptions = {}): Promise<LaunchContext> {
   };
 }
 
+async function openSettingsPage(page: Page): Promise<void> {
+  await page.getByTestId('sidebar-settings-button').click();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+}
+
 async function readPercent(page: Page, testId: string): Promise<number> {
   const text = (await page.getByTestId(testId).textContent()) ?? '0%';
   const parsed = Number.parseInt(text.replace('%', ''), 10);
@@ -357,6 +362,7 @@ test('setup state persists across relaunch', async () => {
 
   try {
     await completeFirstRunSetup(first.page);
+    await openSettingsPage(first.page);
     await expect(first.page.getByTestId('settings-deepgram-configured')).toContainText('yes');
     await expect(first.page.getByTestId('settings-first-run-ack')).toContainText('yes');
   } finally {
@@ -366,6 +372,7 @@ test('setup state persists across relaunch', async () => {
   const second = await launchApp({ userDataDir });
   try {
     await expect(second.page.getByTestId('setup-wizard')).toHaveCount(0);
+    await openSettingsPage(second.page);
     await expect(second.page.getByTestId('settings-deepgram-configured')).toContainText('yes');
     assertNoFatalRendererErrors(second.pageErrors, second.consoleErrors);
   } finally {

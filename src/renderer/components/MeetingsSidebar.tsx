@@ -2,6 +2,7 @@ import type { MeetingHistoryItem } from '../../shared/ipc';
 
 interface MeetingsSidebarProps {
   isOpen: boolean;
+  activePage: 'workspace' | 'settings';
   items: MeetingHistoryItem[];
   isLoading: boolean;
   errorMessage: string | null;
@@ -13,6 +14,7 @@ interface MeetingsSidebarProps {
   onSearchChange: (value: string) => void;
   onSelectMeeting: (meetingId: string) => void;
   onNewMeeting: () => void;
+  onOpenSettings: () => void;
   onArchiveMeeting: (meetingId: string) => void;
 }
 
@@ -174,6 +176,7 @@ function MeetingGroup({
 
 export function MeetingsSidebar({
   isOpen,
+  activePage,
   items,
   isLoading,
   errorMessage,
@@ -185,6 +188,7 @@ export function MeetingsSidebar({
   onSearchChange,
   onSelectMeeting,
   onNewMeeting,
+  onOpenSettings,
   onArchiveMeeting
 }: MeetingsSidebarProps): JSX.Element {
   const groups = groupByTime(items);
@@ -270,6 +274,30 @@ export function MeetingsSidebar({
           onSelectMeeting={onSelectMeeting}
           onArchiveMeeting={onArchiveMeeting}
         />
+      </div>
+
+      <div className="border-t border-zinc-200 px-3 py-3">
+        <button
+          data-testid="sidebar-settings-button"
+          type="button"
+          onClick={onOpenSettings}
+          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+            activePage === 'settings'
+              ? 'bg-zinc-900 text-white'
+              : 'bg-white text-zinc-700 hover:bg-zinc-100'
+          }`}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+            <path
+              d="M6.5 1.5v1.3M6.5 10.2v1.3M11.5 6.5h-1.3M2.8 6.5H1.5M10.04 2.96l-.92.92M3.88 9.12l-.92.92M10.04 10.04l-.92-.92M3.88 3.88l-.92-.92"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinecap="round"
+            />
+            <circle cx="6.5" cy="6.5" r="2.1" stroke="currentColor" strokeWidth="1.1" />
+          </svg>
+          Settings
+        </button>
       </div>
     </aside>
   );

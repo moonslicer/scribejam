@@ -7,6 +7,8 @@ import type {
   EnhanceProgressEvent,
   EnhanceMeetingResponse,
   ErrorDisplayEvent,
+  MeetingArchiveRequest,
+  MeetingArchiveResponse,
   MeetingStartRequest,
   MeetingStartResponse,
   MeetingDetails,
@@ -33,6 +35,7 @@ interface ScribejamApi {
   startMeeting: (payload: MeetingStartRequest) => Promise<MeetingStartResponse>;
   stopMeeting: (payload: MeetingStopRequest) => Promise<void>;
   resetMeeting: () => Promise<MeetingResetResponse>;
+  archiveMeeting: (payload: MeetingArchiveRequest) => Promise<MeetingArchiveResponse>;
   listMeetings: (payload?: MeetingListRequest) => Promise<MeetingListResponse>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;

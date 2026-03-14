@@ -1,5 +1,6 @@
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
 
@@ -54,9 +55,23 @@ describe('App layout', () => {
     render(<App />);
 
     expect(await screen.findByTestId('notepad-editor')).toBeInTheDocument();
-    expect(screen.getByTestId('meeting-history-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('meetings-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-history-search')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-settings-button')).toBeInTheDocument();
     expect(screen.getByTestId('transcript-panel')).toBeInTheDocument();
     expect(screen.getByText('Meeting notepad')).toBeInTheDocument();
+  });
+
+  it('opens the settings page from the sidebar footer button', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByTestId('notepad-editor');
+    await user.click(screen.getByTestId('sidebar-settings-button'));
+
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell-title')).toHaveTextContent('Settings');
   });
 });
