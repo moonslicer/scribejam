@@ -3,8 +3,10 @@ productName: Scribejam
 files:
   - dist/**
   - package.json
+directories:
+  buildResources: assets
+  output: release
 mac:
+  icon: assets/icons/scribejam.icns
   target:
     - dmg
-directories:
-  output: release
