@@ -153,7 +153,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     const validated = parseMeetingStart(payload);
     const snapshot =
       validated.meetingId !== undefined
-        ? services.stateMachine.resume(validated.meetingId)
+        ? resumeSavedMeeting(services, validated.meetingId)
         : services.stateMachine.start(validated.title);
     if (!snapshot.meetingId) {
       throw new Error('Failed to create meeting id.');
@@ -421,4 +421,28 @@ function parseMeetingStop(payload: unknown): string {
     throw new Error('Meeting id is required.');
   }
   return candidate.meetingId;
+}
+
+function resumeSavedMeeting(services: MainServices, meetingId: string) {
+  const current = services.stateMachine.getSnapshot();
+  const hasMatchingInMemoryMeeting =
+    current.meetingId === meetingId && (current.state === 'stopped' || current.state === 'done');
+
+  if (!hasMatchingInMemoryMeeting) {
+    const meeting = services.meetingRecordsService.getMeeting(meetingId);
+    if (!meeting) {
+      throw new Error('Cannot resume a meeting that does not exist.');
+    }
+    if (meeting.state !== 'stopped' && meeting.state !== 'done') {
+      throw new Error(`Cannot resume meeting from ${meeting.state} state.`);
+    }
+
+    services.stateMachine.primeForResume({
+      meetingId: meeting.id,
+      title: meeting.title,
+      state: meeting.state
+    });
+  }
+
+  return services.stateMachine.resume(meetingId);
 }

@@ -143,4 +143,105 @@ describe('registerIpcHandlers', () => {
       'Invalid meeting list payload.'
     );
   });
+
+  it('hydrates a saved done meeting before resuming it', async () => {
+    const send = vi.fn();
+    const getSnapshot = vi.fn(() => ({ state: 'idle' }));
+    const primeForResume = vi.fn();
+    const resume = vi.fn(() => ({
+      state: 'recording',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      startedAt: Date.now()
+    }));
+    const getMeeting = vi.fn(() => ({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:15:00.000Z',
+      durationMs: 900000,
+      noteContent: null,
+      enhancedNoteContent: null,
+      enhancedOutput: null,
+      transcriptSegments: []
+    }));
+    const startRecording = vi.fn().mockResolvedValue(undefined);
+    const startTranscription = vi.fn().mockResolvedValue(undefined);
+    const recordMeetingResumed = vi.fn();
+
+    registerIpcHandlers(
+      {
+        window: {
+          webContents: {
+            send
+          }
+        } as never
+      },
+      {
+        stateMachine: {
+          getSnapshot,
+          primeForResume,
+          resume
+        },
+        settingsStore: {
+          getSettings: vi.fn(() => ({
+            firstRunAcknowledged: true,
+            deepgramApiKeySet: true
+          })),
+          saveSettings: vi.fn()
+        },
+        audioManager: {
+          ingestMicPayload: vi.fn(),
+          startRecording
+        },
+        transcriptionService: {
+          start: startTranscription,
+          validateDeepgramKey: vi.fn()
+        },
+        meetingRecordsService: {
+          getMeeting,
+          listMeetingHistory: vi.fn(),
+          recordMeetingResumed
+        },
+        notesRepository: {
+          save: vi.fn()
+        },
+        enhancedNoteDocumentsRepository: {
+          save: vi.fn()
+        },
+        enhancementOrchestrator: {
+          enhanceMeeting: vi.fn()
+        }
+      } as never
+    );
+
+    const handler = handlers.get(IPC_CHANNELS.meetingStart);
+
+    await expect(
+      handler?.({} as never, {
+        title: 'Weekly sync',
+        meetingId: 'meeting-1'
+      })
+    ).resolves.toEqual({
+      meetingId: 'meeting-1',
+      title: 'Weekly sync'
+    });
+
+    expect(getMeeting).toHaveBeenCalledWith('meeting-1');
+    expect(primeForResume).toHaveBeenCalledWith({
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done'
+    });
+    expect(resume).toHaveBeenCalledWith('meeting-1');
+    expect(startRecording).toHaveBeenCalledTimes(1);
+    expect(startTranscription).toHaveBeenCalledTimes(1);
+    expect(recordMeetingResumed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'recording',
+        meetingId: 'meeting-1'
+      })
+    );
+  });
 });
