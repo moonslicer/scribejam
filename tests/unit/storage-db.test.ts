@@ -31,6 +31,7 @@ describe('storage database bootstrap', () => {
 
     expect(tables.map((row) => row.name)).toEqual(
       expect.arrayContaining([
+        'enhanced_note_documents',
         'enhanced_outputs',
         'meetings',
         'notes',
@@ -38,7 +39,7 @@ describe('storage database bootstrap', () => {
         'transcript_segments'
       ])
     );
-    expect(db.pragma('user_version', { simple: true })).toBe(2);
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
 
     db.close();
   });
@@ -80,7 +81,7 @@ describe('storage database bootstrap', () => {
     secondDb.close();
   });
 
-  it('upgrades an M3 database to M4 without losing existing rows', () => {
+  it('upgrades an M3 database to the current schema without losing existing rows', () => {
     const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-'));
     tempDirs.push(dir);
     const dbPath = join(dir, 'scribejam.sqlite');
@@ -145,8 +146,10 @@ describe('storage database bootstrap', () => {
       .prepare('SELECT id, title, state FROM meetings WHERE id = ?')
       .get('meeting-legacy') as { id: string; title: string; state: string } | undefined;
 
-    expect(tables.map((row) => row.name)).toContain('enhanced_outputs');
-    expect(upgradedDb.pragma('user_version', { simple: true })).toBe(2);
+    expect(tables.map((row) => row.name)).toEqual(
+      expect.arrayContaining(['enhanced_note_documents', 'enhanced_outputs'])
+    );
+    expect(upgradedDb.pragma('user_version', { simple: true })).toBe(3);
     expect(persisted).toEqual({
       id: 'meeting-legacy',
       title: 'Legacy sync',

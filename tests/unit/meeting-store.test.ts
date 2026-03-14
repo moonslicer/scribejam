@@ -47,6 +47,7 @@ describe('meeting store', () => {
       noteContent: {
         type: 'doc'
       },
+      enhancedNoteContent: null,
       enhancedOutput: null,
       transcriptSegments: [
         {
@@ -93,6 +94,7 @@ describe('meeting store', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: {
         blocks: [
           {
@@ -126,6 +128,7 @@ describe('meeting store', () => {
       ]
     });
     expect(store.getState().enhancedOutput?.summary).toBe('Summary');
+    expect(store.getState().editorMode).toBe('enhanced');
     expect(store.getState().editorContent).toMatchObject({
       type: 'doc'
     });
@@ -155,6 +158,7 @@ describe('meeting store', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: {
         blocks: [
           {
@@ -175,7 +179,8 @@ describe('meeting store', () => {
 
     store.getState().resumeEditingNotes();
 
-    expect(store.getState().enhancedOutput).toBeNull();
+    expect(store.getState().enhancedOutput?.summary).toBe('Summary');
+    expect(store.getState().editorMode).toBe('notes');
     expect(store.getState().editorContent).toEqual(store.getState().noteContent);
     expect(store.getState().editorInstanceKey).toBe(1);
   });
@@ -204,6 +209,7 @@ describe('meeting store', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: {
         blocks: [
           {
@@ -230,9 +236,71 @@ describe('meeting store', () => {
       meetingTitle: '',
       transcriptEntries: [],
       noteContent: null,
+      enhancedNoteContent: null,
       editorContent: null,
+      editorMode: 'notes',
       enhancedOutput: null,
       noteSaveState: 'idle'
     });
+  });
+
+  it('prefers a persisted editable enhanced document when hydrating done meetings', () => {
+    const store = createMeetingStore();
+
+    store.getState().hydrateMeeting({
+      id: 'meeting-1',
+      title: 'Design review',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z',
+      durationMs: 1500000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Raw note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedNoteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Edited enhanced note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Raw note'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Summary'
+      },
+      transcriptSegments: []
+    });
+
+    expect(store.getState().editorMode).toBe('enhanced');
+    expect(store.getState().editorContent).toEqual(store.getState().enhancedNoteContent);
   });
 });

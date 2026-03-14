@@ -12,6 +12,7 @@ const api = {
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
+  saveEnhancedNote: vi.fn(),
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(() => () => {}),

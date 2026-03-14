@@ -3,6 +3,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
+import { AUTOSAVE_DELAY_MS } from '../../src/renderer/hooks/use-note-autosave';
 import { useMeetingStore } from '../../src/renderer/stores/meeting-store';
 
 let stateListener:
@@ -32,6 +33,7 @@ const api = {
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
+  saveEnhancedNote: vi.fn(),
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(
@@ -84,7 +86,9 @@ describe('App enhancement flow', () => {
       meetingTitle: '',
       transcriptEntries: [],
       noteContent: null,
+      enhancedNoteContent: null,
       editorContent: null,
+      editorMode: 'notes',
       enhancedOutput: null,
       enhancementProgress: null,
       editorInstanceKey: 0,
@@ -100,6 +104,7 @@ describe('App enhancement flow', () => {
     api.getSettings.mockReset();
     api.saveSettings.mockReset();
     api.saveNotes.mockReset();
+    api.saveEnhancedNote.mockReset();
     api.validateSttKey.mockReset();
     api.sendMicFrames.mockReset();
     api.onMeetingStateChanged.mockClear();
@@ -140,6 +145,7 @@ describe('App enhancement flow', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: null,
       transcriptSegments: []
     });
@@ -181,6 +187,7 @@ describe('App enhancement flow', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
   });
 
@@ -265,6 +272,7 @@ describe('App enhancement flow', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: {
         blocks: [
           {
@@ -396,6 +404,7 @@ describe('App enhancement flow', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: null,
       transcriptSegments: []
     });
@@ -446,6 +455,94 @@ describe('App enhancement flow', () => {
     expect(scrollIntoView).toHaveBeenCalled();
   });
 
+  it('autosaves edited enhanced content separately from raw notes', async () => {
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Follow up with design'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedNoteContent: null,
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Follow up with design'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      transcriptSegments: []
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    vi.useFakeTimers();
+    act(() => {
+      useMeetingStore.getState().setEnhancedNoteContent({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Edited enhanced note'
+              }
+            ]
+          }
+        ]
+      });
+    });
+
+    await act(async () => {
+      // Allow the autosave effect to observe the dirty enhanced document before the timer advances.
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(AUTOSAVE_DELAY_MS + 1);
+    });
+
+    expect(api.saveEnhancedNote).toHaveBeenCalledTimes(1);
+    expect(api.saveNotes).not.toHaveBeenCalled();
+    expect(JSON.stringify(api.saveEnhancedNote.mock.calls[0]?.[0]?.content)).toContain(
+      'Edited enhanced note'
+    );
+    expect(JSON.stringify(api.saveEnhancedNote.mock.calls[0]?.[0]?.content)).not.toContain(
+      '"authorship"'
+    );
+  });
+
   it('offers a new meeting action from done state and clears the completed meeting view', async () => {
     const user = userEvent.setup();
     api.getMeeting.mockResolvedValue({
@@ -469,6 +566,7 @@ describe('App enhancement flow', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: {
         blocks: [
           {
@@ -517,6 +615,7 @@ describe('App enhancement flow', () => {
       updatedAt: '2026-03-12T18:05:00.000Z',
       durationMs: null,
       noteContent: null,
+      enhancedNoteContent: null,
       enhancedOutput: null,
       transcriptSegments: []
     });

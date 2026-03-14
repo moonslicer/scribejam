@@ -10,6 +10,7 @@ import { MeetingStateMachine } from '../../src/main/meeting/state-machine';
 import { createStorageDatabase } from '../../src/main/storage/db';
 import { MeetingRecordsService } from '../../src/main/storage/meeting-records-service';
 import {
+  EnhancedNoteDocumentsRepository,
   EnhancedOutputsRepository,
   MeetingArtifactsRepository,
   MeetingsRepository,
@@ -38,12 +39,14 @@ function createHarness(options?: {
   const notes = new NotesRepository(db);
   const artifacts = new MeetingArtifactsRepository(db);
   const enhancedOutputs = new EnhancedOutputsRepository(db);
+  const enhancedNoteDocuments = new EnhancedNoteDocumentsRepository(db);
   const meetingRecords = new MeetingRecordsService(meetings, artifacts, transcript);
   const orchestrator = new EnhancementOrchestrator(
     stateMachine,
     meetingRecords,
     artifacts,
     enhancedOutputs,
+    enhancedNoteDocuments,
     options?.getLlmClient ?? (() => new MockLlmClient()),
     {
       retryDelayMs: 1,
@@ -58,6 +61,7 @@ function createHarness(options?: {
     transcript,
     artifacts,
     enhancedOutputs,
+    enhancedNoteDocuments,
     meetingRecords,
     orchestrator
   };
@@ -74,6 +78,13 @@ describe('EnhancementOrchestrator', () => {
       content:
         '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Follow up with design"}]}]}',
       updatedAt: '2026-03-12T18:05:00.000Z'
+    });
+    harness.enhancedNoteDocuments.save({
+      id: `${started.meetingId}-enhanced-note`,
+      meetingId: started.meetingId ?? '',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Stale edited enhancement"}]}]}',
+      updatedAt: '2026-03-12T18:06:00.000Z'
     });
     harness.transcript.append({
       meetingId: started.meetingId ?? '',
@@ -98,6 +109,7 @@ describe('EnhancementOrchestrator', () => {
     expect(response.output.blocks[1]?.source).toBe('ai');
     expect(persistedMeeting?.state).toBe('done');
     expect(persistedEnhancement?.content).toContain('revised mockups tomorrow');
+    expect(harness.enhancedNoteDocuments.getByMeetingId(started.meetingId ?? '')).toBeNull();
 
     harness.db.close();
   });

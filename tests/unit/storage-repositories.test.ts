@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createStorageDatabase } from '../../src/main/storage/db';
 import {
+  EnhancedNoteDocumentsRepository,
   EnhancedOutputsRepository,
   MeetingArtifactsRepository,
   MeetingsRepository,
@@ -110,6 +111,7 @@ describe('storage repositories', () => {
     const notes = new NotesRepository(db);
     const transcript = new TranscriptRepository(db);
     const enhancedOutputs = new EnhancedOutputsRepository(db);
+    const enhancedNoteDocuments = new EnhancedNoteDocumentsRepository(db);
     const artifacts = new MeetingArtifactsRepository(db);
 
     meetings.create({
@@ -139,6 +141,13 @@ describe('storage repositories', () => {
         '{"blocks":[{"source":"human","content":"Follow up"},{"source":"ai","content":"Draft is due Friday."}],"actionItems":[],"decisions":[],"summary":"Send the draft Friday."}',
       createdAt: '2026-03-12T17:31:00.000Z'
     });
+    enhancedNoteDocuments.save({
+      id: 'enhanced-note-1',
+      meetingId: 'meeting-1',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited enhanced note"}]}]}',
+      updatedAt: '2026-03-12T17:32:00.000Z'
+    });
 
     const meeting = artifacts.getMeetingWithArtifacts('meeting-1');
 
@@ -151,6 +160,7 @@ describe('storage repositories', () => {
       isFinal: true
     });
     expect(meeting?.enhancedOutput?.content).toContain('Draft is due Friday.');
+    expect(meeting?.enhancedNoteDocument?.content).toContain('Edited enhanced note');
 
     db.close();
   });
@@ -235,6 +245,41 @@ describe('storage repositories', () => {
     });
 
     expect(enhancedOutputs.getLatestByMeetingId('meeting-1')).toEqual(latest);
+
+    db.close();
+  });
+
+  it('upserts editable enhanced note documents per meeting', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
+    tempDirs.push(dir);
+    const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
+    const meetings = new MeetingsRepository(db);
+    const enhancedNoteDocuments = new EnhancedNoteDocumentsRepository(db);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T17:00:00.000Z',
+      updatedAt: '2026-03-12T17:30:00.000Z'
+    });
+
+    enhancedNoteDocuments.save({
+      id: 'enhanced-note-1',
+      meetingId: 'meeting-1',
+      content: '{"type":"doc","content":[{"type":"paragraph"}]}',
+      updatedAt: '2026-03-12T17:31:00.000Z'
+    });
+    const updated = enhancedNoteDocuments.save({
+      id: 'enhanced-note-2',
+      meetingId: 'meeting-1',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited enhanced note"}]}]}',
+      updatedAt: '2026-03-12T17:32:00.000Z'
+    });
+
+    expect(updated.id).toBe('enhanced-note-2');
+    expect(updated.content).toContain('Edited enhanced note');
 
     db.close();
   });

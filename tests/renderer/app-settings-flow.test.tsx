@@ -15,6 +15,7 @@ const api = {
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
+  saveEnhancedNote: vi.fn(),
   validateProviderKey: vi.fn(),
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
@@ -35,7 +36,9 @@ describe('App settings flow', () => {
       meetingTitle: '',
       transcriptEntries: [],
       noteContent: null,
+      enhancedNoteContent: null,
       editorContent: null,
+      editorMode: 'notes',
       enhancedOutput: null,
       enhancementProgress: null,
       editorInstanceKey: 0,
@@ -51,6 +54,7 @@ describe('App settings flow', () => {
     api.getSettings.mockReset();
     api.saveSettings.mockReset();
     api.saveNotes.mockReset();
+    api.saveEnhancedNote.mockReset();
     api.validateProviderKey.mockReset();
     api.validateSttKey.mockReset();
     api.sendMicFrames.mockReset();

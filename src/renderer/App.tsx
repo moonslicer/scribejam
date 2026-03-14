@@ -16,6 +16,7 @@ const NOOP_SAVE_NOTES = (): void => {};
 export default function App(): JSX.Element {
   const api = window.scribejam;
   const saveNotes = api?.saveNotes ?? NOOP_SAVE_NOTES;
+  const saveEnhancedNote = api?.saveEnhancedNote ?? NOOP_SAVE_NOTES;
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<ErrorAction | null>(null);
@@ -27,7 +28,9 @@ export default function App(): JSX.Element {
   const meetingTitle = useMeetingStore((state) => state.meetingTitle);
   const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
   const noteContent = useMeetingStore((state) => state.noteContent);
+  const enhancedNoteContent = useMeetingStore((state) => state.enhancedNoteContent);
   const editorContent = useMeetingStore((state) => state.editorContent);
+  const editorMode = useMeetingStore((state) => state.editorMode);
   const noteSaveState = useMeetingStore((state) => state.noteSaveState);
   const enhancementProgress = useMeetingStore((state) => state.enhancementProgress);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
@@ -38,6 +41,7 @@ export default function App(): JSX.Element {
   const hydrateMeeting = useMeetingStore((state) => state.hydrateMeeting);
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
   const setNoteContent = useMeetingStore((state) => state.setNoteContent);
+  const setEnhancedNoteContent = useMeetingStore((state) => state.setEnhancedNoteContent);
   const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
   const setEnhancementProgress = useMeetingStore((state) => state.setEnhancementProgress);
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
@@ -64,12 +68,13 @@ export default function App(): JSX.Element {
     enabled:
       meetingState === 'recording' ||
       meetingState === 'stopped' ||
-      meetingState === 'enhance_failed',
+      meetingState === 'enhance_failed' ||
+      meetingState === 'done',
     meetingId,
-    noteContent,
+    noteContent: editorMode === 'enhanced' ? enhancedNoteContent : noteContent,
     noteSaveState,
     setNoteSaveState,
-    saveNotes,
+    saveNotes: editorMode === 'enhanced' ? saveEnhancedNote : saveNotes,
     onError: setErrorMessage
   });
 
@@ -204,6 +209,8 @@ export default function App(): JSX.Element {
           return;
         }
 
+        flushPendingEnhancedNote();
+
         const response = await api.startMeeting({
           title: meetingTitle.trim(),
           meetingId
@@ -268,6 +275,8 @@ export default function App(): JSX.Element {
         setErrorMessage('Desktop bridge unavailable.');
         return;
       }
+
+      flushPendingEnhancedNote();
 
       await api.resetMeeting();
       clearMeeting();
@@ -352,6 +361,23 @@ export default function App(): JSX.Element {
     }
   };
 
+  const flushPendingEnhancedNote = (): void => {
+    if (
+      editorMode !== 'enhanced' ||
+      noteSaveState !== 'dirty' ||
+      !meetingId ||
+      !enhancedNoteContent
+    ) {
+      return;
+    }
+
+    saveEnhancedNote({
+      meetingId,
+      content: enhancedNoteContent
+    });
+    setNoteSaveState('saved');
+  };
+
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <header>
@@ -401,9 +427,10 @@ export default function App(): JSX.Element {
             editable={
               meetingState === 'recording' ||
               meetingState === 'stopped' ||
-              meetingState === 'enhance_failed'
+              meetingState === 'enhance_failed' ||
+              meetingState === 'done'
             }
-            onChange={setNoteContent}
+            onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
           />
         </div>
         <div className="flex flex-col gap-3">

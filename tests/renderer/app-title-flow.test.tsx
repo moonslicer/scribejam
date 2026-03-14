@@ -14,6 +14,7 @@ const api = {
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
+  saveEnhancedNote: vi.fn(),
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(() => () => {}),
@@ -33,7 +34,9 @@ describe('App meeting title flow', () => {
       meetingTitle: '',
       transcriptEntries: [],
       noteContent: null,
+      enhancedNoteContent: null,
       editorContent: null,
+      editorMode: 'notes',
       enhancedOutput: null,
       enhancementProgress: null,
       editorInstanceKey: 0,
@@ -48,6 +51,7 @@ describe('App meeting title flow', () => {
     api.getSettings.mockReset();
     api.saveSettings.mockReset();
     api.saveNotes.mockReset();
+    api.saveEnhancedNote.mockReset();
     api.validateSttKey.mockReset();
     api.sendMicFrames.mockReset();
     api.onMeetingStateChanged.mockClear();

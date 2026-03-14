@@ -2,6 +2,7 @@ import type { EnhanceMeetingResponse, EnhanceProgressEvent } from '../../shared/
 import { MeetingStateMachine } from '../meeting/state-machine';
 import { MeetingRecordsService } from '../storage/meeting-records-service';
 import {
+  EnhancedNoteDocumentsRepository,
   EnhancedOutputsRepository,
   MeetingArtifactsRepository
 } from '../storage/repositories';
@@ -21,6 +22,7 @@ export class EnhancementOrchestrator {
     private readonly meetingRecordsService: MeetingRecordsService,
     private readonly meetingArtifactsRepository: MeetingArtifactsRepository,
     private readonly enhancedOutputsRepository: EnhancedOutputsRepository,
+    private readonly enhancedNoteDocumentsRepository: EnhancedNoteDocumentsRepository,
     private readonly getLlmClient: () => LlmClient,
     options?: {
       retryDelayMs?: number;
@@ -48,6 +50,7 @@ export class EnhancementOrchestrator {
       this.emitProgress(meetingId, 'streaming', 'Sending saved notes and transcript for enhancement...');
       const output = await this.runEnhancementWithRetry(llmClient, enhancementInput);
       const completedAt = new Date().toISOString();
+      this.enhancedNoteDocumentsRepository.deleteByMeetingId(meetingId);
       this.enhancedOutputsRepository.save({
         meetingId,
         content: JSON.stringify(output),

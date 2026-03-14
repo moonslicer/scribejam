@@ -4,6 +4,7 @@ import {
   normalizeTranscriptText
 } from '../../shared/transcript';
 import type {
+  EnhancedNoteDocumentRecord,
   EnhancedOutputRecord,
   MeetingRecord,
   NoteRecord,
@@ -55,6 +56,13 @@ export interface SaveEnhancedOutputInput {
   createdAt: string;
 }
 
+export interface SaveEnhancedNoteDocumentInput {
+  id: string;
+  meetingId: string;
+  content: string;
+  updatedAt: string;
+}
+
 interface MeetingRow {
   id: string;
   title: string;
@@ -86,6 +94,13 @@ interface EnhancedOutputRow {
   meeting_id: string;
   content: string;
   created_at: string;
+}
+
+interface EnhancedNoteDocumentRow {
+  id: string;
+  meeting_id: string;
+  content: string;
+  updated_at: string;
 }
 
 export class MeetingsRepository {
@@ -297,17 +312,70 @@ export class EnhancedOutputsRepository {
   }
 }
 
+export class EnhancedNoteDocumentsRepository {
+  public constructor(private readonly db: Database.Database) {}
+
+  public save(input: SaveEnhancedNoteDocumentInput): EnhancedNoteDocumentRecord {
+    this.db
+      .prepare(
+        `
+          INSERT INTO enhanced_note_documents (id, meeting_id, content, updated_at)
+          VALUES (@id, @meetingId, @content, @updatedAt)
+          ON CONFLICT(meeting_id) DO UPDATE SET
+            id = excluded.id,
+            content = excluded.content,
+            updated_at = excluded.updated_at
+        `
+      )
+      .run(input);
+
+    const document = this.getByMeetingId(input.meetingId);
+    if (!document) {
+      throw new Error('Enhanced note document save failed.');
+    }
+
+    return document;
+  }
+
+  public getByMeetingId(meetingId: string): EnhancedNoteDocumentRecord | null {
+    const row = this.db
+      .prepare(
+        `
+          SELECT id, meeting_id, content, updated_at
+          FROM enhanced_note_documents
+          WHERE meeting_id = ?
+        `
+      )
+      .get(meetingId) as EnhancedNoteDocumentRow | undefined;
+
+    return row ? mapEnhancedNoteDocumentRow(row) : null;
+  }
+
+  public deleteByMeetingId(meetingId: string): void {
+    this.db
+      .prepare(
+        `
+          DELETE FROM enhanced_note_documents
+          WHERE meeting_id = ?
+        `
+      )
+      .run(meetingId);
+  }
+}
+
 export class MeetingArtifactsRepository {
   private readonly meetings: MeetingsRepository;
   private readonly notes: NotesRepository;
   private readonly transcript: TranscriptRepository;
   private readonly enhancedOutputs: EnhancedOutputsRepository;
+  private readonly enhancedNoteDocuments: EnhancedNoteDocumentsRepository;
 
   public constructor(private readonly db: Database.Database) {
     this.meetings = new MeetingsRepository(db);
     this.notes = new NotesRepository(db);
     this.transcript = new TranscriptRepository(db);
     this.enhancedOutputs = new EnhancedOutputsRepository(db);
+    this.enhancedNoteDocuments = new EnhancedNoteDocumentsRepository(db);
   }
 
   public getMeetingWithArtifacts(meetingId: string): PersistedMeetingArtifacts | null {
@@ -320,7 +388,8 @@ export class MeetingArtifactsRepository {
       meeting,
       note: this.notes.getByMeetingId(meetingId),
       transcriptSegments: this.transcript.listByMeetingId(meetingId),
-      enhancedOutput: this.enhancedOutputs.getLatestByMeetingId(meetingId)
+      enhancedOutput: this.enhancedOutputs.getLatestByMeetingId(meetingId),
+      enhancedNoteDocument: this.enhancedNoteDocuments.getByMeetingId(meetingId)
     };
   }
 }
@@ -413,5 +482,16 @@ function mapEnhancedOutputRow(row: EnhancedOutputRow): EnhancedOutputRecord {
     meetingId: row.meeting_id,
     content: row.content,
     createdAt: row.created_at
+  };
+}
+
+function mapEnhancedNoteDocumentRow(
+  row: EnhancedNoteDocumentRow
+): EnhancedNoteDocumentRecord {
+  return {
+    id: row.id,
+    meetingId: row.meeting_id,
+    content: row.content,
+    updatedAt: row.updated_at
   };
 }

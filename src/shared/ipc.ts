@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
   settingsSave: 'settings:save',
   settingsValidateKey: 'settings:validate-key',
   notesSave: 'notes:save',
+  enhancedNoteSave: 'enhanced-note:save',
   audioMicFrames: 'audio:mic-frames',
   meetingStateChanged: 'meeting:state-changed',
   audioLevel: 'audio:level',
@@ -128,11 +129,17 @@ export interface MeetingDetails {
   updatedAt: string;
   durationMs: number | null;
   noteContent: JsonObject | null;
+  enhancedNoteContent: JsonObject | null;
   enhancedOutput: EnhancedOutput | null;
   transcriptSegments: TranscriptSegment[];
 }
 
 export interface NotesSaveRequest {
+  meetingId: string;
+  content: JsonObject;
+}
+
+export interface EnhancedNoteSaveRequest {
   meetingId: string;
   content: JsonObject;
 }
@@ -287,6 +294,19 @@ export function isNotesSaveRequest(value: unknown): value is NotesSaveRequest {
   }
 
   const candidate = value as Partial<NotesSaveRequest>;
+  return (
+    typeof candidate.meetingId === 'string' &&
+    candidate.meetingId.length > 0 &&
+    isJsonObject(candidate.content)
+  );
+}
+
+export function isEnhancedNoteSaveRequest(value: unknown): value is EnhancedNoteSaveRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<EnhancedNoteSaveRequest>;
   return (
     typeof candidate.meetingId === 'string' &&
     candidate.meetingId.length > 0 &&

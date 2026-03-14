@@ -23,6 +23,7 @@ const api = {
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
+  saveEnhancedNote: vi.fn(),
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(
@@ -88,6 +89,7 @@ describe('App hydration', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: null,
       transcriptSegments: [
         {
@@ -150,6 +152,7 @@ describe('App hydration', () => {
           }
         ]
       },
+      enhancedNoteContent: null,
       enhancedOutput: {
         blocks: [
           {
@@ -182,5 +185,75 @@ describe('App hydration', () => {
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
     expect(screen.getByText('Quick summary')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
+  });
+
+  it('hydrates a persisted editable enhanced document ahead of the raw enhancement output', async () => {
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Follow up with design'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedNoteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Edited enhanced note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Follow up with design'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      transcriptSegments: []
+    });
+
+    const { container } = render(<App />);
+    await screen.findByTestId('meeting-bar');
+
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(await screen.findByText('Edited enhanced note')).toBeInTheDocument();
+    expect(screen.queryByText('AI expansion')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-authorship="ai"]')).toBeNull();
   });
 });

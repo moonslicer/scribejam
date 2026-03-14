@@ -4,6 +4,7 @@ import {
   type AudioLevelEvent,
   type DismissEnhancementFailureRequest,
   type DismissEnhancementFailureResponse,
+  type EnhancedNoteSaveRequest,
   type EnhanceMeetingRequest,
   type EnhanceProgressEvent,
   type EnhanceMeetingResponse,
@@ -39,6 +40,7 @@ interface ScribejamApi {
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
   saveNotes: (payload: NotesSaveRequest) => void;
+  saveEnhancedNote: (payload: EnhancedNoteSaveRequest) => void;
   validateProviderKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;
@@ -63,6 +65,9 @@ const api: ScribejamApi = {
   saveSettings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsSave, payload),
   saveNotes: (payload) => {
     ipcRenderer.send(IPC_CHANNELS.notesSave, payload);
+  },
+  saveEnhancedNote: (payload) => {
+    ipcRenderer.send(IPC_CHANNELS.enhancedNoteSave, payload);
   },
   validateProviderKey: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsValidateKey, payload),
   validateSttKey: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsValidateKey, payload),

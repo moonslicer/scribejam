@@ -31,7 +31,8 @@ describe('toEnhancementArtifacts', () => {
           isFinal: true
         }
       ],
-      enhancedOutput: null
+      enhancedOutput: null,
+      enhancedNoteDocument: null
     };
 
     expect(toEnhancementArtifacts(artifacts)).toEqual({
@@ -95,7 +96,8 @@ describe('toEnhancementArtifacts', () => {
           isFinal: false
         }
       ],
-      enhancedOutput: null
+      enhancedOutput: null,
+      enhancedNoteDocument: null
     };
 
     expect(toEnhancementArtifacts(artifacts)).toEqual({

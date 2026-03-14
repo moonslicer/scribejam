@@ -39,9 +39,17 @@ export interface EnhancedOutputRecord {
   createdAt: string;
 }
 
+export interface EnhancedNoteDocumentRecord {
+  id: string;
+  meetingId: string;
+  content: string;
+  updatedAt: string;
+}
+
 export interface PersistedMeetingArtifacts {
   meeting: MeetingRecord;
   note: NoteRecord | null;
   transcriptSegments: TranscriptSegmentRecord[];
   enhancedOutput: EnhancedOutputRecord | null;
+  enhancedNoteDocument: EnhancedNoteDocumentRecord | null;
 }

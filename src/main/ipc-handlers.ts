@@ -1,6 +1,7 @@
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { ipcMain } from 'electron';
 import {
+  isEnhancedNoteSaveRequest,
   IPC_CHANNELS,
   isDismissEnhancementFailureRequest,
   isEnhanceMeetingRequest,
@@ -29,6 +30,7 @@ import { createStorageDatabase } from './storage/db';
 import { MeetingRecordsService } from './storage/meeting-records-service';
 import {
   EnhancedOutputsRepository,
+  EnhancedNoteDocumentsRepository,
   MeetingArtifactsRepository,
   MeetingsRepository,
   NotesRepository,
@@ -47,6 +49,7 @@ interface MainServices {
   transcriptionService: TranscriptionService;
   meetingRecordsService: MeetingRecordsService;
   notesRepository: NotesRepository;
+  enhancedNoteDocumentsRepository: EnhancedNoteDocumentsRepository;
   enhancementOrchestrator: EnhancementOrchestrator;
 }
 
@@ -61,6 +64,7 @@ export function createMainServices(context: HandlerContext): MainServices {
   const notesRepository = new NotesRepository(storageDb);
   const meetingArtifactsRepository = new MeetingArtifactsRepository(storageDb);
   const enhancedOutputsRepository = new EnhancedOutputsRepository(storageDb);
+  const enhancedNoteDocumentsRepository = new EnhancedNoteDocumentsRepository(storageDb);
   const stateMachine = new MeetingStateMachine();
   const sttAdapter = createSttAdapter({
     getDeepgramApiKey: () => settingsStore.getSecret('deepgramApiKey')
@@ -76,6 +80,7 @@ export function createMainServices(context: HandlerContext): MainServices {
     meetingRecordsService,
     meetingArtifactsRepository,
     enhancedOutputsRepository,
+    enhancedNoteDocumentsRepository,
     () =>
       createLlmClient({
         provider: settingsStore.getSettings().llmProvider,
@@ -118,6 +123,7 @@ export function createMainServices(context: HandlerContext): MainServices {
     transcriptionService,
     meetingRecordsService,
     notesRepository,
+    enhancedNoteDocumentsRepository,
     enhancementOrchestrator
   };
 }
@@ -135,6 +141,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.removeHandler(IPC_CHANNELS.testSimulateSttDisconnect);
   ipcMain.removeAllListeners(IPC_CHANNELS.audioMicFrames);
   ipcMain.removeAllListeners(IPC_CHANNELS.notesSave);
+  ipcMain.removeAllListeners(IPC_CHANNELS.enhancedNoteSave);
 
   ipcMain.handle(IPC_CHANNELS.meetingStart, async (_event, payload: unknown) => {
     const validated = parseMeetingStart(payload);
@@ -311,6 +318,21 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     const now = new Date().toISOString();
     services.notesRepository.save({
       id: `${request.meetingId}-note`,
+      meetingId: request.meetingId,
+      content: JSON.stringify(request.content),
+      updatedAt: now
+    });
+  });
+
+  ipcMain.on(IPC_CHANNELS.enhancedNoteSave, (_event, payload: unknown) => {
+    if (!isEnhancedNoteSaveRequest(payload)) {
+      throw new Error('Invalid enhanced note save payload.');
+    }
+
+    const request = payload;
+    const now = new Date().toISOString();
+    services.enhancedNoteDocumentsRepository.save({
+      id: `${request.meetingId}-enhanced-note`,
       meetingId: request.meetingId,
       content: JSON.stringify(request.content),
       updatedAt: now

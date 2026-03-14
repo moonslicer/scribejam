@@ -135,7 +135,8 @@ export class MeetingRecordsService {
       createdAt: persisted.meeting.createdAt,
       updatedAt: persisted.meeting.updatedAt,
       durationMs: persisted.meeting.durationMs,
-      noteContent: parseNoteContent(persisted.note?.content),
+      noteContent: parseDocumentContent(persisted.note?.content),
+      enhancedNoteContent: parseDocumentContent(persisted.enhancedNoteDocument?.content),
       enhancedOutput: safeParseEnhancedOutput(persisted.enhancedOutput?.content),
       transcriptSegments: persisted.transcriptSegments.map((segment) => ({
         id: segment.id,
@@ -149,7 +150,7 @@ export class MeetingRecordsService {
   }
 }
 
-function parseNoteContent(content: string | undefined): MeetingDetails['noteContent'] {
+function parseDocumentContent(content: string | undefined): MeetingDetails['noteContent'] {
   if (!content) {
     return null;
   }

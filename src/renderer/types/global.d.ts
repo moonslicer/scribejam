@@ -2,6 +2,7 @@ import type {
   AudioLevelEvent,
   DismissEnhancementFailureRequest,
   DismissEnhancementFailureResponse,
+  EnhancedNoteSaveRequest,
   EnhanceMeetingRequest,
   EnhanceProgressEvent,
   EnhanceMeetingResponse,
@@ -37,6 +38,7 @@ interface ScribejamApi {
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
   saveNotes: (payload: NotesSaveRequest) => void;
+  saveEnhancedNote: (payload: EnhancedNoteSaveRequest) => void;
   validateProviderKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   IPC_CHANNELS,
+  isDismissEnhancementFailureRequest,
+  isEnhancedNoteSaveRequest,
   isEnhanceMeetingRequest,
   isMeetingGetRequest,
   isNotesSaveRequest,
@@ -79,5 +81,23 @@ describe('ipc contract validators', () => {
     expect(isSettingsSaveRequest({ captureSource: 'mic' })).toBe(true);
     expect(isSettingsSaveRequest({ captureSource: 'mixed' })).toBe(true);
     expect(isSettingsSaveRequest({ captureSource: 'loopback' })).toBe(false);
+  });
+
+  it('accepts dismissal requests for failed enhancement state', () => {
+    expect(isDismissEnhancementFailureRequest({ meetingId: 'meeting-1' })).toBe(true);
+    expect(isDismissEnhancementFailureRequest({ meetingId: '' })).toBe(false);
+  });
+
+  it('accepts enhanced note save payloads', () => {
+    expect(
+      isEnhancedNoteSaveRequest({
+        meetingId: 'meeting-1',
+        content: {
+          type: 'doc',
+          content: []
+        }
+      })
+    ).toBe(true);
+    expect(isEnhancedNoteSaveRequest({ meetingId: 'meeting-1', content: [] })).toBe(false);
   });
 });
