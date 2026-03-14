@@ -72,7 +72,7 @@ function parseActionItem(value: unknown): EnhancedOutput['actionItems'][number] 
     );
   }
 
-  if (value.due !== undefined && typeof value.due !== 'string') {
+  if (value.due !== undefined && value.due !== null && typeof value.due !== 'string') {
     throw new EnhancementProviderError(
       'invalid_response',
       'Action item due values must be strings when provided.'

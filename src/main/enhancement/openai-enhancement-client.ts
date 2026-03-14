@@ -53,11 +53,13 @@ const ENHANCED_OUTPUT_RESPONSE_FORMAT: NonNullable<ResponseCreateParamsNonStream
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['owner', 'description'],
+            required: ['owner', 'description', 'due'],
             properties: {
               owner: { type: 'string' },
               description: { type: 'string' },
-              due: { type: 'string' }
+              due: {
+                type: ['string', 'null']
+              }
             }
           }
         },

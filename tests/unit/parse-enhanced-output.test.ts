@@ -55,6 +55,17 @@ describe('parseEnhancedOutput', () => {
     });
   });
 
+  it('accepts null due fields from structured output and omits them in the parsed result', () => {
+    const output = parseEnhancedOutput({
+      blocks: [],
+      actionItems: [{ owner: 'You', description: 'Send recap', due: null }],
+      decisions: [],
+      summary: 'Summary'
+    });
+
+    expect(output.actionItems).toEqual([{ owner: 'You', description: 'Send recap' }]);
+  });
+
   it('returns null for invalid persisted content through the safe parser', () => {
     expect(safeParseEnhancedOutput('{not json')).toBeNull();
   });
