@@ -135,7 +135,6 @@ export class OpenAIEnhancementClient implements LlmClient {
         model: this.model,
         instructions: prompt.systemPrompt,
         input: prompt.userPrompt,
-        temperature: 0.2,
         store: false,
         text: ENHANCED_OUTPUT_RESPONSE_FORMAT
       });

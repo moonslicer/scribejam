@@ -48,6 +48,7 @@ describe('OpenAIEnhancementClient', () => {
         })
       })
     );
+    expect(create.mock.calls[0]?.[0]).not.toHaveProperty('temperature');
   });
 
   it('fails fast when the api key is missing', () => {
