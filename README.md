@@ -29,6 +29,8 @@ The current MVP path is:
 6. Run Enhance Notes to merge your notes with the transcript
 7. Reopen saved meetings from history later
 
+Standard editor clipboard shortcuts such as `Cmd/Ctrl+C` and `Cmd/Ctrl+V` are available in the notes workspace.
+
 Scribejam is intentionally not a surveillance product. The app should feel like a fast notepad with optional AI augmentation, not like a hidden recorder.
 
 ## Data Flow and Privacy

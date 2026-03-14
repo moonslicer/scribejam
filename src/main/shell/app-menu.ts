@@ -46,6 +46,9 @@ export function buildAppMenuTemplate(options: AppMenuOptions): MenuItemConstruct
       ]
     },
     {
+      role: 'editMenu'
+    },
+    {
       role: 'windowMenu'
     }
   ];
