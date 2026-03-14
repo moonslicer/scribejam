@@ -9,6 +9,7 @@ import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { useNoteAutosave } from './hooks/use-note-autosave';
+import { useHistoryStore } from './stores/history-store';
 import { useMeetingStore } from './stores/meeting-store';
 
 const NOOP_SAVE_NOTES = (): void => {};
@@ -47,6 +48,7 @@ export default function App(): JSX.Element {
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
+  const loadHistory = useHistoryStore((state) => state.loadHistory);
 
   useMicCapture({
     enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
@@ -111,6 +113,9 @@ export default function App(): JSX.Element {
     void api.getSettings().then(setSettings).catch(() => {
       setErrorMessage('Failed to load settings.');
     });
+    if (api.listMeetings) {
+      void loadHistory(api.listMeetings);
+    }
 
     const unsubState = api.onMeetingStateChanged((event) => {
       setMeetingState(event.state);
@@ -152,7 +157,7 @@ export default function App(): JSX.Element {
       unsubTranscript();
       unsubTranscriptionStatus();
     };
-  }, [api, applyTranscriptUpdate, setEnhancementProgress, setMeetingId, setMeetingState]);
+  }, [api, applyTranscriptUpdate, loadHistory, setEnhancementProgress, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
