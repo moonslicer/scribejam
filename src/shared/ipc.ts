@@ -2,6 +2,7 @@ export const IPC_CHANNELS = {
   meetingStart: 'meeting:start',
   meetingStop: 'meeting:stop',
   meetingReset: 'meeting:reset',
+  meetingList: 'meeting:list',
   meetingGet: 'meeting:get',
   meetingEnhance: 'meeting:enhance',
   meetingDismissEnhancementFailure: 'meeting:dismiss-enhancement-failure',
@@ -43,6 +44,8 @@ export type TestEnhancementOutcome =
   | 'timeout'
   | 'network';
 
+const MEETING_HISTORY_QUERY_MAX_LENGTH = 200;
+
 export interface MeetingStartRequest {
   title: string;
   meetingId?: string;
@@ -63,6 +66,10 @@ export interface MeetingResetResponse {
 
 export interface MeetingGetRequest {
   meetingId: string;
+}
+
+export interface MeetingListRequest {
+  query?: string;
 }
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -139,6 +146,21 @@ export interface MeetingDetails {
   enhancedNoteContent: JsonObject | null;
   enhancedOutput: EnhancedOutput | null;
   transcriptSegments: TranscriptSegment[];
+}
+
+export interface MeetingHistoryItem {
+  id: string;
+  title: string;
+  state: MeetingState;
+  createdAt: string;
+  updatedAt: string;
+  durationMs: number | null;
+  hasEnhancedOutput: boolean;
+  previewText: string | null;
+}
+
+export interface MeetingListResponse {
+  items: MeetingHistoryItem[];
 }
 
 export interface NotesSaveRequest {
@@ -319,6 +341,22 @@ export function isMeetingGetRequest(value: unknown): value is MeetingGetRequest 
 
   const candidate = value as Partial<MeetingGetRequest>;
   return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
+}
+
+export function isMeetingListRequest(value: unknown): value is MeetingListRequest {
+  if (value === undefined) {
+    return true;
+  }
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<MeetingListRequest>;
+  return (
+    candidate.query === undefined ||
+    (typeof candidate.query === 'string' &&
+      candidate.query.length <= MEETING_HISTORY_QUERY_MAX_LENGTH)
+  );
 }
 
 export function isNotesSaveRequest(value: unknown): value is NotesSaveRequest {
