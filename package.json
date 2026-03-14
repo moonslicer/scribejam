@@ -14,6 +14,7 @@
     "build": "npm run clean && npm run build:main && npm run build:renderer",
     "build:main": "tsc -b tsconfig.main.json --force",
     "build:renderer": "vite build",
+    "package:mac": "npm run rebuild-native:electron && npm run build && electron-builder --mac dmg",
     "typecheck": "tsc -b",
     "test": "npm run test:node && npm run test:native",
     "test:node": "vitest run --exclude tests/unit/storage-db.test.ts --exclude tests/unit/storage-repositories.test.ts --exclude tests/integration/meeting-records-service.test.ts --exclude tests/integration/enhancement-orchestrator.test.ts",
