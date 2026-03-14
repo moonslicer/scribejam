@@ -11,7 +11,7 @@ export interface MeetingSnapshot {
 }
 
 export interface ResumableMeetingSnapshot {
-  state: Extract<MeetingState, 'stopped' | 'done'>;
+  state: Extract<MeetingState, 'stopped' | 'done' | 'enhance_failed'>;
   meetingId: string;
   title: string;
 }
@@ -162,8 +162,8 @@ export class MeetingStateMachine {
   }
 
   public resetToIdle(): MeetingSnapshot {
-    if (this.snapshot.state !== 'done') {
-      throw new Error('Can only reset to idle after a completed meeting.');
+    if (this.snapshot.state === 'recording' || this.snapshot.state === 'enhancing') {
+      throw new Error('Cannot reset to idle while a meeting is active.');
     }
 
     this.snapshot = { state: 'idle' };
