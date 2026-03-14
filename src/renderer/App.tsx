@@ -363,6 +363,8 @@ export default function App(): JSX.Element {
       : meetingState === 'enhance_failed'
         ? 'Keep Editing'
         : undefined;
+  const meetingPrimaryShortcutLabel =
+    meetingState === 'stopped' || meetingState === 'enhance_failed' ? 'Cmd/Ctrl+E' : undefined;
   const showEnhancementDisclosure =
     meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'enhancing';
 
@@ -395,6 +397,33 @@ export default function App(): JSX.Element {
     });
     setNoteSaveState('saved');
   };
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const shortcutPressed = (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+      if (!shortcutPressed || event.repeat || event.key.toLowerCase() !== 'e') {
+        return;
+      }
+      if (meetingActionPending || setupRequired) {
+        return;
+      }
+      if (meetingState !== 'stopped' && meetingState !== 'enhance_failed') {
+        return;
+      }
+
+      event.preventDefault();
+      void onPrimaryAction();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [api, meetingActionPending, meetingState, onPrimaryAction, setupRequired]);
 
   const onHistorySearchChange = (value: string): void => {
     if (!api?.listMeetings) {
@@ -438,6 +467,9 @@ export default function App(): JSX.Element {
         meetingTitle={meetingTitle}
         onMeetingTitleChange={setMeetingTitle}
         onPrimaryAction={() => void onPrimaryAction()}
+        {...(meetingPrimaryShortcutLabel
+          ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
+          : {})}
         onSecondaryAction={() => void onSecondaryAction()}
         disabled={settings === null || meetingActionPending}
         {...(meetingSecondaryActionLabel

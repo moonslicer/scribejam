@@ -5,6 +5,7 @@ interface MeetingBarProps {
   meetingTitle: string;
   onMeetingTitleChange: (value: string) => void;
   onPrimaryAction: () => void;
+  primaryShortcutLabel?: string;
   onSecondaryAction?: () => void;
   secondaryActionLabel?: string;
   disabled?: boolean;
@@ -33,6 +34,7 @@ export function MeetingBar({
   meetingTitle,
   onMeetingTitleChange,
   onPrimaryAction,
+  primaryShortcutLabel,
   onSecondaryAction,
   secondaryActionLabel,
   disabled = false
@@ -67,27 +69,32 @@ export function MeetingBar({
           />
         </label>
       </div>
-      <div className="flex items-center gap-2">
-        {secondaryActionLabel && onSecondaryAction ? (
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          {secondaryActionLabel && onSecondaryAction ? (
+            <button
+              data-testid="meeting-secondary-action"
+              type="button"
+              disabled={disabled}
+              onClick={onSecondaryAction}
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-ink disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+            >
+              {secondaryActionLabel}
+            </button>
+          ) : null}
           <button
-            data-testid="meeting-secondary-action"
+            data-testid="meeting-primary-action"
             type="button"
             disabled={disabled}
-            onClick={onSecondaryAction}
-            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-ink disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
+            onClick={onPrimaryAction}
+            className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:bg-zinc-400"
           >
-            {secondaryActionLabel}
+            {labels[meetingState]}
           </button>
+        </div>
+        {primaryShortcutLabel ? (
+          <p className="text-xs text-zinc-500">{primaryShortcutLabel}</p>
         ) : null}
-        <button
-          data-testid="meeting-primary-action"
-          type="button"
-          disabled={disabled}
-          onClick={onPrimaryAction}
-          className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:bg-zinc-400"
-        >
-          {labels[meetingState]}
-        </button>
       </div>
     </div>
   );

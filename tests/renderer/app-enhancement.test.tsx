@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
@@ -215,6 +215,53 @@ describe('App enhancement flow', () => {
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
+  });
+
+  it('triggers enhancement from the Cmd/Ctrl+E shortcut when a meeting is stopped', async () => {
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(await screen.findByText('Cmd/Ctrl+E')).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
+
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+  });
+
+  it('ignores the Cmd/Ctrl+E shortcut while recording is in progress', async () => {
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'recording',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:05:00.000Z',
+      durationMs: null,
+      noteContent: null,
+      enhancedNoteContent: null,
+      enhancedOutput: null,
+      transcriptSegments: []
+    });
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'recording',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    fireEvent.keyDown(window, { key: 'e', metaKey: true });
+
+    expect(api.enhanceMeeting).not.toHaveBeenCalled();
   });
 
   it('shows staged enhancement progress while enhancement is running', async () => {
