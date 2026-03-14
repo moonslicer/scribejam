@@ -17,6 +17,8 @@ interface LaunchContext {
 }
 
 async function shutdownElectronApp(app: ElectronApplication): Promise<void> {
+  const child = app.process();
+
   try {
     await app.evaluate(({ app: electronApp }) => {
       electronApp.quit();
@@ -30,6 +32,8 @@ async function shutdownElectronApp(app: ElectronApplication): Promise<void> {
   } catch {
     // no-op: app may already be disposed
   }
+
+  await waitForChildExit(child);
 }
 
 async function launchApp(options: LaunchOptions = {}): Promise<LaunchContext> {
@@ -103,6 +107,42 @@ function assertNoFatalRendererErrors(pageErrors: string[], consoleErrors: string
   );
   expect(pageErrors, `Unexpected page errors:\n${pageErrors.join('\n')}`).toEqual([]);
   expect(filteredConsoleErrors, `Unexpected console errors:\n${filteredConsoleErrors.join('\n')}`).toEqual([]);
+}
+
+async function waitForChildExit(child: ReturnType<ElectronApplication['process']>): Promise<void> {
+  if (child.exitCode !== null || child.killed) {
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(sigtermTimer);
+      clearTimeout(sigkillTimer);
+      child.off('exit', finish);
+      resolve();
+    };
+
+    const sigtermTimer = setTimeout(() => {
+      if (child.exitCode === null && !child.killed) {
+        child.kill('SIGTERM');
+      }
+    }, 250);
+
+    const sigkillTimer = setTimeout(() => {
+      if (child.exitCode === null && !child.killed) {
+        child.kill('SIGKILL');
+      }
+      finish();
+    }, 2_000);
+
+    child.once('exit', finish);
+  });
 }
 
 test('startup renders shell and preload bridge', async () => {
@@ -257,18 +297,12 @@ test('live transcript renders streaming updates', async () => {
         };
       };
       const samples = Array.from({ length: 320 }, () => 8000);
-      for (let i = 0; i < 12; i += 1) {
+      for (let i = 0; i < 24; i += 1) {
         typedWindow.scribejam.sendMicFrames({ seq: i + 1, ts: Date.now() + i, frames: samples });
       }
     });
 
-    await expect
-      .poll(async () => {
-        const text = await context.page.getByTestId('transcript-count').textContent();
-        const parsed = Number.parseInt((text ?? '0').split(' ')[0] ?? '0', 10);
-        return Number.isFinite(parsed) ? parsed : 0;
-      })
-      .toBeGreaterThan(0);
+    await expect(context.page.getByText('mock transcript token')).toBeVisible();
   } finally {
     await context.close();
   }
@@ -298,13 +332,20 @@ test('invalid key blocks only transcription while meeting controls remain usable
 
   try {
     await completeFirstRunSetup(context.page);
-    await context.page.getByTestId('settings-input-deepgram').fill('');
-    await context.page.getByTestId('settings-save-button').click();
-    await expect(context.page.getByTestId('settings-deepgram-configured')).toContainText('no');
+    await context.page.evaluate(async () => {
+      await window.scribejam.saveSettings({ deepgramApiKey: '' });
+    });
+    await expect
+      .poll(async () => {
+        const settings = await context.page.evaluate(async () => window.scribejam.getSettings());
+        return settings.deepgramApiKeySet;
+      })
+      .toBe(false);
 
     await context.page.getByTestId('meeting-primary-action').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
     await expect(context.page.getByTestId('transcription-status')).toContainText('paused');
+    await expect(context.page.getByText('Typing enabled')).toBeVisible();
   } finally {
     await context.close();
   }

@@ -83,15 +83,9 @@ test('transcript panel shows live transcript and copy feedback', async () => {
     await context.page.getByTestId('meeting-primary-action').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
 
-    await sendMicFrames(context.page, { count: 12, amplitude: 8000 });
-
-    await expect
-      .poll(async () => {
-        const text = await context.page.getByTestId('transcript-count').textContent();
-        const parsed = Number.parseInt((text ?? '0').split(' ')[0] ?? '0', 10);
-        return Number.isFinite(parsed) ? parsed : 0;
-      })
-      .toBeGreaterThan(0);
+    await sendMicFrames(context.page, { count: 24, amplitude: 8000 });
+    await expect(context.page.getByText('mock transcript token')).toBeVisible();
+    await expect(context.page.getByTestId('transcript-copy-button')).toBeEnabled();
 
     await context.page.getByTestId('transcript-copy-button').click();
     await expect(context.page.getByTestId('transcript-copy-status')).toContainText('Copied transcript text.');

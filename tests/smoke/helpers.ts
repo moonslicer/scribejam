@@ -63,6 +63,26 @@ export async function launchApp(options: LaunchOptions = {}): Promise<LaunchCont
   };
 }
 
+async function shutdownElectronApp(app: ElectronApplication): Promise<void> {
+  const child = app.process();
+
+  try {
+    await app.evaluate(({ app: electronApp }) => {
+      electronApp.quit();
+    });
+  } catch {
+    // app may already be exiting
+  }
+
+  try {
+    await app.close();
+  } catch {
+    // app may already be disposed
+  }
+
+  await waitForChildExit(child);
+}
+
 export async function completeFirstRunSetup(page: Page): Promise<void> {
   await expect(page.getByTestId('setup-wizard')).toBeVisible();
   await page.getByTestId('setup-input-deepgram').fill('dg-test-key');
@@ -167,18 +187,38 @@ export function assertNoFatalRendererErrors(pageErrors: string[], consoleErrors:
   expect(filteredConsoleErrors, `Unexpected console errors:\n${filteredConsoleErrors.join('\n')}`).toEqual([]);
 }
 
-async function shutdownElectronApp(app: ElectronApplication): Promise<void> {
-  try {
-    await app.evaluate(({ app: electronApp }) => {
-      electronApp.quit();
-    });
-  } catch {
-    // app may already be exiting
+async function waitForChildExit(child: ReturnType<ElectronApplication['process']>): Promise<void> {
+  if (child.exitCode !== null || child.killed) {
+    return;
   }
 
-  try {
-    await app.close();
-  } catch {
-    // app may already be disposed
-  }
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      clearTimeout(sigtermTimer);
+      clearTimeout(sigkillTimer);
+      child.off('exit', finish);
+      resolve();
+    };
+
+    const sigtermTimer = setTimeout(() => {
+      if (child.exitCode === null && !child.killed) {
+        child.kill('SIGTERM');
+      }
+    }, 250);
+
+    const sigkillTimer = setTimeout(() => {
+      if (child.exitCode === null && !child.killed) {
+        child.kill('SIGKILL');
+      }
+      finish();
+    }, 2_000);
+
+    child.once('exit', finish);
+  });
 }
