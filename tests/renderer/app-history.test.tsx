@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
 import { useHistoryStore } from '../../src/renderer/stores/history-store';
+import { useMeetingStore } from '../../src/renderer/stores/meeting-store';
 
 const api = {
   startMeeting: vi.fn(),
@@ -34,6 +35,20 @@ describe('App meeting history', () => {
       errorMessage: null,
       searchQuery: '',
       selectedMeetingId: null
+    });
+    useMeetingStore.setState({
+      meetingState: 'idle',
+      meetingId: null,
+      meetingTitle: '',
+      transcriptEntries: [],
+      noteContent: null,
+      enhancedNoteContent: null,
+      editorContent: null,
+      editorMode: 'notes',
+      enhancedOutput: null,
+      enhancementProgress: null,
+      editorInstanceKey: 0,
+      noteSaveState: 'idle'
     });
 
     api.listMeetings.mockReset();
@@ -123,6 +138,18 @@ describe('App meeting history', () => {
     });
 
     await waitFor(() => expect(api.listMeetings).toHaveBeenLastCalledWith({ query: 'roadmap' }));
+  });
+
+  it('restores the most recent saved meeting on initial load', async () => {
+    render(<App />);
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('notepad-editor')).getByText('Roadmap approved for beta.')
+      ).toBeInTheDocument()
+    );
+    expect(useHistoryStore.getState().selectedMeetingId).toBe('meeting-1');
   });
 
   it('hydrates a selected history meeting through the existing meeting load flow', async () => {

@@ -361,6 +361,68 @@ describe('App enhancement flow', () => {
     expect(screen.getByText('Follow up with design')).toBeInTheDocument();
   });
 
+  it('lets the user toggle between enhanced output and original notes', async () => {
+    const user = userEvent.setup();
+    api.getMeeting.mockResolvedValue({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Follow up with design'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedNoteContent: null,
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Follow up with design'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      transcriptSegments: []
+    });
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(await screen.findByText('AI expansion')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('notepad-view-original'));
+    await waitFor(() => expect(screen.queryByText('AI expansion')).not.toBeInTheDocument());
+    expect(screen.getByText('Follow up with design')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('notepad-view-enhanced'));
+    expect(await screen.findByText('AI expansion')).toBeInTheDocument();
+  });
+
   it('moves the meeting into enhance_failed when enhancement rejects', async () => {
     const user = userEvent.setup();
     api.enhanceMeeting.mockRejectedValueOnce(new Error('Invalid OpenAI key.'));

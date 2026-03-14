@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/ipc';
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
@@ -19,9 +19,11 @@ export default function App(): JSX.Element {
   const api = window.scribejam;
   const saveNotes = api?.saveNotes ?? NOOP_SAVE_NOTES;
   const saveEnhancedNote = api?.saveEnhancedNote ?? NOOP_SAVE_NOTES;
+  const didRestoreInitialMeetingRef = useRef(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<ErrorAction | null>(null);
+  const [historyReady, setHistoryReady] = useState(false);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
@@ -31,6 +33,7 @@ export default function App(): JSX.Element {
   const transcriptEntries = useMeetingStore((state) => state.transcriptEntries);
   const noteContent = useMeetingStore((state) => state.noteContent);
   const enhancedNoteContent = useMeetingStore((state) => state.enhancedNoteContent);
+  const enhancedOutput = useMeetingStore((state) => state.enhancedOutput);
   const editorContent = useMeetingStore((state) => state.editorContent);
   const editorMode = useMeetingStore((state) => state.editorMode);
   const noteSaveState = useMeetingStore((state) => state.noteSaveState);
@@ -46,6 +49,7 @@ export default function App(): JSX.Element {
   const setEnhancedNoteContent = useMeetingStore((state) => state.setEnhancedNoteContent);
   const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
   const setEnhancementProgress = useMeetingStore((state) => state.setEnhancementProgress);
+  const showEnhancedNotes = useMeetingStore((state) => state.showEnhancedNotes);
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
@@ -116,6 +120,27 @@ export default function App(): JSX.Element {
   }, [meetingId, setSelectedHistoryMeetingId]);
 
   useEffect(() => {
+    if (!historyReady || didRestoreInitialMeetingRef.current || historyLoading) {
+      return;
+    }
+
+    if (meetingId) {
+      didRestoreInitialMeetingRef.current = true;
+      return;
+    }
+
+    const initialMeetingId = historyItems[0]?.id ?? null;
+    didRestoreInitialMeetingRef.current = true;
+
+    if (!initialMeetingId) {
+      return;
+    }
+
+    setSelectedHistoryMeetingId(initialMeetingId);
+    setMeetingId(initialMeetingId);
+  }, [historyItems, historyLoading, historyReady, meetingId, setMeetingId, setSelectedHistoryMeetingId]);
+
+  useEffect(() => {
     if (!api) {
       setErrorMessage('Desktop bridge unavailable. Restart the app.');
       return;
@@ -125,7 +150,11 @@ export default function App(): JSX.Element {
       setErrorMessage('Failed to load settings.');
     });
     if (api.listMeetings) {
-      void loadHistory(api.listMeetings);
+      void loadHistory(api.listMeetings).finally(() => {
+        setHistoryReady(true);
+      });
+    } else {
+      setHistoryReady(true);
     }
 
     const unsubState = api.onMeetingStateChanged((event) => {
@@ -503,6 +532,10 @@ export default function App(): JSX.Element {
               meetingState === 'enhance_failed' ||
               meetingState === 'done'
             }
+            editorMode={editorMode}
+            showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
+            onShowOriginalNotes={resumeEditingNotes}
+            onShowEnhancedNotes={showEnhancedNotes}
             onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
           />
         </div>
