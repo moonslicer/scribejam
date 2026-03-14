@@ -28,20 +28,20 @@ describe('buildEnhancementPrompt', () => {
       ]
     });
 
-    expect(prompt.userPrompt.indexOf('User notes (preserve verbatim as human anchors):')).toBeLessThan(
-      prompt.userPrompt.indexOf('Transcript context:')
-    );
+    expect(
+      prompt.userPrompt.indexOf(
+        'User notes — these signal what the user found important; expand on these topics preferentially:'
+      )
+    ).toBeLessThan(prompt.userPrompt.indexOf('Transcript:'));
     expect(prompt.userPrompt).toContain('- Need launch checklist');
     expect(prompt.userPrompt).toContain('- [1.20s] Them: Please send the revised timeline.');
   });
 
-  it('states that human notes remain verbatim anchors', () => {
+  it('states that human notes are distilled into polished topic headings', () => {
     const prompt = buildEnhancementPrompt(createArtifacts());
 
-    expect(prompt.systemPrompt).toContain('Preserve every user note verbatim as a human-authored anchor.');
-    expect(prompt.systemPrompt).toContain(
-      'Do not overwrite, rewrite, or silently absorb user-authored notes into AI blocks.'
-    );
+    expect(prompt.systemPrompt).toContain('polished 2–6 word topic heading (source: "human")');
+    expect(prompt.systemPrompt).toContain('Fix typos and grammar — capture the essence, do NOT copy the raw text verbatim.');
   });
 
   it('handles empty notes and transcript with explicit fallback language', () => {

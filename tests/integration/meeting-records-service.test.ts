@@ -9,6 +9,7 @@ import {
   EnhancedOutputsRepository,
   MeetingArtifactsRepository,
   MeetingsRepository,
+  NotesRepository,
   TranscriptRepository
 } from '../../src/main/storage/repositories';
 
@@ -327,6 +328,70 @@ describe('MeetingRecordsService', () => {
     const meeting = service.getMeeting('meeting-2');
 
     expect(meeting?.enhancedOutput).toBeNull();
+
+    db.close();
+  });
+
+  it('lists meeting history summaries and filters by query', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
+    tempDirs.push(dir);
+    const dbPath = join(dir, 'scribejam.sqlite');
+    const db = createStorageDatabase({ dbPath });
+    const meetings = new MeetingsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+    const transcript = new TranscriptRepository(db);
+    const notes = new NotesRepository(db);
+    const enhancedOutputs = new EnhancedOutputsRepository(db);
+    const service = new MeetingRecordsService(meetings, artifacts, transcript);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Roadmap review',
+      state: 'stopped',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:15:00.000Z'
+    });
+    notes.save({
+      id: 'meeting-1-note',
+      meetingId: 'meeting-1',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Capture blockers"}]}]}',
+      updatedAt: '2026-03-12T18:10:00.000Z'
+    });
+
+    meetings.create({
+      id: 'meeting-2',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T19:00:00.000Z',
+      updatedAt: '2026-03-12T19:20:00.000Z'
+    });
+    enhancedOutputs.save({
+      meetingId: 'meeting-2',
+      content:
+        '{"blocks":[{"source":"ai","content":"QA signoff is blocking the beta launch."}],"actionItems":[],"decisions":[],"summary":"Beta launch remains blocked on QA."}',
+      createdAt: '2026-03-12T19:21:00.000Z'
+    });
+
+    expect(service.listMeetingHistory()).toHaveLength(2);
+    expect(service.listMeetingHistory()[0]).toMatchObject({
+      id: 'meeting-2',
+      title: 'Weekly sync',
+      hasEnhancedOutput: true,
+      previewText: 'Beta launch remains blocked on QA.'
+    });
+    expect(service.listMeetingHistory('roadmap')).toEqual([
+      expect.objectContaining({
+        id: 'meeting-1',
+        title: 'Roadmap review'
+      })
+    ]);
+    expect(service.listMeetingHistory('qa signoff')).toEqual([
+      expect.objectContaining({
+        id: 'meeting-2',
+        title: 'Weekly sync'
+      })
+    ]);
 
     db.close();
   });

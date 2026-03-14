@@ -1,4 +1,4 @@
-import type { TranscriptUpdateEvent } from '../../shared/ipc';
+import type { MeetingHistoryItem, TranscriptUpdateEvent } from '../../shared/ipc';
 import type { MeetingSnapshot } from '../meeting/state-machine';
 import type { MeetingDetails } from '../../shared/ipc';
 import { safeParseEnhancedOutput } from '../enhancement/parse-enhanced-output';
@@ -147,6 +147,10 @@ export class MeetingRecordsService {
         isFinal: segment.isFinal
       }))
     };
+  }
+
+  public listMeetingHistory(query?: string): MeetingHistoryItem[] {
+    return this.artifacts.listMeetingHistory(query);
   }
 }
 

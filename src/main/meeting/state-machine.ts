@@ -10,6 +10,12 @@ export interface MeetingSnapshot {
   stoppedAt?: number;
 }
 
+export interface ResumableMeetingSnapshot {
+  state: Extract<MeetingState, 'stopped' | 'done'>;
+  meetingId: string;
+  title: string;
+}
+
 export class MeetingStateMachine {
   private snapshot: MeetingSnapshot = { state: 'idle' };
 
@@ -36,6 +42,20 @@ export class MeetingStateMachine {
       meetingId: randomUUID(),
       title: resolvedTitle,
       startedAt
+    };
+
+    return this.getSnapshot();
+  }
+
+  public primeForResume(snapshot: ResumableMeetingSnapshot): MeetingSnapshot {
+    if (this.snapshot.state === 'recording' || this.snapshot.state === 'enhancing') {
+      throw new Error('Cannot load a saved meeting from the current state.');
+    }
+
+    this.snapshot = {
+      state: snapshot.state,
+      meetingId: snapshot.meetingId,
+      title: snapshot.title
     };
 
     return this.getSnapshot();

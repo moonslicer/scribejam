@@ -7,12 +7,14 @@ import {
   isDismissEnhancementFailureRequest,
   isEnhanceMeetingRequest,
   isMeetingGetRequest,
+  isMeetingListRequest,
   isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
   type EnhanceMeetingRequest,
   type ErrorDisplayEvent,
   type MeetingGetRequest,
+  type MeetingListRequest,
   type MeetingStartRequest,
   type MeetingStateChangedEvent,
   type NotesSaveRequest,
@@ -134,6 +136,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.removeHandler(IPC_CHANNELS.meetingStart);
   ipcMain.removeHandler(IPC_CHANNELS.meetingStop);
   ipcMain.removeHandler(IPC_CHANNELS.meetingReset);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingList);
   ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
   ipcMain.removeHandler(IPC_CHANNELS.meetingEnhance);
   ipcMain.removeHandler(IPC_CHANNELS.meetingDismissEnhancementFailure);
@@ -150,7 +153,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     const validated = parseMeetingStart(payload);
     const snapshot =
       validated.meetingId !== undefined
-        ? services.stateMachine.resume(validated.meetingId)
+        ? resumeSavedMeeting(services, validated.meetingId)
         : services.stateMachine.start(validated.title);
     if (!snapshot.meetingId) {
       throw new Error('Failed to create meeting id.');
@@ -211,6 +214,18 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
     emitMeetingState(context.window, { state: snapshot.state });
 
     return { state: snapshot.state };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingList, async (_event, payload: unknown) => {
+    if (!isMeetingListRequest(payload)) {
+      throw new Error('Invalid meeting list payload.');
+    }
+
+    const request = payload as MeetingListRequest | undefined;
+
+    return {
+      items: services.meetingRecordsService.listMeetingHistory(request?.query)
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.meetingGet, async (_event, payload: unknown) => {
@@ -406,4 +421,28 @@ function parseMeetingStop(payload: unknown): string {
     throw new Error('Meeting id is required.');
   }
   return candidate.meetingId;
+}
+
+function resumeSavedMeeting(services: MainServices, meetingId: string) {
+  const current = services.stateMachine.getSnapshot();
+  const hasMatchingInMemoryMeeting =
+    current.meetingId === meetingId && (current.state === 'stopped' || current.state === 'done');
+
+  if (!hasMatchingInMemoryMeeting) {
+    const meeting = services.meetingRecordsService.getMeeting(meetingId);
+    if (!meeting) {
+      throw new Error('Cannot resume a meeting that does not exist.');
+    }
+    if (meeting.state !== 'stopped' && meeting.state !== 'done') {
+      throw new Error(`Cannot resume meeting from ${meeting.state} state.`);
+    }
+
+    services.stateMachine.primeForResume({
+      meetingId: meeting.id,
+      title: meeting.title,
+      state: meeting.state
+    });
+  }
+
+  return services.stateMachine.resume(meetingId);
 }

@@ -1,109 +1,153 @@
 # Scribejam
 
-Scribejam is a notepad-first AI meeting assistant for macOS.
+Scribejam is a notepad-first AI meeting app for macOS. It captures system audio and microphone audio locally, streams transcript audio to a speech-to-text provider, and lets you enhance your typed notes after the meeting without sending raw audio to disk.
 
-Core product rules:
-- no meeting bot joins your calls
-- system audio + mic capture happen locally on device
-- raw audio is in-memory only (not written to disk)
-- human notes stay the anchor; AI augments later
+## Product Rules
 
-Authoritative docs:
-- product and invariants: [AGENTS.md](./AGENTS.md)
-- milestone plan: [PLAN.md](./PLAN.md)
-- M0 evidence and report: [docs/m0](./docs/m0), [docs/m0-spike-report.md](./docs/m0-spike-report.md)
-- M1 implementation handoff: [docs/m1-implementation-plan.md](./docs/m1-implementation-plan.md)
-- M1 closure evidence: [docs/m1/validation](./docs/m1/validation), [docs/m1-exit-report.md](./docs/m1-exit-report.md)
-- M2 closure evidence: [docs/m2-exit-report.md](./docs/m2-exit-report.md)
+These are hard project invariants:
+- no meeting bot joins calls
+- system audio + mic capture run locally on device
+- raw audio stays in memory only
+- human notes stay the anchor
+- human and AI authorship remain visually distinct
+- first-run setup must disclose provider data flow before cloud features are used
 
-## Current Repo Status
+Authoritative project docs:
+- product philosophy and invariants: [AGENTS.md](./AGENTS.md)
+- milestone sequencing and implementation plan: [PLAN.md](./PLAN.md)
+- local setup and permissions: [docs/setup.md](./docs/setup.md)
+- contribution workflow: [CONTRIBUTING.md](./CONTRIBUTING.md)
 
-The repository now contains:
-- M0 technical spike harness under `spike/m0-harness/`
-- M1 Electron scaffold in `src/` with typed IPC, audio capture shell, settings shell, and smoke/unit tests
-- M2 real-time transcription flow with first-run disclosure wizard, deterministic mixer pipeline, Deepgram STT integration, and live transcript panel
+## MVP Workflow
 
-Milestone closure details and verification are documented in `docs/m1-exit-report.md` and `docs/m2-exit-report.md`.
+The current MVP path is:
+1. Open the app and complete first-run disclosure
+2. Add Deepgram and OpenAI keys if you want real provider-backed flows
+3. Start a meeting manually
+4. Type notes while transcript audio is processed
+5. Stop the meeting
+6. Run Enhance Notes to merge your notes with the transcript
+7. Reopen saved meetings from history later
 
-## Prerequisites
+Scribejam is intentionally not a surveillance product. The app should feel like a fast notepad with optional AI augmentation, not like a hidden recorder.
 
-- macOS (Apple Silicon tested)
-- Node.js `v22+`
+## Data Flow and Privacy
+
+Cloud-assisted MVP behavior:
+- live meeting audio is streamed to Deepgram for transcription
+- saved notes and transcript text are sent to OpenAI only when you explicitly trigger enhancement
+
+Local persistence:
+- meeting title and lifecycle metadata
+- note content
+- transcript text
+- enhanced output
+- settings
+
+Not persisted:
+- raw audio buffers
+- provider API keys in plaintext
+
+More setup detail is documented in [docs/setup.md](./docs/setup.md).
+
+## Requirements
+
+- macOS
+- Node.js 22+
 - npm
-- optional for real STT runs: `DEEPGRAM_API_KEY`
-- optional for real system capture runs: macOS "System Audio Recording" permission
+- Electron native build tooling available through the project dependencies
 
-## Build and Run (M0 Harness)
+Optional for real provider-backed runs:
+- Deepgram API key
+- OpenAI API key
+- macOS System Audio Recording permission
+- macOS Microphone permission
 
-### 1) Install harness dependencies
+## Install and Run
+
+Install dependencies:
 
 ```bash
-cd spike/m0-harness
 npm install
 ```
 
-### 2) Build harness
+Run the desktop app in development:
+
+```bash
+npm run dev
+```
+
+Build the main and renderer bundles:
 
 ```bash
 npm run build
 ```
 
-### 3) Run one harness scenario
+Typecheck the workspace:
 
 ```bash
-npm start -- \
-  --run-id m0-local-s3-cfg-b \
-  --scenario S3_mixed_10m \
-  --duration-sec 120 \
-  --frame-size-ms 20 \
-  --mix-cadence-ms 100 \
-  --system-capture-mode mock \
-  --mic-capture-mode mock \
-  --stt-mode mock
+npm run typecheck
 ```
 
-Run artifacts are written to:
-- `docs/m0/runs/<run-id>/metadata.json`
-- `docs/m0/runs/<run-id>/metrics.json`
-- `docs/m0/runs/<run-id>/events.ndjson`
-- `docs/m0/runs/<run-id>/notes.md`
-
-### 4) Verify artifacts
-
-From repo root:
+Run tests:
 
 ```bash
-node scripts/m0/verify-run.mjs docs/m0/runs/<run-id>
+npm test
 ```
 
-## Run Matrix Helpers
-
-From repo root:
-
-Quick sanity matrix:
+Run the startup smoke check:
 
 ```bash
-node scripts/m0/run-matrix.mjs --mode quick --config CFG-B
+npm run smoke
 ```
 
-Full-duration mock matrix:
+## Native Dependencies
+
+This project depends on native Electron modules. After install and before packaging, rebuild native dependencies for the pinned Electron version:
 
 ```bash
-node scripts/m0/run-matrix.mjs --mode full --config CFG-B
+npm run rebuild-native:electron
 ```
 
-Real-provider matrix (requires key + macOS permission):
+This is especially important for:
+- `audiotee`
+- `better-sqlite3`
 
-```bash
-DEEPGRAM_API_KEY=<key> node scripts/m0/run-matrix.mjs --mode full --config CFG-B --capture real --stt deepgram
-```
+## Project Layout
 
-## Build Philosophy
+- `src/main/`: Electron main-process orchestration, storage, provider integration, native shell wiring
+- `src/preload/`: typed `contextBridge` API
+- `src/renderer/`: React UI, editor, history, transcript, settings
+- `src/shared/`: IPC contracts and shared types
+- `tests/`: unit, renderer, integration, and smoke coverage
+- `docs/`: milestone evidence, setup notes, and verification artifacts
+- `spike/m0-harness/`: the original M0 technical spike harness
 
-Scribejam prioritizes:
-- reliability over cleverness
-- explicit typed contracts between renderer/main
-- graceful degradation (mic-only fallback, resilient state handling)
-- privacy by default
+## Milestone Status
 
-See [AGENTS.md](./AGENTS.md) for full constraints.
+The repo contains milestone work from:
+- M0: technical spike and baseline validation
+- M1: scaffold, capture shell, settings shell
+- M2: transcription pipeline
+- M3: persistence and notepad foundation
+- M4: enhancement foundation
+- M5: OpenAI-backed enhancement
+- M6: enhancement UX and authorship behavior
+- M7: polish and packaging work in progress
+
+Milestone details and acceptance notes live in [PLAN.md](./PLAN.md).
+
+## Verification References
+
+Useful milestone evidence:
+- [docs/m0-spike-report.md](./docs/m0-spike-report.md)
+- [docs/m1-exit-report.md](./docs/m1-exit-report.md)
+- [docs/m2-exit-report.md](./docs/m2-exit-report.md)
+- [docs/m5-verification.md](./docs/m5-verification.md)
+
+## M0 Harness
+
+The original M0 harness is still available for low-level audio and STT validation. See:
+- [spike/m0-harness/README.md](./spike/m0-harness/README.md)
+- [docs/m0/runbook.md](./docs/m0/runbook.md)
+- [docs/m0/test-plan.md](./docs/m0/test-plan.md)

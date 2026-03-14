@@ -63,6 +63,21 @@ describe('MeetingStateMachine', () => {
     expect(resumed.title).toBe(started.title);
   });
 
+  it('primes a persisted meeting so it can resume after app reload', () => {
+    const machine = new MeetingStateMachine();
+
+    machine.primeForResume({
+      state: 'done',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync'
+    });
+    const resumed = machine.resume('meeting-1');
+
+    expect(resumed.state).toBe('recording');
+    expect(resumed.meetingId).toBe('meeting-1');
+    expect(resumed.title).toBe('Weekly sync');
+  });
+
   it('allows starting a new meeting after a stopped meeting', () => {
     const machine = new MeetingStateMachine();
 

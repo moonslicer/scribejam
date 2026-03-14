@@ -1,10 +1,15 @@
 appId: com.scribejam.desktop
 productName: Scribejam
+artifactName: ${productName}-${version}-${arch}.${ext}
 files:
   - dist/**
   - package.json
+directories:
+  buildResources: assets
+  output: release
+asar: true
 mac:
+  icon: assets/icons/scribejam.icns
+  category: public.app-category.productivity
   target:
     - dmg
-directories:
-  output: release

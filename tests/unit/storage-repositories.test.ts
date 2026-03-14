@@ -283,4 +283,138 @@ describe('storage repositories', () => {
 
     db.close();
   });
+
+  it('lists meeting history summaries in descending updated order', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
+    tempDirs.push(dir);
+    const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
+    const meetings = new MeetingsRepository(db);
+    const notes = new NotesRepository(db);
+    const enhancedOutputs = new EnhancedOutputsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Design review',
+      state: 'stopped',
+      createdAt: '2026-03-12T17:00:00.000Z',
+      updatedAt: '2026-03-12T17:10:00.000Z'
+    });
+    notes.save({
+      id: 'note-1',
+      meetingId: 'meeting-1',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Capture open questions"}]}]}',
+      updatedAt: '2026-03-12T17:08:00.000Z'
+    });
+
+    meetings.create({
+      id: 'meeting-2',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:30:00.000Z'
+    });
+    enhancedOutputs.save({
+      meetingId: 'meeting-2',
+      content:
+        '{"blocks":[{"source":"human","content":"Follow up with Ops"},{"source":"ai","content":"Ship the draft Friday."}],"actionItems":[],"decisions":[],"summary":"Ship the draft on Friday."}',
+      createdAt: '2026-03-12T18:31:00.000Z'
+    });
+
+    expect(artifacts.listMeetingHistory()).toEqual([
+      {
+        id: 'meeting-2',
+        title: 'Weekly sync',
+        state: 'done',
+        createdAt: '2026-03-12T18:00:00.000Z',
+        updatedAt: '2026-03-12T18:30:00.000Z',
+        durationMs: null,
+        hasEnhancedOutput: true,
+        previewText: 'Ship the draft on Friday.'
+      },
+      {
+        id: 'meeting-1',
+        title: 'Design review',
+        state: 'stopped',
+        createdAt: '2026-03-12T17:00:00.000Z',
+        updatedAt: '2026-03-12T17:10:00.000Z',
+        durationMs: null,
+        hasEnhancedOutput: false,
+        previewText: 'Capture open questions'
+      }
+    ]);
+
+    db.close();
+  });
+
+  it('filters meeting history by title and enhanced output content', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
+    tempDirs.push(dir);
+    const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
+    const meetings = new MeetingsRepository(db);
+    const enhancedOutputs = new EnhancedOutputsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Roadmap planning',
+      state: 'stopped',
+      createdAt: '2026-03-12T17:00:00.000Z',
+      updatedAt: '2026-03-12T17:10:00.000Z'
+    });
+    meetings.create({
+      id: 'meeting-2',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:30:00.000Z'
+    });
+    enhancedOutputs.save({
+      meetingId: 'meeting-2',
+      content:
+        '{"blocks":[{"source":"ai","content":"The beta launch depends on final QA signoff."}],"actionItems":[],"decisions":[],"summary":"Beta launch stays on track."}',
+      createdAt: '2026-03-12T18:31:00.000Z'
+    });
+
+    expect(artifacts.listMeetingHistory('roadmap')).toHaveLength(1);
+    expect(artifacts.listMeetingHistory('roadmap')[0]?.id).toBe('meeting-1');
+    expect(artifacts.listMeetingHistory('qa signoff')).toHaveLength(1);
+    expect(artifacts.listMeetingHistory('qa signoff')[0]?.id).toBe('meeting-2');
+
+    db.close();
+  });
+
+  it('returns stable history results for meetings without notes or enhancement content', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-storage-repos-'));
+    tempDirs.push(dir);
+    const db = createStorageDatabase({ dbPath: join(dir, 'scribejam.sqlite') });
+    const meetings = new MeetingsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+
+    meetings.create({
+      id: 'meeting-1',
+      title: 'Empty capture',
+      state: 'stopped',
+      createdAt: '2026-03-12T17:00:00.000Z',
+      updatedAt: '2026-03-12T17:10:00.000Z'
+    });
+
+    expect(artifacts.listMeetingHistory()).toEqual([
+      {
+        id: 'meeting-1',
+        title: 'Empty capture',
+        state: 'stopped',
+        createdAt: '2026-03-12T17:00:00.000Z',
+        updatedAt: '2026-03-12T17:10:00.000Z',
+        durationMs: null,
+        hasEnhancedOutput: false,
+        previewText: null
+      }
+    ]);
+    expect(artifacts.listMeetingHistory('capture')[0]?.id).toBe('meeting-1');
+    expect(artifacts.listMeetingHistory('missing')).toEqual([]);
+
+    db.close();
+  });
 });

@@ -5,11 +5,13 @@ import {
   isEnhancedNoteSaveRequest,
   isEnhanceMeetingRequest,
   isMeetingGetRequest,
+  isMeetingListRequest,
   isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
   isTestConfigureEnhancementMockRequest,
   type EnhanceMeetingRequest,
+  type MeetingListRequest,
   type SettingsValidateKeyRequest
 } from '../../src/shared/ipc';
 
@@ -20,6 +22,10 @@ describe('ipc contract validators', () => {
 
   it('defines the meeting reset channel constant', () => {
     expect(IPC_CHANNELS.meetingReset).toBe('meeting:reset');
+  });
+
+  it('defines the meeting list channel constant', () => {
+    expect(IPC_CHANNELS.meetingList).toBe('meeting:list');
   });
 
   it('accepts deepgram key validation payloads', () => {
@@ -48,6 +54,21 @@ describe('ipc contract validators', () => {
     expect(isMeetingGetRequest({ meetingId: 'meeting-1' })).toBe(true);
     expect(isMeetingGetRequest({ meetingId: '' })).toBe(false);
     expect(isMeetingGetRequest({})).toBe(false);
+  });
+
+  it('accepts and rejects meeting list payloads', () => {
+    const payload: MeetingListRequest = {
+      query: 'roadmap'
+    };
+
+    expect(isMeetingListRequest(undefined)).toBe(true);
+    expect(isMeetingListRequest({})).toBe(true);
+    expect(isMeetingListRequest(payload)).toBe(true);
+    expect(isMeetingListRequest({ query: '' })).toBe(true);
+    expect(isMeetingListRequest({ query: 'a'.repeat(200) })).toBe(true);
+    expect(isMeetingListRequest({ query: 'a'.repeat(201) })).toBe(false);
+    expect(isMeetingListRequest({ query: 123 })).toBe(false);
+    expect(isMeetingListRequest(null)).toBe(false);
   });
 
   it('accepts and rejects meeting enhance payloads', () => {

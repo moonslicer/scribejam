@@ -3,12 +3,14 @@ import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
+import { MeetingHistoryPanel } from './components/MeetingHistoryPanel';
 import { Notepad } from './components/Notepad';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
 import { TranscriptPanel } from './components/TranscriptPanel';
 import { useNoteAutosave } from './hooks/use-note-autosave';
+import { useHistoryStore } from './stores/history-store';
 import { useMeetingStore } from './stores/meeting-store';
 
 const NOOP_SAVE_NOTES = (): void => {};
@@ -47,6 +49,13 @@ export default function App(): JSX.Element {
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
+  const loadHistory = useHistoryStore((state) => state.loadHistory);
+  const historyItems = useHistoryStore((state) => state.items);
+  const historyLoading = useHistoryStore((state) => state.isLoading);
+  const historyErrorMessage = useHistoryStore((state) => state.errorMessage);
+  const historySearchQuery = useHistoryStore((state) => state.searchQuery);
+  const selectedHistoryMeetingId = useHistoryStore((state) => state.selectedMeetingId);
+  const setSelectedHistoryMeetingId = useHistoryStore((state) => state.setSelectedMeetingId);
 
   useMicCapture({
     enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
@@ -103,6 +112,10 @@ export default function App(): JSX.Element {
   }, [api, hydrateMeeting, meetingId]);
 
   useEffect(() => {
+    setSelectedHistoryMeetingId(meetingId);
+  }, [meetingId, setSelectedHistoryMeetingId]);
+
+  useEffect(() => {
     if (!api) {
       setErrorMessage('Desktop bridge unavailable. Restart the app.');
       return;
@@ -111,6 +124,9 @@ export default function App(): JSX.Element {
     void api.getSettings().then(setSettings).catch(() => {
       setErrorMessage('Failed to load settings.');
     });
+    if (api.listMeetings) {
+      void loadHistory(api.listMeetings);
+    }
 
     const unsubState = api.onMeetingStateChanged((event) => {
       setMeetingState(event.state);
@@ -152,7 +168,7 @@ export default function App(): JSX.Element {
       unsubTranscript();
       unsubTranscriptionStatus();
     };
-  }, [api, applyTranscriptUpdate, setEnhancementProgress, setMeetingId, setMeetingState]);
+  }, [api, applyTranscriptUpdate, loadHistory, setEnhancementProgress, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
@@ -347,6 +363,8 @@ export default function App(): JSX.Element {
       : meetingState === 'enhance_failed'
         ? 'Keep Editing'
         : undefined;
+  const meetingPrimaryShortcutLabel =
+    meetingState === 'stopped' || meetingState === 'enhance_failed' ? 'Cmd/Ctrl+E' : undefined;
   const showEnhancementDisclosure =
     meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'enhancing';
 
@@ -380,6 +398,50 @@ export default function App(): JSX.Element {
     setNoteSaveState('saved');
   };
 
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const shortcutPressed = (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+      if (!shortcutPressed || event.repeat || event.key.toLowerCase() !== 'e') {
+        return;
+      }
+      if (meetingActionPending || setupRequired) {
+        return;
+      }
+      if (meetingState !== 'stopped' && meetingState !== 'enhance_failed') {
+        return;
+      }
+
+      event.preventDefault();
+      void onPrimaryAction();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [api, meetingActionPending, meetingState, onPrimaryAction, setupRequired]);
+
+  const onHistorySearchChange = (value: string): void => {
+    if (!api?.listMeetings) {
+      return;
+    }
+
+    void loadHistory(api.listMeetings, value);
+  };
+
+  const onHistorySelectMeeting = (nextMeetingId: string): void => {
+    if (meetingState === 'recording' || meetingState === 'enhancing') {
+      return;
+    }
+
+    setSelectedHistoryMeetingId(nextMeetingId);
+    setMeetingId(nextMeetingId);
+  };
+
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <header>
@@ -405,6 +467,9 @@ export default function App(): JSX.Element {
         meetingTitle={meetingTitle}
         onMeetingTitleChange={setMeetingTitle}
         onPrimaryAction={() => void onPrimaryAction()}
+        {...(meetingPrimaryShortcutLabel
+          ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
+          : {})}
         onSecondaryAction={() => void onSecondaryAction()}
         disabled={settings === null || meetingActionPending}
         {...(meetingSecondaryActionLabel
@@ -434,7 +499,17 @@ export default function App(): JSX.Element {
         </section>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+      <section className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
+        <MeetingHistoryPanel
+          items={historyItems}
+          isLoading={historyLoading}
+          errorMessage={historyErrorMessage}
+          searchQuery={historySearchQuery}
+          selectedMeetingId={selectedHistoryMeetingId}
+          selectionDisabled={meetingState === 'recording' || meetingState === 'enhancing'}
+          onSearchChange={onHistorySearchChange}
+          onSelectMeeting={onHistorySelectMeeting}
+        />
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
             key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}

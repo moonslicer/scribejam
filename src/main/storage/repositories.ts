@@ -1,8 +1,10 @@
 import type Database from 'better-sqlite3';
+import type { MeetingHistoryItem } from '../../shared/ipc';
 import {
   areTranscriptTextsLikelySameUtterance,
   normalizeTranscriptText
 } from '../../shared/transcript';
+import { safeParseEnhancedOutput } from '../enhancement/parse-enhanced-output';
 import type {
   EnhancedNoteDocumentRecord,
   EnhancedOutputRecord,
@@ -102,6 +104,13 @@ interface EnhancedNoteDocumentRow {
   content: string;
   updated_at: string;
 }
+
+interface MeetingHistoryRow extends MeetingRow {
+  note_content: string | null;
+  enhanced_output_content: string | null;
+}
+
+const HISTORY_PREVIEW_MAX_LENGTH = 160;
 
 export class MeetingsRepository {
   public constructor(private readonly db: Database.Database) {}
@@ -392,6 +401,46 @@ export class MeetingArtifactsRepository {
       enhancedNoteDocument: this.enhancedNoteDocuments.getByMeetingId(meetingId)
     };
   }
+
+  public listMeetingHistory(query?: string): MeetingHistoryItem[] {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT
+            m.id,
+            m.title,
+            m.state,
+            m.created_at,
+            m.updated_at,
+            m.duration_ms,
+            n.content AS note_content,
+            eo.content AS enhanced_output_content
+          FROM meetings m
+          LEFT JOIN notes n
+            ON n.meeting_id = m.id
+          LEFT JOIN enhanced_outputs eo
+            ON eo.id = (
+              SELECT id
+              FROM enhanced_outputs
+              WHERE meeting_id = m.id
+              ORDER BY id DESC
+              LIMIT 1
+            )
+          ORDER BY m.updated_at DESC, m.created_at DESC, m.id DESC
+        `
+      )
+      .all() as MeetingHistoryRow[];
+
+    const normalizedQuery = normalizeHistorySearchQuery(query);
+
+    return rows
+      .map((row) => buildMeetingHistoryProjection(row))
+      .filter(
+        ({ searchableText }) =>
+          normalizedQuery === null || searchableText.includes(normalizedQuery)
+      )
+      .map(({ item }) => item);
+  }
 }
 
 function mapMeetingRow(row: MeetingRow): MeetingRecord {
@@ -494,4 +543,118 @@ function mapEnhancedNoteDocumentRow(
     content: row.content,
     updatedAt: row.updated_at
   };
+}
+
+function buildMeetingHistoryProjection(row: MeetingHistoryRow): {
+  item: MeetingHistoryItem;
+  searchableText: string;
+} {
+  const noteText = extractDocumentPlainText(row.note_content);
+  const enhancementText = extractEnhancedOutputText(row.enhanced_output_content);
+  const previewSource =
+    [enhancementText.summary, enhancementText.firstBlock, noteText].find(
+      (value) => value.length > 0
+    ) ?? '';
+
+  return {
+    item: {
+      id: row.id,
+      title: row.title,
+      state: row.state,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      durationMs: row.duration_ms,
+      hasEnhancedOutput: row.enhanced_output_content !== null,
+      previewText: truncatePreview(previewSource)
+    },
+    searchableText: normalizeSearchText(
+      [row.title, noteText, enhancementText.summary, enhancementText.blocks].join(' ')
+    )
+  };
+}
+
+function extractDocumentPlainText(content: string | null): string {
+  if (!content) {
+    return '';
+  }
+
+  try {
+    return normalizeDisplayText(collectJsonText(JSON.parse(content) as unknown));
+  } catch {
+    return '';
+  }
+}
+
+function collectJsonText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => collectJsonText(entry)).join(' ');
+  }
+  if (!value || typeof value !== 'object') {
+    return '';
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const parts: string[] = [];
+
+  if (typeof candidate.text === 'string') {
+    parts.push(candidate.text);
+  }
+  if (candidate.content !== undefined) {
+    parts.push(collectJsonText(candidate.content));
+  }
+
+  return parts.join(' ');
+}
+
+function extractEnhancedOutputText(content: string | null): {
+  summary: string;
+  firstBlock: string;
+  blocks: string;
+} {
+  const parsed = safeParseEnhancedOutput(content);
+  if (!parsed) {
+    return {
+      summary: '',
+      firstBlock: '',
+      blocks: ''
+    };
+  }
+
+  return {
+    summary: normalizeDisplayText(parsed.summary),
+    firstBlock: normalizeDisplayText(parsed.blocks[0]?.content ?? ''),
+    blocks: normalizeDisplayText(parsed.blocks.map((block) => block.content).join(' '))
+  };
+}
+
+function normalizeHistorySearchQuery(query: string | undefined): string | null {
+  if (query === undefined) {
+    return null;
+  }
+
+  const normalized = normalizeSearchText(query);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeSearchText(value: string): string {
+  return normalizeDisplayText(value).toLowerCase();
+}
+
+function normalizeDisplayText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function truncatePreview(value: string): string | null {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized.length <= HISTORY_PREVIEW_MAX_LENGTH) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, HISTORY_PREVIEW_MAX_LENGTH - 1).trimEnd()}…`;
 }

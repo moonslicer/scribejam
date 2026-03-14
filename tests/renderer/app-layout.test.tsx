@@ -6,6 +6,7 @@ import App from '../../src/renderer/App';
 const api = {
   startMeeting: vi.fn(),
   stopMeeting: vi.fn(),
+  listMeetings: vi.fn(),
   getMeeting: vi.fn(),
   enhanceMeeting: vi.fn(),
   dismissEnhancementFailure: vi.fn(),
@@ -26,6 +27,9 @@ const api = {
 
 describe('App layout', () => {
   beforeEach(() => {
+    api.listMeetings.mockResolvedValue({
+      items: []
+    });
     api.getSettings.mockResolvedValue({
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',
@@ -50,6 +54,8 @@ describe('App layout', () => {
     render(<App />);
 
     expect(await screen.findByTestId('notepad-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-history-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-history-search')).toBeInTheDocument();
     expect(screen.getByTestId('transcript-panel')).toBeInTheDocument();
     expect(screen.getByText('Meeting notepad')).toBeInTheDocument();
   });
