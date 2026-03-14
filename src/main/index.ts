@@ -39,6 +39,8 @@ async function createWindow(): Promise<void> {
     minWidth: 960,
     minHeight: 640,
     backgroundColor: '#f6f8fb',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 12, y: 8 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,

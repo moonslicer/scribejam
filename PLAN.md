@@ -1125,6 +1125,250 @@ Implementation notes:
 5. electron-builder packaging for macOS only (.dmg)
 - **Testing (M7)**: End-to-end smoke test: packaged .dmg installs, launches, and completes a mock meeting flow. Meeting history search test.
 
+#### M7 Delivery Breakdown (Junior-Friendly)
+
+Goal: close the MVP loop so the app feels like a real product rather than a prototype. Users should be able to find prior meetings, trigger the main enhancement action quickly, see the app behave like a native macOS app, understand how to set it up, and install a packaged build that preserves the privacy and authorship rules already established in earlier milestones.
+
+##### Task 1: Define the M7 meeting history contract in shared types
+- **Why this task exists**: Before building the history UI, we need one clear shape for what a history list item contains and what "searchable meeting history" means in MVP scope.
+- **How it fits the larger picture**: A small shared contract keeps the history feature aligned across storage, IPC, and renderer code, and prevents M7 polish work from turning into ad hoc data plumbing.
+- **Implementation**:
+  - Add a typed `MeetingHistoryItem` shape in shared types
+  - Define the `meeting:list` response payload around summary data only:
+    - meeting id
+    - title
+    - created/updated timestamps
+    - lifecycle state
+    - whether enhancement exists
+    - a short searchable text surface derived from saved notes/enhancement artifacts
+  - Keep the full meeting hydration flow on `meeting:get` rather than overloading the list payload
+- **Acceptance focus**:
+  - History data is typed centrally
+  - The list payload is intentionally small and does not expose more meeting content than needed for search/list rendering
+- **Verification**:
+  - Update IPC/shared type tests to cover the `meeting:list` payload shape
+  - If runtime validation exists at the IPC boundary, add coverage for the history item contract
+
+##### Task 2: Add repository queries for meeting history summaries and search
+- **Why this task exists**: Search should be driven by storage/repository code rather than by loading every meeting into the renderer and filtering there.
+- **How it fits the larger picture**: This keeps the app responsive as the meeting count grows and gives M7 a clean persistence seam without changing how notes, transcript, or enhancement artifacts are stored.
+- **Implementation**:
+  - Add repository methods to list meetings with summary metadata
+  - Add repository search over the MVP history surface:
+    - meeting title
+    - saved note text/plaintext projection if available
+    - saved enhancement summary or block text if available
+  - Keep transcript search out of the first M7 pass unless it already falls out naturally from existing stored projections
+- **Acceptance focus**:
+  - Search uses persisted meeting artifacts only
+  - No new category of meeting data is introduced just for history
+  - Raw audio remains out of scope and unpersisted
+- **Verification**:
+  - Unit test that listing meetings returns expected ordering and summary fields
+  - Unit test that search matches title and saved enhanced content
+  - Unit test that empty or partially populated meetings do not break search results
+
+##### Task 3: Add the main-process `meeting:list` orchestration flow
+- **Why this task exists**: The renderer needs a single typed entry point for meeting history, and AGENTS requires main-process ownership of storage access.
+- **How it fits the larger picture**: This keeps the renderer focused on presentation while the main process remains the authoritative owner of persisted meeting data.
+- **Implementation**:
+  - Add or complete the `meeting:list` handler in main
+  - Accept an optional search query parameter if that is the cleaner API shape
+  - Call the history repository methods and return typed summary results
+  - Keep search normalization and query validation in main
+- **Acceptance focus**:
+  - Renderer gets history only through typed IPC
+  - Storage access does not leak into preload or renderer
+- **Verification**:
+  - Integration test that `meeting:list` returns summary items for seeded meetings
+  - Integration test that a search query filters results correctly
+
+##### Task 4: Build a small renderer history store and loading flow
+- **Why this task exists**: The renderer needs a minimal place to manage list state, search text, loading status, and selected meeting without tangling that logic into existing editor components.
+- **How it fits the larger picture**: This keeps M7 polish composable and makes the history experience testable without rewriting the current meeting workspace state.
+- **Implementation**:
+  - Add a small store/module for:
+    - history items
+    - loading/error state
+    - search query
+    - selected history meeting id
+  - Fetch history through the preload API
+  - Keep the active meeting editor hydration flow separate from the history list state
+- **Acceptance focus**:
+  - History UI state is isolated and explicit
+  - Meeting selection remains compatible with existing meeting hydration logic
+- **Verification**:
+  - Store test for loading and successful list population
+  - Store test for search query update and refresh behavior
+
+##### Task 5: Build the meeting history panel UI
+- **Why this task exists**: M7’s biggest user-facing polish win is giving people a way to revisit past meetings instead of treating each session as a dead end after enhancement.
+- **How it fits the larger picture**: This reinforces the product as a notepad-first workspace with durable artifacts, not just a transient recording utility.
+- **Implementation**:
+  - Add a history panel or sidebar that lists prior meetings
+  - Include search input, meeting title, date/time, and a lightweight status indicator
+  - Show whether a meeting has enhanced output available
+  - Keep the presentation intentionally simple and debuggable
+- **Acceptance focus**:
+  - Users can see and search prior meetings from within the app
+  - The UI emphasizes notes/meeting artifacts rather than surveillance-oriented recording details
+- **Verification**:
+  - Renderer test that the history list renders seeded meetings
+  - Renderer test that search input updates visible results
+
+##### Task 6: Wire history selection into existing meeting hydration
+- **Why this task exists**: A history list is incomplete unless clicking a past meeting actually reopens the saved workspace state.
+- **How it fits the larger picture**: This closes the loop between M3 persistence, M4/M5 enhancement persistence, and M7 usability by making saved meetings meaningfully reusable.
+- **Implementation**:
+  - Reuse `meeting:get` hydration when a history item is selected
+  - Load saved notes when no enhancement exists
+  - Load enhanced content when it exists, preserving black/gray authorship rules
+  - Preserve transcript and metadata hydration for the selected meeting
+- **Acceptance focus**:
+  - Past meetings reopen correctly from history
+  - Human/AI distinction remains intact when revisiting saved meetings
+- **Verification**:
+  - Integration test that selecting a meeting loads the expected saved note state
+  - Integration test that selecting an enhanced meeting loads the enhanced view instead of overwriting raw notes
+
+##### Task 7: Add keyboard shortcut infrastructure and the enhance shortcut
+- **Why this task exists**: Keyboard shortcuts are a small polish feature, but they matter in a notepad-style workflow where speed and low friction are part of the product feel.
+- **How it fits the larger picture**: This supports the core loop without changing the product model, and it establishes a controlled pattern for future shortcuts.
+- **Implementation**:
+  - Add a focused shortcut registration path in the renderer or Electron menu layer
+  - Implement `Cmd+E` / `Ctrl+E` to trigger enhancement only when the active meeting is in a valid stopped state
+  - Prevent the shortcut from firing in invalid lifecycle states
+  - Surface the shortcut in UI copy where appropriate
+- **Acceptance focus**:
+  - The shortcut invokes the same enhancement flow as the button
+  - Shortcut handling is lifecycle-aware and does not bypass existing guards
+- **Verification**:
+  - Renderer/integration test that the shortcut triggers enhance for a stopped meeting
+  - Renderer/integration test that the shortcut is ignored or disabled during recording/enhancing
+
+##### Task 8: Add menu bar or tray presence with minimal native actions
+- **Why this task exists**: A desktop app should feel present and recoverable even when its main window is hidden or in the background.
+- **How it fits the larger picture**: This is the native-shell layer of M7 polish, but it should stay thin and avoid introducing hidden background behavior that conflicts with the product’s explicit-user-action philosophy.
+- **Implementation**:
+  - Add a menu bar or tray entry appropriate for macOS
+  - Support a minimal action set such as:
+    - show/focus app
+    - start new meeting if safe
+    - stop active meeting if recording
+    - quit app
+  - Keep labels explicit; do not imply passive recording or automatic call joining
+- **Acceptance focus**:
+  - The app remains accessible from native macOS chrome
+  - Menu actions respect the authoritative meeting state machine
+- **Verification**:
+  - Integration or main-process test that menu/tray actions call the expected app commands
+  - Manual check that the app can be shown/focused from the menu bar/tray
+
+##### Task 9: Add production app metadata and icon assets
+- **Why this task exists**: Packaging and native presence need stable app metadata and icon assets; otherwise the app still feels like a dev build even if the code works.
+- **How it fits the larger picture**: This supports both M7 packaging and the credibility of the overall MVP without changing runtime behavior.
+- **Implementation**:
+  - Add the app icon assets required for macOS packaging and menu/tray use
+  - Set package/app metadata needed by the bundler
+  - Keep asset naming and placement explicit so release work stays debuggable
+- **Acceptance focus**:
+  - Packaged builds and menu/tray UI use project-branded assets
+  - No runtime logic depends on icon assets being present in development
+- **Verification**:
+  - Manual check that icon assets load in development and packaged contexts where expected
+
+##### Task 10: Write MVP-facing docs for users and contributors
+- **Why this task exists**: Packaging is not enough if a new user or contributor cannot understand setup requirements, provider keys, macOS permissions, and project boundaries.
+- **How it fits the larger picture**: Good docs reduce onboarding friction while reinforcing the privacy and architecture principles defined in AGENTS.
+- **Implementation**:
+  - Update `README` with product summary, MVP scope, setup steps, and macOS-only constraints
+  - Add setup documentation covering:
+    - required permissions
+    - provider API key setup
+    - cloud-assisted data flow disclosure
+    - known limitations and degradation behavior
+  - Add a concise contributing guide aligned with the repo’s milestone-first approach
+- **Acceptance focus**:
+  - A new developer can understand how to run the app and where work should go
+  - User-facing docs clearly disclose provider data flow and local persistence behavior
+- **Verification**:
+  - Manual doc review against AGENTS invariants and current setup flow
+  - Confirm referenced commands/scripts/files actually exist
+
+##### Task 11: Add `electron-builder` macOS packaging configuration
+- **Why this task exists**: M7 is not done until the app can be built and distributed as a real macOS application bundle and `.dmg`.
+- **How it fits the larger picture**: This is the release seam that turns earlier milestone functionality into a deliverable MVP artifact.
+- **Implementation**:
+  - Add `electron-builder` configuration for macOS only
+  - Wire required build scripts
+  - Ensure native dependency rebuild requirements remain explicit in the packaging flow
+  - Keep the first package target to `.dmg` only
+- **Acceptance focus**:
+  - The repo can produce a macOS `.dmg` from a documented build path
+  - Packaging does not silently skip native dependency requirements
+- **Verification**:
+  - Manual package build succeeds in a clean enough local environment
+  - Confirm the `.dmg` artifact is produced in the expected output location
+
+##### Task 12: Tighten M7 verification and run the packaged smoke flow
+- **Why this task exists**: M7 touches persistence, renderer UX, native-shell behavior, docs, and packaging, so it needs an explicit finish line instead of assuming polish work is done when code compiles.
+- **How it fits the larger picture**: This is the milestone gate that proves the app has crossed from prototype behavior into MVP-ready packaging.
+- **Implementation**:
+  - Fill remaining automated coverage gaps for history search and shortcut behavior
+  - Run typecheck and test suite
+  - Execute the packaged smoke flow on macOS
+  - Record residual risks around packaging, permissions, or native dependency handling
+- **Acceptance focus**:
+  - M7 has direct evidence for both required tests:
+    - meeting history search
+    - packaged `.dmg` install/launch/mock meeting flow
+  - Residual release risks are visible rather than implicit
+- **Verification**:
+  - Manual smoke flow:
+    - build the macOS `.dmg`
+    - install the packaged app
+    - launch it
+    - create a mock meeting
+    - stop the meeting
+    - run enhancement
+    - confirm history entry appears and can be reopened
+    - confirm the packaged app preserves human/AI rendering and basic native chrome behavior
+
+#### Suggested Build Order
+1. Task 1: Define the M7 meeting history contract in shared types
+2. Task 2: Add repository queries for meeting history summaries and search
+3. Task 3: Add the main-process `meeting:list` orchestration flow
+4. Task 4: Build a small renderer history store and loading flow
+5. Task 5: Build the meeting history panel UI
+6. Task 6: Wire history selection into existing meeting hydration
+7. Task 7: Add keyboard shortcut infrastructure and the enhance shortcut
+8. Task 8: Add menu bar or tray presence with minimal native actions
+9. Task 9: Add production app metadata and icon assets
+10. Task 10: Write MVP-facing docs for users and contributors
+11. Task 11: Add `electron-builder` macOS packaging configuration
+12. Task 12: Tighten M7 verification and run the packaged smoke flow
+
+#### Step-Back Review: How This Plan Matches M7
+- **M7.1 Searchable meeting history** is covered by Tasks 1 through 6
+- **M7.2 Keyboard shortcut for enhance** is covered by Task 7
+- **M7.3 Native polish through icon and menu bar/tray presence** is covered by Tasks 8 and 9
+- **M7.4 README, setup docs, and contributing guide** is covered by Task 10
+- **M7.5 macOS `.dmg` packaging** is covered by Tasks 9, 11, and 12
+- **M7 testing expectations** are covered by Tasks 2, 3, 5, 6, 7, 11, and 12
+
+This plan intentionally stays inside M7 scope:
+- It does not add new capture, transcription, or enhancement behavior beyond what prior milestones already established
+- It does not introduce background recording, implicit capture, or any bot-style behavior that would violate the notepad-first product philosophy
+- It does not expand persistence beyond meeting artifacts already allowed by AGENTS; raw audio remains in-memory only
+- It keeps human/AI authorship distinction intact when reopening enhanced meetings from history
+- It keeps storage and provider/network access in the main process, with typed IPC boundaries preserved
+
+Implementation notes:
+- Keep meeting history intentionally summary-focused. M7 should make past meetings discoverable, not rebuild the entire workspace inside the list view.
+- Prefer reusing existing meeting hydration and enhancement rendering paths rather than creating history-specific copies of editor logic.
+- Keep menu bar/tray actions explicit and minimal. The app should feel native, but never mysterious about when recording is happening.
+- Treat packaging as a release-quality seam: native rebuild steps, permissions guidance, and docs all need to line up for the `.dmg` to be meaningful.
+
 ## Error Handling & Degradation Modes
 
 | Failure | Detection | Response | User Feedback |

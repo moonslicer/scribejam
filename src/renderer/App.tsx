@@ -513,7 +513,32 @@ export default function App(): JSX.Element {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden pt-7">
+      {/* macOS title bar — sits above the sidebar/content, traffic lights live here */}
+      <div
+        className="fixed inset-x-0 top-0 z-50 flex h-7 items-center"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        {/* Space for macOS traffic lights (~78px) */}
+        <div className="w-[78px] flex-shrink-0" />
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          className="flex-shrink-0 rounded p-0.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M3 4.5h10M3 8h10M3 11.5h10"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+
       <MeetingsSidebar
         isOpen={sidebarOpen}
         items={historyItems}
@@ -536,23 +561,6 @@ export default function App(): JSX.Element {
           className="flex flex-col gap-4 px-4 py-6"
         >
           <header className="flex items-center gap-3">
-            {!sidebarOpen ? (
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open sidebar"
-                className="-ml-1 flex-shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-ink"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path
-                    d="M3 4.5h10M3 8h10M3 11.5h10"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            ) : null}
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
               <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">

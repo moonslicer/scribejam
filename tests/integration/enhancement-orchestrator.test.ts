@@ -126,6 +126,45 @@ describe('EnhancementOrchestrator', () => {
     harness.db.close();
   });
 
+  it('hydrates a persisted stopped meeting before enhancement after app reload', async () => {
+    const harness = createHarness();
+    const started = harness.stateMachine.start('Weekly sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    harness.notes.save({
+      id: `${started.meetingId}-note`,
+      meetingId: started.meetingId ?? '',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Follow up with design"}]}]}',
+      updatedAt: '2026-03-12T18:05:00.000Z'
+    });
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    const reloadedStateMachine = new MeetingStateMachine();
+    const reloadedOrchestrator = new EnhancementOrchestrator(
+      reloadedStateMachine,
+      harness.meetingRecords,
+      harness.artifacts,
+      harness.enhancedOutputs,
+      harness.enhancedNoteDocuments,
+      () => new MockLlmClient(),
+      {
+        retryDelayMs: 1,
+        sleep: async () => {}
+      }
+    );
+
+    const response = await reloadedOrchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    expect(response.output.blocks[0]).toEqual({
+      source: 'human',
+      content: 'Follow up with design'
+    });
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
+
   it('enhances against compacted finalized transcript context', async () => {
     const harness = createHarness();
     const started = harness.stateMachine.start('Weekly sync');
@@ -277,6 +316,65 @@ describe('EnhancementOrchestrator', () => {
 
     expect(invocations).toBe(2);
     expect(retried.output.summary).toBe('Recovered after manual retry');
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
+
+  it('hydrates a persisted failed enhancement before retrying after app reload', async () => {
+    let invocations = 0;
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async () => {
+          invocations += 1;
+          if (invocations === 1) {
+            throw new EnhancementProviderError('invalid_api_key', 'Invalid OpenAI key.', {
+              provider: 'openai'
+            });
+          }
+
+          return {
+            blocks: [{ source: 'ai', content: 'Retried enhancement' }],
+            actionItems: [],
+            decisions: [],
+            summary: 'Recovered after reload'
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Retry after reload sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    await expect(harness.orchestrator.enhanceMeeting(started.meetingId ?? '')).rejects.toMatchObject({
+      code: 'invalid_api_key'
+    });
+
+    const reloadedStateMachine = new MeetingStateMachine();
+    const reloadedOrchestrator = new EnhancementOrchestrator(
+      reloadedStateMachine,
+      harness.meetingRecords,
+      harness.artifacts,
+      harness.enhancedOutputs,
+      harness.enhancedNoteDocuments,
+      () => ({
+        enhance: async () => ({
+          blocks: [{ source: 'ai', content: 'Retried enhancement' }],
+          actionItems: [],
+          decisions: [],
+          summary: 'Recovered after reload'
+        })
+      }),
+      {
+        retryDelayMs: 1,
+        sleep: async () => {}
+      }
+    );
+
+    const retried = await reloadedOrchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    expect(retried.output.summary).toBe('Recovered after reload');
     expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
 
     harness.db.close();

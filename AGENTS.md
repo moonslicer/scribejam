@@ -47,8 +47,10 @@ Work in milestone order unless user overrides:
 2. M1: scaffold + capture + settings shell
 3. M2: transcription pipeline
 4. M3: editor + state + persistence
-5. M4: enhancement engine + authorship rendering
-6. M5: polish + packaging
+5. M4: enhancement foundation
+6. M5: OpenAI-backed enhancement
+7. M6: authorship semantics + enhancement UX
+8. M7: polish + packaging
 
 For each task, state:
 - milestone mapping

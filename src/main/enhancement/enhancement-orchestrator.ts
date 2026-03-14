@@ -35,16 +35,16 @@ export class EnhancementOrchestrator {
   }
 
   public async enhanceMeeting(meetingId: string): Promise<EnhanceMeetingResponse> {
-    const beginSnapshot = this.beginEnhancement(meetingId);
+    const artifacts = this.meetingArtifactsRepository.getMeetingWithArtifacts(meetingId);
+    if (!artifacts) {
+      throw new Error('Meeting not found for enhancement.');
+    }
+
+    const beginSnapshot = this.beginEnhancement(artifacts.meeting);
     this.meetingRecordsService.recordMeetingEnhancementStarted(beginSnapshot);
     this.emitProgress(meetingId, 'streaming', 'Preparing saved notes and transcript...');
 
     try {
-      const artifacts = this.meetingArtifactsRepository.getMeetingWithArtifacts(meetingId);
-      if (!artifacts) {
-        throw new Error('Meeting not found for enhancement.');
-      }
-
       const llmClient = this.getLlmClient();
       const enhancementInput = toEnhancementArtifacts(artifacts);
       this.emitProgress(meetingId, 'streaming', 'Sending saved notes and transcript for enhancement...');
@@ -75,13 +75,39 @@ export class EnhancementOrchestrator {
     }
   }
 
-  private beginEnhancement(meetingId: string) {
+  private beginEnhancement(meeting: {
+    id: string;
+    title: string;
+    state: 'idle' | 'recording' | 'stopped' | 'enhancing' | 'enhance_failed' | 'done';
+  }) {
     const snapshot = this.stateMachine.getSnapshot();
-    if (snapshot.state === 'enhance_failed' && snapshot.meetingId === meetingId) {
-      return this.stateMachine.retryEnhancement(meetingId);
+    const hasLoadedEnhancementCandidate =
+      snapshot.meetingId === meeting.id &&
+      (snapshot.state === 'stopped' || snapshot.state === 'enhance_failed');
+
+    if (hasLoadedEnhancementCandidate) {
+      return snapshot.state === 'enhance_failed'
+        ? this.stateMachine.retryEnhancement(meeting.id)
+        : this.stateMachine.beginEnhancement(meeting.id);
     }
 
-    return this.stateMachine.beginEnhancement(meetingId);
+    if (snapshot.state === 'recording' || snapshot.state === 'enhancing') {
+      return this.stateMachine.beginEnhancement(meeting.id);
+    }
+
+    if (meeting.state !== 'stopped' && meeting.state !== 'enhance_failed') {
+      throw new Error(`Cannot enhance meeting from ${meeting.state} state.`);
+    }
+
+    this.stateMachine.primeForResume({
+      meetingId: meeting.id,
+      title: meeting.title,
+      state: meeting.state
+    });
+
+    return meeting.state === 'enhance_failed'
+      ? this.stateMachine.retryEnhancement(meeting.id)
+      : this.stateMachine.beginEnhancement(meeting.id);
   }
 
   private async runEnhancementWithRetry(

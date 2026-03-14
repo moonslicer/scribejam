@@ -197,23 +197,8 @@ export function MeetingsSidebar({
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pb-3 pt-4">
+      <div className="px-4 pb-3 pt-3">
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label="Close sidebar"
-          className="rounded-md p-1 text-zinc-400 transition hover:bg-zinc-200 hover:text-ink"
-        >
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-            <path
-              d="M3 4h9M3 7.5h9M3 11h9"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
       </div>
 
       {/* New Meeting button */}
