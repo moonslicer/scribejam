@@ -185,6 +185,70 @@ describe('meeting store', () => {
     expect(store.getState().editorInstanceKey).toBe(1);
   });
 
+  it('switches back to enhanced content after returning to original notes', () => {
+    const store = createMeetingStore();
+
+    store.getState().hydrateMeeting({
+      id: 'meeting-1',
+      title: 'Design review',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z',
+      durationMs: 1500000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Raw note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedNoteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Edited enhanced note'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [
+          {
+            source: 'human',
+            content: 'Raw note'
+          },
+          {
+            source: 'ai',
+            content: 'AI expansion'
+          }
+        ],
+        actionItems: [],
+        decisions: [],
+        summary: 'Summary'
+      },
+      transcriptSegments: []
+    });
+
+    store.getState().resumeEditingNotes();
+    store.getState().showEnhancedNotes();
+
+    expect(store.getState().editorMode).toBe('enhanced');
+    expect(store.getState().editorContent).toEqual(store.getState().enhancedNoteContent);
+    expect(store.getState().editorInstanceKey).toBe(2);
+  });
+
   it('clears the active meeting when starting a fresh session from done', () => {
     const store = createMeetingStore();
 

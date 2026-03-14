@@ -34,7 +34,7 @@ describe('buildEnhancementPrompt', () => {
       )
     ).toBeLessThan(prompt.userPrompt.indexOf('Transcript:'));
     expect(prompt.userPrompt).toContain('- Need launch checklist');
-    expect(prompt.userPrompt).toContain('- [1.20s] Them: Please send the revised timeline.');
+    expect(prompt.userPrompt).toContain('- [0.0s] Them: Please send the revised timeline.');
   });
 
   it('states that human notes are distilled into polished topic headings', () => {

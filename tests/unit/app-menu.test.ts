@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
 import { buildAppMenuTemplate, installAppMenu } from '../../src/main/shell/app-menu';
 
 describe('app menu', () => {
-  it('builds a menu with show, stop, and quit actions', () => {
+  it('builds a menu with app, edit, and window controls', () => {
     const showApp = vi.fn();
     const stopRecordingIfActive = vi.fn();
     const quitApp = vi.fn();
@@ -28,8 +28,12 @@ describe('app menu', () => {
     });
 
     const appMenu = template[0];
+    const editMenu = template[1];
+    const windowMenu = template[2];
     expect(appMenu?.label).toBe('Scribejam');
     expect(Array.isArray(appMenu?.submenu)).toBe(true);
+    expect(editMenu).toMatchObject({ role: 'editMenu' });
+    expect(windowMenu).toMatchObject({ role: 'windowMenu' });
 
     const submenu = appMenu?.submenu as Array<{
       click?: (menuItem: unknown, browserWindow: unknown, event: unknown) => void;

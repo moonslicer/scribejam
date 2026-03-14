@@ -10,8 +10,10 @@ export function buildEnhancementPrompt(
   artifacts: EnhancementArtifacts
 ): EnhancementPrompt {
   const noteAnchors = extractNoteAnchors(artifacts.noteContent);
+  const firstTs = artifacts.transcriptSegments[0]?.startTs ?? 0;
   const transcriptLines = artifacts.transcriptSegments.map((segment) => {
-    const ts = `${(segment.startTs / 1000).toFixed(2)}s`;
+    const relativeMs = segment.startTs - firstTs;
+    const ts = `${(relativeMs / 1000).toFixed(1)}s`;
     const speaker = segment.speaker === 'you' ? 'You' : 'Them';
     return `[${ts}] ${speaker}: ${segment.text}`;
   });
@@ -31,10 +33,12 @@ export function buildEnhancementPrompt(
       '- Every topic in the output must have a heading block (source: "human") followed immediately by a content block (source: "ai"). Never output a content block without a preceding heading.',
       '- Use the actual names, numbers, and terminology spoken in the transcript.',
       '- Keep all content grounded: only include what is supported by the transcript.',
+      '- Timestamps are for ordering context only — never quote them in any output field.',
       '',
       'SUMMARY:',
       '- Write 2–3 sentences capturing the meeting\'s purpose and key outcomes.',
       '- Be specific — mention actual topics, decisions, or next steps. Avoid generic phrases like "the meeting covered several topics."',
+      '- If the transcript contains minimal or trivial content, write a single sentence or leave the summary empty ("") — do not pad.',
       '',
       'ACTION ITEMS:',
       '- Only include tasks where a participant explicitly commits to doing something.',
@@ -70,7 +74,7 @@ export function buildEnhancementPrompt(
       '',
       'Output requirements:',
       '- blocks: Every topic is a heading+content pair. Heading (source: "human", 2–6 words): polished title. Content (source: "ai"): 3–5 bullet lines, each starting with "- ", no prose paragraphs. User-noted topics first, then AI-identified topics — same structure throughout.',
-      '- summary: 2–3 specific sentences on purpose and outcomes. Mention actual names and topics.',
+      '- summary: 2–3 specific sentences on purpose and outcomes. Mention actual names and topics. If the transcript is trivial or near-empty, use one sentence or "".',
       '- actionItems: Explicit commitments only. Attribute each to its speaker. Include due date only if stated.',
       '- decisions: Explicit agreements only. Empty array if none.',
       '- If a section has no content, return an empty array rather than guessing.'

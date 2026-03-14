@@ -39,6 +39,7 @@ export interface MeetingStoreActions {
   setEnhancedNoteContent: (content: JsonObject | null) => void;
   setEnhancedOutput: (output: EnhancedOutput | null) => void;
   setEnhancementProgress: (progress: EnhanceProgressEvent | null) => void;
+  showEnhancedNotes: () => void;
   resumeEditingNotes: () => void;
   setNoteSaveState: (state: NoteSaveState) => void;
   hydrateMeeting: (meeting: MeetingDetails) => void;
@@ -162,6 +163,18 @@ export const createMeetingStore = () =>
         };
       }),
     setEnhancementProgress: (enhancementProgress) => set({ enhancementProgress }),
+    showEnhancedNotes: () =>
+      set((state) => ({
+        enhancementProgress: null,
+        editorMode: 'enhanced',
+        editorContent: deriveEditorContent(
+          'enhanced',
+          state.noteContent,
+          state.enhancedNoteContent,
+          state.enhancedOutput
+        ),
+        editorInstanceKey: state.editorInstanceKey + 1
+      })),
     resumeEditingNotes: () =>
       set((state) => ({
         enhancementProgress: null,
