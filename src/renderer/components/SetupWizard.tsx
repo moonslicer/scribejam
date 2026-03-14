@@ -21,11 +21,10 @@ export function SetupWizard({ onValidateKey, onComplete }: SetupWizardProps): JS
   const canContinue = useMemo(() => {
     return (
       deepgramValidation?.valid === true &&
-      openaiValidation?.valid === true &&
       hasAcknowledged &&
       !isSaving
     );
-  }, [deepgramValidation, hasAcknowledged, isSaving, openaiValidation]);
+  }, [deepgramValidation, hasAcknowledged, isSaving]);
 
   const validateKey = async (provider: 'deepgram' | 'openai'): Promise<void> => {
     if (provider === 'deepgram') {
@@ -121,8 +120,11 @@ export function SetupWizard({ onValidateKey, onComplete }: SetupWizardProps): JS
 
       <div className="mt-4 flex flex-col gap-2">
         <label className="text-sm font-medium text-zinc-700" htmlFor="setup-openai-key">
-          OpenAI API key
+          OpenAI API key (optional for enhancement)
         </label>
+        <p className="text-xs text-zinc-500">
+          You can skip this for now and add it later in Settings. Transcription and note-taking do not require OpenAI.
+        </p>
         <div className="flex flex-wrap gap-2">
           <input
             id="setup-openai-key"

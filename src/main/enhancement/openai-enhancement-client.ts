@@ -17,6 +17,7 @@ import { parseEnhancedOutput } from './parse-enhanced-output';
 
 const DEFAULT_MODEL = 'gpt-5-mini';
 const DEFAULT_TIMEOUT_MS = 30_000;
+const OPENAI_KEY_VALIDATION_MAX_OUTPUT_TOKENS = 16;
 
 const ENHANCED_OUTPUT_RESPONSE_FORMAT: NonNullable<ResponseCreateParamsNonStreaming['text']> = {
   format: {
@@ -195,7 +196,10 @@ function normalizeOpenAIError(error: unknown): EnhancementProviderError {
   });
 }
 
-export async function validateOpenAIApiKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+export async function validateOpenAIApiKey(
+  apiKey: string,
+  clientOverride?: OpenAIClientLike
+): Promise<{ valid: boolean; error?: string }> {
   const trimmedKey = apiKey.trim();
   if (trimmedKey.length === 0) {
     return {
@@ -214,22 +218,32 @@ export async function validateOpenAIApiKey(apiKey: string): Promise<{ valid: boo
   }
 
   try {
-    const client = new OpenAI({
-      apiKey: trimmedKey,
-      timeout: 15_000,
-      maxRetries: 0
-    });
+    const client =
+      clientOverride ??
+      new OpenAI({
+        apiKey: trimmedKey,
+        timeout: 15_000,
+        maxRetries: 0
+      });
 
     await client.responses.create({
       model: DEFAULT_MODEL,
       input: 'Reply with OK.',
-      max_output_tokens: 8,
+      max_output_tokens: OPENAI_KEY_VALIDATION_MAX_OUTPUT_TOKENS,
       store: false
     });
 
     return { valid: true };
   } catch (error) {
     const normalized = normalizeOpenAIError(error);
+    if (normalized.code === 'rate_limited') {
+      return {
+        valid: false,
+        error:
+          'OpenAI rejected the validation check because the API project is out of quota or rate-limited. You can continue setup and fix billing before using enhancement.'
+      };
+    }
+
     return {
       valid: false,
       error: normalized.message
