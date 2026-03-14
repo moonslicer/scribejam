@@ -79,7 +79,11 @@ export function createMainServices(context: HandlerContext): MainServices {
       createLlmClient({
         provider: settingsStore.getSettings().llmProvider,
         getOpenAIApiKey: () => settingsStore.getSecret('openaiApiKey')
-      })
+      }),
+    undefined,
+    (event) => {
+      context.window.webContents.send(IPC_CHANNELS.enhanceProgress, event);
+    }
   );
 
   const audioManager = new AudioManager({

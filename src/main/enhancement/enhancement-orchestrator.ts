@@ -1,4 +1,4 @@
-import type { EnhanceMeetingResponse } from '../../shared/ipc';
+import type { EnhanceMeetingResponse, EnhanceProgressEvent } from '../../shared/ipc';
 import { MeetingStateMachine } from '../meeting/state-machine';
 import { MeetingRecordsService } from '../storage/meeting-records-service';
 import {
@@ -25,7 +25,8 @@ export class EnhancementOrchestrator {
     options?: {
       retryDelayMs?: number;
       sleep?: (ms: number) => Promise<void>;
-    }
+    },
+    private readonly onProgress?: (event: EnhanceProgressEvent) => void
   ) {
     this.retryDelayMs = options?.retryDelayMs ?? 750;
     this.sleep = options?.sleep ?? defaultSleep;
@@ -34,6 +35,7 @@ export class EnhancementOrchestrator {
   public async enhanceMeeting(meetingId: string): Promise<EnhanceMeetingResponse> {
     const beginSnapshot = this.stateMachine.beginEnhancement(meetingId);
     this.meetingRecordsService.recordMeetingEnhancementStarted(beginSnapshot);
+    this.emitProgress(meetingId, 'streaming', 'Preparing saved notes and transcript...');
 
     try {
       const artifacts = this.meetingArtifactsRepository.getMeetingWithArtifacts(meetingId);
@@ -43,6 +45,7 @@ export class EnhancementOrchestrator {
 
       const llmClient = this.getLlmClient();
       const enhancementInput = toEnhancementArtifacts(artifacts);
+      this.emitProgress(meetingId, 'streaming', 'Sending saved notes and transcript for enhancement...');
       const output = await this.runEnhancementWithRetry(llmClient, enhancementInput);
       const completedAt = new Date().toISOString();
       this.enhancedOutputsRepository.save({
@@ -53,6 +56,7 @@ export class EnhancementOrchestrator {
 
       const completedSnapshot = this.stateMachine.completeEnhancement(meetingId);
       this.meetingRecordsService.recordMeetingEnhancementCompleted(completedSnapshot);
+      this.emitProgress(meetingId, 'done', 'Enhanced notes are ready.');
 
       return {
         meetingId,
@@ -62,7 +66,9 @@ export class EnhancementOrchestrator {
     } catch (error) {
       const failedSnapshot = this.stateMachine.failEnhancement(meetingId);
       this.meetingRecordsService.recordMeetingEnhancementFailed(failedSnapshot);
-      throw normalizeEnhancementError(error);
+      const normalized = normalizeEnhancementError(error);
+      this.emitProgress(meetingId, 'error', 'Enhancement failed.');
+      throw normalized;
     }
   }
 
@@ -78,6 +84,7 @@ export class EnhancementOrchestrator {
         throw normalized;
       }
 
+      this.emitProgress(input.meetingId, 'streaming', 'Temporary provider issue. Retrying enhancement...');
       await this.sleep(this.retryDelayMs);
 
       try {
@@ -86,6 +93,18 @@ export class EnhancementOrchestrator {
         throw normalizeEnhancementError(retryError, createRetryOptions(normalized));
       }
     }
+  }
+
+  private emitProgress(
+    meetingId: string,
+    status: EnhanceProgressEvent['status'],
+    detail: string
+  ): void {
+    this.onProgress?.({
+      meetingId,
+      status,
+      detail
+    });
   }
 }
 

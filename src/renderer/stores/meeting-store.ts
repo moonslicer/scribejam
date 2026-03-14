@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  EnhanceProgressEvent,
   EnhancedOutput,
   JsonObject,
   MeetingDetails,
@@ -19,6 +20,7 @@ export interface MeetingStoreState {
   noteContent: JsonObject | null;
   editorContent: JsonObject | null;
   enhancedOutput: EnhancedOutput | null;
+  enhancementProgress: EnhanceProgressEvent | null;
   editorInstanceKey: number;
   noteSaveState: NoteSaveState;
 }
@@ -32,6 +34,7 @@ export interface MeetingStoreActions {
   applyTranscriptUpdate: (event: TranscriptUpdateEvent) => void;
   setNoteContent: (content: JsonObject | null) => void;
   setEnhancedOutput: (output: EnhancedOutput | null) => void;
+  setEnhancementProgress: (progress: EnhanceProgressEvent | null) => void;
   resumeEditingNotes: () => void;
   setNoteSaveState: (state: NoteSaveState) => void;
   hydrateMeeting: (meeting: MeetingDetails) => void;
@@ -56,6 +59,7 @@ export const createMeetingStore = () =>
     noteContent: null,
     editorContent: null,
     enhancedOutput: null,
+    enhancementProgress: null,
     editorInstanceKey: 0,
     noteSaveState: 'idle',
     setMeetingState: (meetingState) => set({ meetingState }),
@@ -70,6 +74,7 @@ export const createMeetingStore = () =>
         noteContent: null,
         editorContent: null,
         enhancedOutput: null,
+        enhancementProgress: null,
         editorInstanceKey: state.editorInstanceKey + 1,
         noteSaveState: 'idle'
       })),
@@ -99,9 +104,11 @@ export const createMeetingStore = () =>
           ? enhancedOutputToDoc(enhancedOutput)
           : cloneJsonObject(state.noteContent)
       })),
+    setEnhancementProgress: (enhancementProgress) => set({ enhancementProgress }),
     resumeEditingNotes: () =>
       set((state) => ({
         enhancedOutput: null,
+        enhancementProgress: null,
         editorContent: cloneJsonObject(state.noteContent),
         editorInstanceKey: state.editorInstanceKey + 1
       })),
@@ -113,6 +120,7 @@ export const createMeetingStore = () =>
         meetingTitle: meeting.title,
         noteContent: cloneJsonObject(meeting.noteContent),
         enhancedOutput: meeting.enhancedOutput,
+        enhancementProgress: null,
         editorContent: meeting.enhancedOutput
           ? enhancedOutputToDoc(meeting.enhancedOutput)
           : cloneJsonObject(meeting.noteContent),

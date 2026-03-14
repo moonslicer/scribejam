@@ -18,6 +18,7 @@ const api = {
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(() => () => {}),
+  onEnhanceProgress: vi.fn(() => () => {}),
   onAudioLevel: vi.fn(() => () => {}),
   onTranscriptUpdate: vi.fn(() => () => {}),
   onTranscriptionStatus: vi.fn(() => () => {}),
@@ -35,6 +36,7 @@ describe('App settings flow', () => {
       noteContent: null,
       editorContent: null,
       enhancedOutput: null,
+      enhancementProgress: null,
       editorInstanceKey: 0,
       noteSaveState: 'idle'
     });
@@ -51,6 +53,7 @@ describe('App settings flow', () => {
     api.validateSttKey.mockReset();
     api.sendMicFrames.mockReset();
     api.onMeetingStateChanged.mockClear();
+    api.onEnhanceProgress.mockClear();
     api.onAudioLevel.mockClear();
     api.onTranscriptUpdate.mockClear();
     api.onTranscriptionStatus.mockClear();

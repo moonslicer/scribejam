@@ -28,6 +28,7 @@ export default function App(): JSX.Element {
   const noteContent = useMeetingStore((state) => state.noteContent);
   const editorContent = useMeetingStore((state) => state.editorContent);
   const noteSaveState = useMeetingStore((state) => state.noteSaveState);
+  const enhancementProgress = useMeetingStore((state) => state.enhancementProgress);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
   const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
@@ -37,6 +38,7 @@ export default function App(): JSX.Element {
   const resetTranscript = useMeetingStore((state) => state.resetTranscript);
   const setNoteContent = useMeetingStore((state) => state.setNoteContent);
   const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
+  const setEnhancementProgress = useMeetingStore((state) => state.setEnhancementProgress);
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
@@ -107,6 +109,13 @@ export default function App(): JSX.Element {
         setMeetingId(event.meetingId);
       }
     });
+    const unsubEnhanceProgress = api.onEnhanceProgress((event) => {
+      const activeMeetingId = useMeetingStore.getState().meetingId;
+      if (activeMeetingId && activeMeetingId !== event.meetingId) {
+        return;
+      }
+      setEnhancementProgress(event);
+    });
 
     const unsubLevel = api.onAudioLevel((event) => {
       setLevels((previous) => ({
@@ -127,12 +136,13 @@ export default function App(): JSX.Element {
 
     return () => {
       unsubState();
+      unsubEnhanceProgress();
       unsubLevel();
       unsubError();
       unsubTranscript();
       unsubTranscriptionStatus();
     };
-  }, [api, applyTranscriptUpdate, setMeetingId, setMeetingState]);
+  }, [api, applyTranscriptUpdate, setEnhancementProgress, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
@@ -144,6 +154,7 @@ export default function App(): JSX.Element {
     setMeetingActionPending(true);
     try {
       setErrorMessage(null);
+      setEnhancementProgress(null);
       if (meetingState === 'recording') {
         if (!api) {
           setErrorMessage('Desktop bridge unavailable.');
@@ -228,6 +239,7 @@ export default function App(): JSX.Element {
     setMeetingActionPending(true);
     try {
       setErrorMessage(null);
+      setEnhancementProgress(null);
       if (meetingState !== 'done') {
         return;
       }
@@ -291,7 +303,7 @@ export default function App(): JSX.Element {
     });
   };
 
-  const bannerMessage = errorMessage ?? transcriptionStatus.detail ?? null;
+  const bannerMessage = errorMessage ?? enhancementProgress?.detail ?? transcriptionStatus.detail ?? null;
 
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">

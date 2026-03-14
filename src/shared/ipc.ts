@@ -4,6 +4,7 @@ export const IPC_CHANNELS = {
   meetingReset: 'meeting:reset',
   meetingGet: 'meeting:get',
   meetingEnhance: 'meeting:enhance',
+  enhanceProgress: 'enhance:progress',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
   settingsValidateKey: 'settings:validate-key',
@@ -92,6 +93,12 @@ export interface EnhanceMeetingResponse {
   meetingId: string;
   output: EnhancedOutput;
   completedAt: string;
+}
+
+export interface EnhanceProgressEvent {
+  meetingId: string;
+  status: 'streaming' | 'done' | 'error';
+  detail: string;
 }
 
 export interface TranscriptSegment {

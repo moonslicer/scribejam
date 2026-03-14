@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type AudioLevelEvent,
   type EnhanceMeetingRequest,
+  type EnhanceProgressEvent,
   type EnhanceMeetingResponse,
   type ErrorDisplayEvent,
   type MeetingStartRequest,
@@ -37,6 +38,7 @@ interface ScribejamApi {
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;
   onMeetingStateChanged: (listener: (event: MeetingStateChangedEvent) => void) => Unsubscribe;
+  onEnhanceProgress: (listener: (event: EnhanceProgressEvent) => void) => Unsubscribe;
   onAudioLevel: (listener: (event: AudioLevelEvent) => void) => Unsubscribe;
   onTranscriptUpdate: (listener: (event: TranscriptUpdateEvent) => void) => Unsubscribe;
   onTranscriptionStatus: (listener: (event: TranscriptionStatusEvent) => void) => Unsubscribe;
@@ -66,6 +68,13 @@ const api: ScribejamApi = {
     };
     ipcRenderer.on(IPC_CHANNELS.meetingStateChanged, wrapped);
     return () => ipcRenderer.off(IPC_CHANNELS.meetingStateChanged, wrapped);
+  },
+  onEnhanceProgress: (listener) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: EnhanceProgressEvent) => {
+      listener(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.enhanceProgress, wrapped);
+    return () => ipcRenderer.off(IPC_CHANNELS.enhanceProgress, wrapped);
   },
   onAudioLevel: (listener) => {
     const wrapped = (_event: Electron.IpcRendererEvent, payload: AudioLevelEvent) => {

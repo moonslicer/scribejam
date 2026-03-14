@@ -1,6 +1,7 @@
 import type {
   AudioLevelEvent,
   EnhanceMeetingRequest,
+  EnhanceProgressEvent,
   EnhanceMeetingResponse,
   ErrorDisplayEvent,
   MeetingStartRequest,
@@ -35,6 +36,7 @@ interface ScribejamApi {
   validateSttKey: (payload: SettingsValidateKeyRequest) => Promise<SettingsValidateKeyResponse>;
   sendMicFrames: (payload: MicFramesPayload) => void;
   onMeetingStateChanged: (listener: (event: MeetingStateChangedEvent) => void) => Unsubscribe;
+  onEnhanceProgress: (listener: (event: EnhanceProgressEvent) => void) => Unsubscribe;
   onAudioLevel: (listener: (event: AudioLevelEvent) => void) => Unsubscribe;
   onTranscriptUpdate: (listener: (event: TranscriptUpdateEvent) => void) => Unsubscribe;
   onTranscriptionStatus: (listener: (event: TranscriptionStatusEvent) => void) => Unsubscribe;

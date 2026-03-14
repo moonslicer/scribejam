@@ -11,6 +11,13 @@ let stateListener:
       meetingId?: string;
     }) => void)
   | null = null;
+let progressListener:
+  | ((event: {
+      meetingId: string;
+      status: 'streaming' | 'done' | 'error';
+      detail: string;
+    }) => void)
+  | null = null;
 
 const api = {
   startMeeting: vi.fn(),
@@ -36,6 +43,20 @@ const api = {
       };
     }
   ),
+  onEnhanceProgress: vi.fn(
+    (
+      listener: (event: {
+        meetingId: string;
+        status: 'streaming' | 'done' | 'error';
+        detail: string;
+      }) => void
+    ) => {
+      progressListener = listener;
+      return () => {
+        progressListener = null;
+      };
+    }
+  ),
   onAudioLevel: vi.fn(() => () => {}),
   onTranscriptUpdate: vi.fn(() => () => {}),
   onTranscriptionStatus: vi.fn(() => () => {}),
@@ -46,6 +67,7 @@ const api = {
 describe('App enhancement flow', () => {
   beforeEach(() => {
     stateListener = null;
+    progressListener = null;
     useMeetingStore.setState({
       meetingState: 'idle',
       meetingId: null,
@@ -54,6 +76,7 @@ describe('App enhancement flow', () => {
       noteContent: null,
       editorContent: null,
       enhancedOutput: null,
+      enhancementProgress: null,
       editorInstanceKey: 0,
       noteSaveState: 'idle'
     });
@@ -69,6 +92,7 @@ describe('App enhancement flow', () => {
     api.validateSttKey.mockReset();
     api.sendMicFrames.mockReset();
     api.onMeetingStateChanged.mockClear();
+    api.onEnhanceProgress.mockClear();
     api.onAudioLevel.mockClear();
     api.onTranscriptUpdate.mockClear();
     api.onTranscriptionStatus.mockClear();
@@ -166,6 +190,41 @@ describe('App enhancement flow', () => {
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
+  });
+
+  it('shows staged enhancement progress while enhancement is running', async () => {
+    const user = userEvent.setup();
+    api.enhanceMeeting.mockImplementation(
+      () =>
+        new Promise(() => {
+          // Intentionally unresolved to keep the meeting in-progress for the UI assertion.
+        })
+    );
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await user.click(screen.getByTestId('meeting-primary-action'));
+
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+
+    await act(async () => {
+      progressListener?.({
+        meetingId: 'meeting-1',
+        status: 'streaming',
+        detail: 'Sending saved notes and transcript for enhancement...'
+      });
+    });
+
+    expect(await screen.findByText('Sending saved notes and transcript for enhancement...')).toBeInTheDocument();
   });
 
   it('resumes the same meeting from done state and restores raw notes for editing', async () => {

@@ -6,6 +6,13 @@ import App from '../../src/renderer/App';
 let stateListener:
   | ((event: { state: 'idle' | 'recording' | 'stopped' | 'done'; meetingId?: string }) => void)
   | null = null;
+let progressListener:
+  | ((event: {
+      meetingId: string;
+      status: 'streaming' | 'done' | 'error';
+      detail: string;
+    }) => void)
+  | null = null;
 
 const api = {
   startMeeting: vi.fn(),
@@ -25,6 +32,20 @@ const api = {
       };
     }
   ),
+  onEnhanceProgress: vi.fn(
+    (
+      listener: (event: {
+        meetingId: string;
+        status: 'streaming' | 'done' | 'error';
+        detail: string;
+      }) => void
+    ) => {
+      progressListener = listener;
+      return () => {
+        progressListener = null;
+      };
+    }
+  ),
   onAudioLevel: vi.fn(() => () => {}),
   onTranscriptUpdate: vi.fn(() => () => {}),
   onTranscriptionStatus: vi.fn(() => () => {}),
@@ -35,6 +56,7 @@ const api = {
 describe('App hydration', () => {
   beforeEach(() => {
     stateListener = null;
+    progressListener = null;
     api.getSettings.mockResolvedValue({
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',

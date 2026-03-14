@@ -14,6 +14,7 @@ const api = {
   validateSttKey: vi.fn(),
   sendMicFrames: vi.fn(),
   onMeetingStateChanged: vi.fn(() => () => {}),
+  onEnhanceProgress: vi.fn(() => () => {}),
   onAudioLevel: vi.fn(() => () => {}),
   onTranscriptUpdate: vi.fn(() => () => {}),
   onTranscriptionStatus: vi.fn(() => () => {}),
