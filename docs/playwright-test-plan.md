@@ -213,6 +213,5 @@ This plan is considered implemented when:
   - forced system-unavailable degradation banner while app remains usable
 - Phase C (`S3`) enhancement coverage is partially implemented in `tests/smoke/app-components.spec.ts`.
 - Covered now:
-  - enhancement disclosure is visible at the point of use
   - enhancement failure keeps note-taking available and supports retry recovery
   - editing AI-authored enhanced content removes the AI authorship marker

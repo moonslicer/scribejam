@@ -151,10 +151,6 @@ test('enhancement flow renders AI content and persists the enhanced output', asy
     }, meetingId ?? '');
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
     await expect(context.page.getByText('mock transcript token')).toBeVisible();
-    await expect(context.page.getByTestId('enhancement-disclosure')).toContainText(
-      'saved notes and transcript text to OpenAI'
-    );
-
     await expect(primaryAction).toContainText('Enhance Notes');
     await primaryAction.click({ force: true });
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');

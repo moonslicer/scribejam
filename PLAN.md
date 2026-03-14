@@ -68,7 +68,7 @@ Inspired by the AI meeting notepad category (Granola, Otter, Fireflies), Scribej
 |------------------|--------------------------|
 | Notepad-first product | Split-pane notepad/transcript flow, manual start/stop, typed-note continuity even during cloud failures |
 | Human notes are anchor | Merge prompt preserves user notes verbatim as `source: "human"` blocks |
-| Privacy + transparency | In-memory audio only, first-run disclosure, settings-visible provider data flow |
+| Privacy + transparency | In-memory audio only, first-run disclosure, provider data flow acknowledgement before cloud features |
 | Reliability over cleverness | Reconnect, fallback, and mic-only degradation paths with clear user status |
 | Simple explicit architecture | Electron main orchestrates pipeline/state/storage; renderer focuses on UX + mic capture; typed IPC via `contextBridge` |
 
@@ -672,7 +672,7 @@ Implementation note:
 The original M4 enhancement scope was too broad for one milestone, so it is split across M4-M6:
 - M4 proves the end-to-end enhancement loop with local persistence and deterministic/mock orchestration
 - M5 adds real OpenAI-backed enhancement and settings integration while keeping a future provider seam in code
-- M6 tightens authorship semantics, progress, retry UX, and disclosure polish
+- M6 tightens authorship semantics, progress, and retry UX
 
 ### M4: Enhancement Foundation
 1. Define the shared enhancement contract:
@@ -1004,18 +1004,18 @@ Goal: replace the deterministic mock enhancement path with a real OpenAI-backed 
   - Integration test that the orchestrator can run against a mocked `llm-client` implementation
   - IPC/preload tests confirm the renderer enhancement contract stays stable
 
-##### Task 7: Add OpenAI key onboarding, validation, and disclosure in setup/settings
-- **Why this task exists**: Real enhancement requires user-provided credentials and explicit disclosure that notes and transcript content will be sent off-device for enhancement.
+##### Task 7: Add OpenAI key onboarding, validation, and first-run disclosure support
+- **Why this task exists**: Real enhancement requires user-provided credentials and first-run disclosure that notes and transcript content can be sent off-device for enhancement.
 - **How it fits the larger picture**: This is where the product’s privacy/transparency rules become concrete. It also keeps "invalid key" failures scoped to enhancement, as required by AGENTS.
 - **Implementation**:
   - Extend settings validation contracts so OpenAI keys can be validated from the main process
   - Add OpenAI key entry to the settings surface with clear configured/not-configured status
-  - Update the first-run setup flow or adjacent disclosure copy so enhancement data flow is explicit, not implied
+  - Keep enhancement data flow explicit in the first-run setup flow before cloud features are used
   - Keep Deepgram and OpenAI validation paths separate so one broken key does not disable the other feature unnecessarily
   - Continue storing provider API keys via `safeStorage`
 - **Acceptance focus**:
   - Users can configure and validate an OpenAI key without leaving the app
-  - Enhancement data flow is disclosed clearly before the user relies on the feature
+  - Enhancement data flow is disclosed clearly during first-run setup before the user relies on cloud features
   - Invalid OpenAI credentials block enhancement only, not transcription or note-taking
 - **Verification**:
   - Unit test that settings validation accepts supported providers and rejects unsupported ones
@@ -1107,15 +1107,14 @@ Implementation notes:
 - Keep one deterministic fake enhancement client available for tests even after the real OpenAI adapter exists
 - Do not let the prompt builder or provider adapter overwrite raw user notes; enhanced output remains a separate persisted artifact
 - Prefer typed provider errors over free-form strings so renderer and orchestration behavior can stay explicit as the UX grows
-- Avoid broadening the setup flow into a full provider dashboard; M5 only needs enough UI to configure, validate, disclose, and recover
+- Avoid broadening the setup flow into a full provider dashboard; M5 only needs enough UI to configure, validate, support first-run acknowledgement, and recover
 - Treat malformed model output as an adapter failure, not as partially valid enhancement content
 
 ### M6: Authorship Semantics & Enhancement UX
 1. Stream or stage enhancement progress to the renderer via `enhance:progress`
 2. Add retry and failure UX for enhancement without blocking note-taking
 3. When user edits AI-marked content, remove the `authorship` mark so the edited content becomes human-authored
-4. Tighten OpenAI disclosure copy so enhancement data flow is explicit in-product
-5. Add renderer/store coverage for enhancement progress, retry, and authorship transitions
+4. Add renderer/store coverage for enhancement progress, retry, and authorship transitions
 - **Testing (M6)**: Renderer tests for progress/failure/retry flows and editor tests that confirm edited AI content flips to human-authored rendering.
 
 ### M7: Polish & Packaging
@@ -1165,7 +1164,7 @@ function createAudioCapture() {
 3. **Note-transcript merge prompt** — Prompt engineering to intelligently blend sparse notes with verbose transcript
 4. **Tiptap authorship marks** — Custom ProseMirror mark to track and render human vs AI text origin
 5. **Audio capture permissions** — macOS requires "System Audio Recording" permission; need clean permission flow UX
-6. **OpenAI privacy disclosure** — Ensure explicit UX disclosure for off-device processing and provider-level retention controls
+6. **Provider data transparency** — Ensure first-run UX disclosure clearly explains off-device processing before cloud features are used
 
 ## Verification
 
@@ -1178,7 +1177,7 @@ function createAudioCapture() {
 - [ ] Manual start/stop recording with user-entered meeting title
 - [ ] Meeting notes persist in SQLite and are searchable
 - [ ] Raw audio is never persisted to disk (validated via storage/path audit)
-- [ ] First-run settings clearly disclose Deepgram/OpenAI off-device processing
+- [ ] First-run setup clearly discloses Deepgram/OpenAI off-device processing
 - [ ] API keys are stored via Electron `safeStorage` (not plaintext config)
 - [ ] Cloud/STT/LLM failure does not block note-taking flow
 - [ ] `audioteejs` unavailability degrades cleanly to mic-only mode

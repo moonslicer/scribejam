@@ -30,13 +30,6 @@ describe('SettingsPanel', () => {
       />
     );
 
-    expect(screen.getByTestId('settings-openai-disclosure')).toHaveTextContent(
-      'Scribejam only sends your saved notes and transcript text to OpenAI when you click Enhance Notes or Retry Enhancement.'
-    );
-    expect(screen.getByTestId('settings-openai-disclosure')).toHaveTextContent(
-      'Raw audio is not sent to OpenAI'
-    );
-
     await user.selectOptions(screen.getByTestId('settings-input-capture-source'), 'system');
     await user.click(screen.getByTestId('settings-save-button'));
 

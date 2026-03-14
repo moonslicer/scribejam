@@ -365,9 +365,6 @@ export default function App(): JSX.Element {
         : undefined;
   const meetingPrimaryShortcutLabel =
     meetingState === 'stopped' || meetingState === 'enhance_failed' ? 'Cmd/Ctrl+E' : undefined;
-  const showEnhancementDisclosure =
-    meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'enhancing';
-
   const onBannerAction = (): void => {
     if (errorAction === 'retry') {
       void onPrimaryAction();
@@ -485,20 +482,6 @@ export default function App(): JSX.Element {
             }
           : {})}
       />
-      {showEnhancementDisclosure ? (
-        <section
-          data-testid="enhancement-disclosure"
-          className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950"
-        >
-          <p className="font-semibold">Enhancement sends content to OpenAI only when you request it.</p>
-          <p className="mt-1 text-amber-900">
-            Clicking {meetingState === 'enhance_failed' ? 'Retry Enhancement' : 'Enhance Notes'} sends this meeting&apos;s
-            saved notes and transcript text to OpenAI. Raw audio is not sent, and you can keep taking notes if enhancement
-            fails.
-          </p>
-        </section>
-      ) : null}
-
       <section className="grid gap-4 xl:grid-cols-[18rem_minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
         <MeetingHistoryPanel
           items={historyItems}
