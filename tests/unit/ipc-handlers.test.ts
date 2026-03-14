@@ -244,4 +244,147 @@ describe('registerIpcHandlers', () => {
       })
     );
   });
+
+  it('treats meeting:reset as a safe no-op when the main state machine is already idle', async () => {
+    const send = vi.fn();
+    const resetToIdle = vi.fn(() => ({ state: 'idle' }));
+
+    registerIpcHandlers(
+      {
+        window: {
+          webContents: {
+            send
+          }
+        } as never
+      },
+      {
+        stateMachine: {
+          getSnapshot: () => ({ state: 'idle' }),
+          resetToIdle
+        },
+        settingsStore: {
+          getSettings: vi.fn(),
+          saveSettings: vi.fn()
+        },
+        audioManager: {
+          ingestMicPayload: vi.fn()
+        },
+        transcriptionService: {
+          validateDeepgramKey: vi.fn()
+        },
+        meetingRecordsService: {
+          getMeeting: vi.fn(),
+          listMeetingHistory: vi.fn()
+        },
+        notesRepository: {
+          save: vi.fn()
+        },
+        enhancedNoteDocumentsRepository: {
+          save: vi.fn()
+        },
+        enhancementOrchestrator: {
+          enhanceMeeting: vi.fn()
+        }
+      } as never
+    );
+
+    const handler = handlers.get(IPC_CHANNELS.meetingReset);
+
+    await expect(handler?.({} as never, undefined)).resolves.toEqual({ state: 'idle' });
+    expect(resetToIdle).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(IPC_CHANNELS.transcriptionStatus, { status: 'idle' });
+    expect(send).toHaveBeenCalledWith(IPC_CHANNELS.meetingStateChanged, { state: 'idle' });
+  });
+
+  it('hydrates a saved failed enhancement before dismissing it for continued editing', async () => {
+    const send = vi.fn();
+    const getSnapshot = vi
+      .fn()
+      .mockReturnValueOnce({ state: 'idle' })
+      .mockReturnValueOnce({ state: 'idle' });
+    const primeForResume = vi.fn();
+    const dismissEnhancementFailure = vi.fn(() => ({
+      state: 'stopped',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync'
+    }));
+    const recordMeetingEnhancementDismissed = vi.fn();
+    const getMeeting = vi.fn(() => ({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'enhance_failed',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:15:00.000Z',
+      durationMs: 900000,
+      noteContent: null,
+      enhancedNoteContent: null,
+      enhancedOutput: null,
+      transcriptSegments: []
+    }));
+
+    registerIpcHandlers(
+      {
+        window: {
+          webContents: {
+            send
+          }
+        } as never
+      },
+      {
+        stateMachine: {
+          getSnapshot,
+          primeForResume,
+          dismissEnhancementFailure
+        },
+        settingsStore: {
+          getSettings: vi.fn(),
+          saveSettings: vi.fn()
+        },
+        audioManager: {
+          ingestMicPayload: vi.fn()
+        },
+        transcriptionService: {
+          validateDeepgramKey: vi.fn()
+        },
+        meetingRecordsService: {
+          getMeeting,
+          listMeetingHistory: vi.fn(),
+          recordMeetingEnhancementDismissed
+        },
+        notesRepository: {
+          save: vi.fn()
+        },
+        enhancedNoteDocumentsRepository: {
+          save: vi.fn()
+        },
+        enhancementOrchestrator: {
+          enhanceMeeting: vi.fn()
+        }
+      } as never
+    );
+
+    const handler = handlers.get(IPC_CHANNELS.meetingDismissEnhancementFailure);
+
+    await expect(handler?.({} as never, { meetingId: 'meeting-1' })).resolves.toEqual({
+      meetingId: 'meeting-1',
+      state: 'stopped'
+    });
+    expect(getMeeting).toHaveBeenCalledWith('meeting-1');
+    expect(primeForResume).toHaveBeenCalledWith({
+      meetingId: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'enhance_failed'
+    });
+    expect(dismissEnhancementFailure).toHaveBeenCalledWith('meeting-1');
+    expect(recordMeetingEnhancementDismissed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      })
+    );
+    expect(send).toHaveBeenCalledWith(IPC_CHANNELS.meetingStateChanged, {
+      state: 'stopped',
+      meetingId: 'meeting-1'
+    });
+  });
 });

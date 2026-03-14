@@ -36,6 +36,23 @@ describe('MeetingStateMachine', () => {
     expect(idle.state).toBe('idle');
   });
 
+  it('treats reset as a safe no-op from idle and clears non-active meetings', () => {
+    const machine = new MeetingStateMachine();
+
+    expect(machine.resetToIdle()).toEqual({ state: 'idle' });
+
+    const started = machine.start('Weekly sync');
+    machine.stop(started.meetingId ?? '');
+    expect(machine.resetToIdle()).toEqual({ state: 'idle' });
+
+    machine.primeForResume({
+      state: 'enhance_failed',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync'
+    });
+    expect(machine.resetToIdle()).toEqual({ state: 'idle' });
+  });
+
   it('lets a failed enhancement return to stopped for continued note-taking', () => {
     const machine = new MeetingStateMachine();
 
@@ -78,6 +95,21 @@ describe('MeetingStateMachine', () => {
     expect(resumed.title).toBe('Weekly sync');
   });
 
+  it('primes a failed enhancement so it can retry after app reload', () => {
+    const machine = new MeetingStateMachine();
+
+    machine.primeForResume({
+      state: 'enhance_failed',
+      meetingId: 'meeting-1',
+      title: 'Weekly sync'
+    });
+    const retried = machine.retryEnhancement('meeting-1');
+
+    expect(retried.state).toBe('enhancing');
+    expect(retried.meetingId).toBe('meeting-1');
+    expect(retried.title).toBe('Weekly sync');
+  });
+
   it('allows starting a new meeting after a stopped meeting', () => {
     const machine = new MeetingStateMachine();
 
@@ -92,10 +124,12 @@ describe('MeetingStateMachine', () => {
   it('rejects invalid transitions', () => {
     const machine = new MeetingStateMachine();
     expect(() => machine.stop('missing')).toThrowError();
+    expect(() => machine.resetToIdle()).not.toThrowError();
 
     const started = machine.start('Daily standup');
     expect(() => machine.start('Duplicate')).toThrowError();
     expect(() => machine.completeEnhancement(started.meetingId ?? '')).toThrowError();
+    expect(() => machine.resetToIdle()).toThrowError('Cannot reset to idle while a meeting is active.');
 
     const stopped = machine.stop(started.meetingId ?? '');
     expect(() => machine.retryEnhancement(stopped.meetingId ?? '')).toThrowError();
