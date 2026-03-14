@@ -68,14 +68,16 @@ export function SetupWizard({
     >
       <h2 className="text-lg font-semibold text-ink">Before You Start</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        Scribejam sends mixed meeting audio to Deepgram for transcription and sends saved notes plus transcript text to OpenAI for post-meeting enhancement in cloud-assisted mode.
+        Scribejam uses Deepgram for cloud transcription and OpenAI for optional post-meeting enhancement. OpenAI is only used after you choose to run enhancement.
       </p>
 
       <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-zinc-700">
         <li>Audio capture runs locally in this app.</li>
         <li>Raw audio is processed in-memory and not written to disk by Scribejam.</li>
+        <li>Mixed meeting audio is sent to Deepgram for transcription while a meeting is recording.</li>
         <li>Transcript text is returned from Deepgram and shown in the Transcript panel.</li>
-        <li>Saved notes and transcript text are sent to OpenAI only when you run enhancement.</li>
+        <li>Saved notes and transcript text are sent to OpenAI only when you click Enhance Notes or Retry Enhancement.</li>
+        <li>Raw audio is not sent to OpenAI.</li>
       </ul>
 
       <div className="mt-4 flex flex-col gap-2">
@@ -129,7 +131,7 @@ export function SetupWizard({
           OpenAI API key (optional for enhancement)
         </label>
         <p className="text-xs text-zinc-500">
-          You can skip this for now and add it later in Settings. Transcription and note-taking do not require OpenAI.
+          You can skip this for now and add it later in Settings. Recording, transcription, and note-taking continue without OpenAI.
         </p>
         <div className="flex flex-wrap gap-2">
           <input
@@ -176,7 +178,7 @@ export function SetupWizard({
           onChange={(event) => setHasAcknowledged(event.target.checked)}
           className="mt-0.5"
         />
-        <span>I understand the provider data flow and want to continue in cloud-assisted mode.</span>
+        <span>I understand when Scribejam sends data to Deepgram and OpenAI, and I want to continue in cloud-assisted mode.</span>
       </label>
 
       <button

@@ -99,6 +99,19 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
         <span data-testid="settings-capture-source">Capture source: {settings?.captureSource ?? 'mixed'}</span>
       </div>
 
+      <section
+        data-testid="settings-openai-disclosure"
+        className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950"
+      >
+        <h3 className="font-semibold text-amber-950">OpenAI enhancement disclosure</h3>
+        <p className="mt-1">
+          Scribejam only sends your saved notes and transcript text to OpenAI when you click Enhance Notes or Retry Enhancement.
+        </p>
+        <p className="mt-1 text-xs text-amber-900">
+          Raw audio is not sent to OpenAI, and recording, transcription, and note-taking still work if you leave the OpenAI key blank.
+        </p>
+      </section>
+
       <div className="mt-3 grid gap-2">
         <label className="grid gap-1 text-sm text-zinc-700" htmlFor="settings-capture-source-input">
           <span className="font-medium">Capture source</span>

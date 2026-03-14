@@ -24,6 +24,9 @@ describe('SetupWizard', () => {
       />
     );
 
+    expect(screen.getByText(/raw audio is not sent to openai/i)).toBeInTheDocument();
+    expect(screen.getByText(/enhance notes or retry enhancement/i)).toBeInTheDocument();
+
     await user.type(screen.getByTestId('setup-input-deepgram'), 'dg-test-key');
     await user.click(screen.getByTestId('setup-validate-deepgram-button'));
     await screen.findByTestId('setup-validation-deepgram');
@@ -55,6 +58,9 @@ describe('SetupWizard', () => {
     );
 
     expect(screen.getByText(/already stored on this device/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/understand when scribejam sends data to deepgram and openai/i)
+    ).toBeInTheDocument();
 
     await user.click(screen.getByTestId('setup-disclosure-ack'));
     await waitFor(() => expect(screen.getByTestId('setup-continue-button')).toBeEnabled());

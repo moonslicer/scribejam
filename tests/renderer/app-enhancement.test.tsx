@@ -205,6 +205,9 @@ describe('App enhancement flow', () => {
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(await screen.findByText('Follow up with design')).toBeInTheDocument();
+    expect(screen.getByTestId('enhancement-disclosure')).toHaveTextContent(
+      "Clicking Enhance Notes sends this meeting's saved notes and transcript text to OpenAI."
+    );
 
     await user.click(screen.getByTestId('meeting-primary-action'));
 
@@ -237,6 +240,9 @@ describe('App enhancement flow', () => {
     await user.click(screen.getByTestId('meeting-primary-action'));
 
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(screen.getByTestId('enhancement-disclosure')).toHaveTextContent(
+      'Raw audio is not sent, and you can keep taking notes if enhancement fails.'
+    );
 
     await act(async () => {
       progressListener?.({
