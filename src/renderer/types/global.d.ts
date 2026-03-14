@@ -20,6 +20,7 @@ import type {
   SettingsValidateKeyRequest,
   SettingsValidateKeyResponse,
   SettingsSaveRequest,
+  TestConfigureEnhancementMockRequest,
   TranscriptUpdateEvent,
   TranscriptionStatusEvent
 } from '../../shared/ipc';
@@ -49,6 +50,7 @@ interface ScribejamApi {
   onTranscriptionStatus: (listener: (event: TranscriptionStatusEvent) => void) => Unsubscribe;
   onErrorDisplay: (listener: (event: ErrorDisplayEvent) => void) => Unsubscribe;
   simulateSttDisconnect: () => Promise<void>;
+  configureEnhancementMock: (payload: TestConfigureEnhancementMockRequest) => Promise<void>;
 }
 
 declare global {

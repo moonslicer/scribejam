@@ -8,6 +8,7 @@ import {
   isNotesSaveRequest,
   isSettingsSaveRequest,
   isSettingsValidateKeyRequest,
+  isTestConfigureEnhancementMockRequest,
   type EnhanceMeetingRequest,
   type SettingsValidateKeyRequest
 } from '../../src/shared/ipc';
@@ -99,5 +100,19 @@ describe('ipc contract validators', () => {
       })
     ).toBe(true);
     expect(isEnhancedNoteSaveRequest({ meetingId: 'meeting-1', content: [] })).toBe(false);
+  });
+
+  it('accepts test enhancement mock payloads and rejects unknown outcomes', () => {
+    expect(
+      isTestConfigureEnhancementMockRequest({
+        outcomes: ['network', 'success']
+      })
+    ).toBe(true);
+    expect(
+      isTestConfigureEnhancementMockRequest({
+        outcomes: ['boom']
+      })
+    ).toBe(false);
+    expect(isTestConfigureEnhancementMockRequest({ outcomes: 'network' })).toBe(false);
   });
 });

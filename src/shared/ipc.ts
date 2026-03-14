@@ -17,7 +17,8 @@ export const IPC_CHANNELS = {
   transcriptUpdate: 'transcript:update',
   transcriptionStatus: 'transcription:status',
   errorDisplay: 'error:display',
-  testSimulateSttDisconnect: 'test:simulate-stt-disconnect'
+  testSimulateSttDisconnect: 'test:simulate-stt-disconnect',
+  testConfigureEnhancementMock: 'test:configure-enhancement-mock'
 } as const;
 
 export type MeetingState =
@@ -35,6 +36,12 @@ export type SettingsKeyProvider = SttProvider | 'openai';
 export type CaptureSource = 'mixed' | 'mic' | 'system';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
+export type TestEnhancementOutcome =
+  | 'success'
+  | 'invalid_api_key'
+  | 'rate_limited'
+  | 'timeout'
+  | 'network';
 
 export interface MeetingStartRequest {
   title: string;
@@ -207,6 +214,10 @@ export interface SettingsValidateKeyResponse {
   error?: string;
 }
 
+export interface TestConfigureEnhancementMockRequest {
+  outcomes: TestEnhancementOutcome[];
+}
+
 export function isMicFramesPayload(value: unknown): value is MicFramesPayload {
   if (!value || typeof value !== 'object') {
     return false;
@@ -276,6 +287,28 @@ export function isSettingsValidateKeyRequest(value: unknown): value is SettingsV
   return (
     (candidate.provider === 'deepgram' || candidate.provider === 'openai') &&
     typeof candidate.key === 'string'
+  );
+}
+
+export function isTestConfigureEnhancementMockRequest(
+  value: unknown
+): value is TestConfigureEnhancementMockRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<TestConfigureEnhancementMockRequest>;
+  if (!Array.isArray(candidate.outcomes)) {
+    return false;
+  }
+
+  return candidate.outcomes.every(
+    (outcome) =>
+      outcome === 'success' ||
+      outcome === 'invalid_api_key' ||
+      outcome === 'rate_limited' ||
+      outcome === 'timeout' ||
+      outcome === 'network'
   );
 }
 

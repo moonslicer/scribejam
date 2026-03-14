@@ -22,6 +22,7 @@ import {
   type SettingsValidateKeyRequest,
   type SettingsValidateKeyResponse,
   type SettingsSaveRequest,
+  type TestConfigureEnhancementMockRequest,
   type TranscriptUpdateEvent,
   type TranscriptionStatusEvent
 } from '../shared/ipc';
@@ -51,6 +52,7 @@ interface ScribejamApi {
   onTranscriptionStatus: (listener: (event: TranscriptionStatusEvent) => void) => Unsubscribe;
   onErrorDisplay: (listener: (event: ErrorDisplayEvent) => void) => Unsubscribe;
   simulateSttDisconnect: () => Promise<void>;
+  configureEnhancementMock: (payload: TestConfigureEnhancementMockRequest) => Promise<void>;
 }
 
 const api: ScribejamApi = {
@@ -116,7 +118,9 @@ const api: ScribejamApi = {
     ipcRenderer.on(IPC_CHANNELS.errorDisplay, wrapped);
     return () => ipcRenderer.off(IPC_CHANNELS.errorDisplay, wrapped);
   },
-  simulateSttDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.testSimulateSttDisconnect)
+  simulateSttDisconnect: () => ipcRenderer.invoke(IPC_CHANNELS.testSimulateSttDisconnect),
+  configureEnhancementMock: (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.testConfigureEnhancementMock, payload)
 };
 
 contextBridge.exposeInMainWorld('scribejam', api);

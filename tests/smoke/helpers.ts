@@ -2,6 +2,7 @@ import { _electron as electron, expect, type ElectronApplication, type Page } fr
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { TestEnhancementOutcome } from '../../src/shared/ipc';
 
 export interface LaunchOptions {
   forceSystemUnavailable?: boolean;
@@ -104,6 +105,17 @@ export async function sendMicFrames(
       sampleAmplitude: amplitude
     }
   );
+}
+
+export async function configureEnhancementMock(
+  page: Page,
+  outcomes: TestEnhancementOutcome[]
+): Promise<void> {
+  await page.evaluate(async (queuedOutcomes) => {
+    await window.scribejam.configureEnhancementMock({
+      outcomes: queuedOutcomes
+    });
+  }, outcomes);
 }
 
 export async function installMeetingEventCapture(page: Page): Promise<void> {

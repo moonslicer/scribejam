@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   assertNoFatalRendererErrors,
   completeFirstRunSetup,
+  configureEnhancementMock,
   getLastMeetingId,
   getMeeting,
   installMeetingEventCapture,
@@ -156,6 +157,9 @@ test('enhancement flow renders AI content and persists the enhanced output', asy
     }, meetingId ?? '');
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
     await expect(context.page.getByText('mock transcript token')).toBeVisible();
+    await expect(context.page.getByTestId('enhancement-disclosure')).toContainText(
+      'saved notes and transcript text to OpenAI'
+    );
 
     await expect(primaryAction).toContainText('Enhance Notes');
     await primaryAction.click({ force: true });
@@ -169,6 +173,118 @@ test('enhancement flow renders AI content and persists the enhanced output', asy
 
     expect(meeting?.enhancedOutput?.summary).toContain('User notes captured');
     expect(meeting?.enhancedOutput?.blocks?.some((block) => block.source === 'ai')).toBe(true);
+    assertNoFatalRendererErrors(context.pageErrors, context.consoleErrors);
+  } finally {
+    await context.close();
+  }
+});
+
+test('enhancement failure keeps note-taking available and supports manual retry', async () => {
+  const context = await launchApp();
+
+  try {
+    await completeFirstRunSetup(context.page);
+    await installMeetingEventCapture(context.page);
+
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    const editor = context.page.getByTestId('notepad-editor-input');
+    await editor.click();
+    await editor.type('Retry flow notes');
+    await sendMicFrames(context.page, { count: 12, amplitude: 9000 });
+
+    const meetingId = await getLastMeetingId(context.page);
+    expect(meetingId).not.toBeNull();
+
+    await context.page.evaluate(async (id) => {
+      await window.scribejam.stopMeeting({ meetingId: id });
+    }, meetingId ?? '');
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
+
+    await configureEnhancementMock(context.page, ['network', 'network', 'success']);
+    await context.page.getByTestId('meeting-primary-action').click();
+
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('enhance_failed');
+    await expect(context.page.getByTestId('status-banner')).toContainText(
+      'Network interruption while contacting OpenAI.'
+    );
+    await expect(context.page.getByTestId('status-banner-action')).toContainText('Retry');
+    await expect(context.page.getByTestId('meeting-secondary-action')).toContainText('Keep Editing');
+    await expect(context.page.getByText('Typing enabled')).toBeVisible();
+
+    await editor.click();
+    await editor.type(' Still typing after failure');
+    await expect(context.page.getByText(/Still typing after failure/)).toBeVisible();
+
+    await context.page.getByTestId('status-banner-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');
+    await expect(context.page.locator('[data-authorship="ai"]').first()).toBeVisible();
+
+    assertNoFatalRendererErrors(context.pageErrors, context.consoleErrors);
+  } finally {
+    await context.close();
+  }
+});
+
+test('editing AI-authored enhanced content removes its AI authorship marker', async () => {
+  const context = await launchApp();
+
+  try {
+    await completeFirstRunSetup(context.page);
+    await installMeetingEventCapture(context.page);
+
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    const editor = context.page.getByTestId('notepad-editor-input');
+    await editor.click();
+    await editor.type('Authorship conversion notes');
+    await sendMicFrames(context.page, { count: 12, amplitude: 9000 });
+
+    const meetingId = await getLastMeetingId(context.page);
+    expect(meetingId).not.toBeNull();
+
+    await context.page.evaluate(async (id) => {
+      await window.scribejam.stopMeeting({ meetingId: id });
+    }, meetingId ?? '');
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
+    await context.page.getByTestId('meeting-primary-action').click();
+    await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');
+
+    const targetedAiText = context.page
+      .locator('[data-authorship="ai"]')
+      .filter({ hasText: 'Transcript context:' })
+      .first();
+
+    await expect(targetedAiText).toBeVisible();
+
+    await context.page.evaluate(() => {
+      const editorElement = document.querySelector<HTMLElement>('[data-testid="notepad-editor-input"]');
+      const target = Array.from(document.querySelectorAll<HTMLElement>('[data-authorship="ai"]')).find((element) =>
+        element.textContent?.includes('Transcript context:')
+      );
+
+      if (!editorElement || !target) {
+        throw new Error('Target AI-authored content not found.');
+      }
+
+      editorElement.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+
+    await context.page.keyboard.type('Edited ');
+
+    await expect(
+      context.page.locator('[data-authorship="ai"]').filter({ hasText: 'Transcript context:' })
+    ).toHaveCount(0);
+    await expect(context.page.getByText(/Edited Transcript context:/)).toBeVisible();
+
     assertNoFatalRendererErrors(context.pageErrors, context.consoleErrors);
   } finally {
     await context.close();

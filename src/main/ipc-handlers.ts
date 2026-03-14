@@ -3,6 +3,7 @@ import { ipcMain } from 'electron';
 import {
   isEnhancedNoteSaveRequest,
   IPC_CHANNELS,
+  isTestConfigureEnhancementMockRequest,
   isDismissEnhancementFailureRequest,
   isEnhanceMeetingRequest,
   isMeetingGetRequest,
@@ -25,6 +26,7 @@ import { SettingsStore } from './settings/settings-store';
 import { createSttAdapter } from './stt/create-stt-adapter';
 import { EnhancementOrchestrator } from './enhancement/enhancement-orchestrator';
 import { createLlmClient } from './enhancement/create-llm-client';
+import { configureMockEnhancementOutcomes } from './enhancement/mock-llm-client';
 import { validateOpenAIApiKey } from './enhancement/openai-enhancement-client';
 import { createStorageDatabase } from './storage/db';
 import { MeetingRecordsService } from './storage/meeting-records-service';
@@ -139,6 +141,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.removeHandler(IPC_CHANNELS.settingsSave);
   ipcMain.removeHandler(IPC_CHANNELS.settingsValidateKey);
   ipcMain.removeHandler(IPC_CHANNELS.testSimulateSttDisconnect);
+  ipcMain.removeHandler(IPC_CHANNELS.testConfigureEnhancementMock);
   ipcMain.removeAllListeners(IPC_CHANNELS.audioMicFrames);
   ipcMain.removeAllListeners(IPC_CHANNELS.notesSave);
   ipcMain.removeAllListeners(IPC_CHANNELS.enhancedNoteSave);
@@ -303,6 +306,18 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
       throw new Error('Test hook unavailable.');
     }
     services.transcriptionService.simulateDisconnect();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.testConfigureEnhancementMock, async (_event, payload: unknown) => {
+    if (process.env.SCRIBEJAM_TEST_MODE !== '1') {
+      throw new Error('Test hook unavailable.');
+    }
+
+    if (!isTestConfigureEnhancementMockRequest(payload)) {
+      throw new Error('Invalid enhancement mock payload.');
+    }
+
+    configureMockEnhancementOutcomes(payload.outcomes);
   });
 
   ipcMain.on(IPC_CHANNELS.audioMicFrames, (_event, payload: unknown) => {
