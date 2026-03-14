@@ -5,7 +5,10 @@ interface MeetingHistoryPanelProps {
   isLoading: boolean;
   errorMessage: string | null;
   searchQuery: string;
+  selectedMeetingId: string | null;
+  selectionDisabled?: boolean;
   onSearchChange: (value: string) => void;
+  onSelectMeeting: (meetingId: string) => void;
 }
 
 function formatUpdatedAt(value: string): string {
@@ -47,7 +50,10 @@ export function MeetingHistoryPanel({
   isLoading,
   errorMessage,
   searchQuery,
-  onSearchChange
+  selectedMeetingId,
+  selectionDisabled = false,
+  onSearchChange,
+  onSelectMeeting
 }: MeetingHistoryPanelProps): JSX.Element {
   return (
     <aside
@@ -92,26 +98,59 @@ export function MeetingHistoryPanel({
           </p>
         ) : null}
         {items.map((item) => (
-          <article
+          <button
             key={item.id}
             data-testid="meeting-history-item"
-            className="rounded-xl border border-zinc-200 bg-zinc-50/80 px-3 py-3"
+            type="button"
+            disabled={selectionDisabled}
+            onClick={() => onSelectMeeting(item.id)}
+            className={`rounded-xl border px-3 py-3 text-left transition ${
+              item.id === selectedMeetingId
+                ? 'border-zinc-900 bg-zinc-950 text-white shadow-sm'
+                : 'border-zinc-200 bg-zinc-50/80 hover:border-zinc-300 hover:bg-white'
+            } disabled:cursor-not-allowed disabled:opacity-60`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-ink">{item.title}</h3>
-                <p className="mt-1 text-xs text-zinc-500">{formatUpdatedAt(item.updatedAt)}</p>
+                <h3 className={`text-sm font-semibold ${item.id === selectedMeetingId ? 'text-white' : 'text-ink'}`}>
+                  {item.title}
+                </h3>
+                <p
+                  className={`mt-1 text-xs ${
+                    item.id === selectedMeetingId ? 'text-zinc-300' : 'text-zinc-500'
+                  }`}
+                >
+                  {formatUpdatedAt(item.updatedAt)}
+                </p>
               </div>
-              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-zinc-600">
+              <span
+                className={`rounded-full px-2 py-1 text-[11px] font-medium ${
+                  item.id === selectedMeetingId
+                    ? 'bg-white/15 text-white'
+                    : 'bg-white text-zinc-600'
+                }`}
+              >
                 {formatMeetingState(item)}
               </span>
             </div>
             {item.previewText ? (
-              <p className="mt-3 line-clamp-3 text-sm text-zinc-700">{item.previewText}</p>
+              <p
+                className={`mt-3 line-clamp-3 text-sm ${
+                  item.id === selectedMeetingId ? 'text-zinc-100' : 'text-zinc-700'
+                }`}
+              >
+                {item.previewText}
+              </p>
             ) : (
-              <p className="mt-3 text-sm text-zinc-400">No saved notes or enhancement preview yet.</p>
+              <p
+                className={`mt-3 text-sm ${
+                  item.id === selectedMeetingId ? 'text-zinc-300' : 'text-zinc-400'
+                }`}
+              >
+                No saved notes or enhancement preview yet.
+              </p>
             )}
-          </article>
+          </button>
         ))}
       </div>
     </aside>

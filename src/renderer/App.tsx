@@ -54,6 +54,8 @@ export default function App(): JSX.Element {
   const historyLoading = useHistoryStore((state) => state.isLoading);
   const historyErrorMessage = useHistoryStore((state) => state.errorMessage);
   const historySearchQuery = useHistoryStore((state) => state.searchQuery);
+  const selectedHistoryMeetingId = useHistoryStore((state) => state.selectedMeetingId);
+  const setSelectedHistoryMeetingId = useHistoryStore((state) => state.setSelectedMeetingId);
 
   useMicCapture({
     enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
@@ -108,6 +110,10 @@ export default function App(): JSX.Element {
       cancelled = true;
     };
   }, [api, hydrateMeeting, meetingId]);
+
+  useEffect(() => {
+    setSelectedHistoryMeetingId(meetingId);
+  }, [meetingId, setSelectedHistoryMeetingId]);
 
   useEffect(() => {
     if (!api) {
@@ -398,6 +404,15 @@ export default function App(): JSX.Element {
     void loadHistory(api.listMeetings, value);
   };
 
+  const onHistorySelectMeeting = (nextMeetingId: string): void => {
+    if (meetingState === 'recording' || meetingState === 'enhancing') {
+      return;
+    }
+
+    setSelectedHistoryMeetingId(nextMeetingId);
+    setMeetingId(nextMeetingId);
+  };
+
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
       <header>
@@ -458,7 +473,10 @@ export default function App(): JSX.Element {
           isLoading={historyLoading}
           errorMessage={historyErrorMessage}
           searchQuery={historySearchQuery}
+          selectedMeetingId={selectedHistoryMeetingId}
+          selectionDisabled={meetingState === 'recording' || meetingState === 'enhancing'}
           onSearchChange={onHistorySearchChange}
+          onSelectMeeting={onHistorySelectMeeting}
         />
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
