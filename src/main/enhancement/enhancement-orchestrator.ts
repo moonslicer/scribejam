@@ -96,7 +96,7 @@ export class EnhancementOrchestrator {
         throw normalized;
       }
 
-      this.emitProgress(input.meetingId, 'streaming', 'Temporary provider issue. Retrying enhancement...');
+      this.emitProgress(input.meetingId, 'streaming', 'Connection slow, retrying...');
       await this.sleep(this.retryDelayMs);
 
       try {

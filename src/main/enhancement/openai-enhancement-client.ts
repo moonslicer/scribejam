@@ -16,7 +16,7 @@ import {
 import { parseEnhancedOutput } from './parse-enhanced-output';
 
 const DEFAULT_MODEL = 'gpt-5-mini';
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 60_000;
 const OPENAI_KEY_VALIDATION_MAX_OUTPUT_TOKENS = 16;
 
 const ENHANCED_OUTPUT_RESPONSE_FORMAT: NonNullable<ResponseCreateParamsNonStreaming['text']> = {
