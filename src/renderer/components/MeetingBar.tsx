@@ -6,6 +6,7 @@ interface MeetingBarProps {
   onMeetingTitleChange: (value: string) => void;
   onPrimaryAction: () => void;
   onSecondaryAction?: () => void;
+  secondaryActionLabel?: string;
   disabled?: boolean;
 }
 
@@ -14,7 +15,7 @@ const labels: Record<MeetingState, string> = {
   recording: 'Stop Recording',
   stopped: 'Enhance Notes',
   enhancing: 'Enhancing Notes',
-  enhance_failed: 'Enhancement Failed',
+  enhance_failed: 'Retry Enhancement',
   done: 'Resume Recording'
 };
 
@@ -33,6 +34,7 @@ export function MeetingBar({
   onMeetingTitleChange,
   onPrimaryAction,
   onSecondaryAction,
+  secondaryActionLabel,
   disabled = false
 }: MeetingBarProps): JSX.Element {
   const titleLocked = meetingState === 'recording' || meetingState === 'enhancing';
@@ -66,7 +68,7 @@ export function MeetingBar({
         </label>
       </div>
       <div className="flex items-center gap-2">
-        {meetingState === 'done' && onSecondaryAction ? (
+        {secondaryActionLabel && onSecondaryAction ? (
           <button
             data-testid="meeting-secondary-action"
             type="button"
@@ -74,7 +76,7 @@ export function MeetingBar({
             onClick={onSecondaryAction}
             className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-ink disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
           >
-            New Meeting
+            {secondaryActionLabel}
           </button>
         ) : null}
         <button

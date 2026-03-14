@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Settings, TranscriptionStatusEvent } from '../shared/ipc';
+import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/ipc';
 import { useMicCapture } from './audio/useMicCapture';
 import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
@@ -18,6 +18,7 @@ export default function App(): JSX.Element {
   const saveNotes = api?.saveNotes ?? NOOP_SAVE_NOTES;
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorAction, setErrorAction] = useState<ErrorAction | null>(null);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
@@ -60,7 +61,10 @@ export default function App(): JSX.Element {
   }, [settings?.captureSource]);
 
   useNoteAutosave({
-    enabled: meetingState === 'recording' || meetingState === 'stopped',
+    enabled:
+      meetingState === 'recording' ||
+      meetingState === 'stopped' ||
+      meetingState === 'enhance_failed',
     meetingId,
     noteContent,
     noteSaveState,
@@ -126,6 +130,7 @@ export default function App(): JSX.Element {
 
     const unsubError = api.onErrorDisplay((event) => {
       setErrorMessage(event.message);
+      setErrorAction(event.action ?? null);
     });
     const unsubTranscript = api.onTranscriptUpdate((event) => {
       applyTranscriptUpdate(event);
@@ -154,6 +159,7 @@ export default function App(): JSX.Element {
     setMeetingActionPending(true);
     try {
       setErrorMessage(null);
+      setErrorAction(null);
       setEnhancementProgress(null);
       if (meetingState === 'recording') {
         if (!api) {
@@ -167,7 +173,7 @@ export default function App(): JSX.Element {
         await api.stopMeeting({ meetingId });
         return;
       }
-      if (meetingState === 'stopped') {
+      if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
         if (!api) {
           setErrorMessage('Desktop bridge unavailable.');
           return;
@@ -212,7 +218,7 @@ export default function App(): JSX.Element {
         setErrorMessage('Complete first-run setup to enable cloud transcription.');
         return;
       }
-      if (meetingState === 'enhancing' || meetingState === 'enhance_failed') {
+      if (meetingState === 'enhancing') {
         setErrorMessage('This meeting is not ready for another action yet.');
         return;
       }
@@ -239,7 +245,22 @@ export default function App(): JSX.Element {
     setMeetingActionPending(true);
     try {
       setErrorMessage(null);
+      setErrorAction(null);
       setEnhancementProgress(null);
+      if (meetingState === 'enhance_failed') {
+        if (!api) {
+          setErrorMessage('Desktop bridge unavailable.');
+          return;
+        }
+        if (!meetingId) {
+          setErrorMessage('No failed meeting id found.');
+          return;
+        }
+
+        await api.dismissEnhancementFailure({ meetingId });
+        setMeetingState('stopped');
+        return;
+      }
       if (meetingState !== 'done') {
         return;
       }
@@ -284,6 +305,7 @@ export default function App(): JSX.Element {
 
     await saveSettings(savePayload);
     setErrorMessage(null);
+    setErrorAction(null);
   };
 
   const validateProviderKey = async (
@@ -304,6 +326,31 @@ export default function App(): JSX.Element {
   };
 
   const bannerMessage = errorMessage ?? enhancementProgress?.detail ?? transcriptionStatus.detail ?? null;
+  const bannerActionLabel =
+    errorMessage && errorAction === 'retry'
+      ? 'Retry'
+      : errorMessage && errorAction === 'open-settings'
+        ? 'Open Settings'
+        : undefined;
+  const meetingSecondaryActionLabel =
+    meetingState === 'done'
+      ? 'New Meeting'
+      : meetingState === 'enhance_failed'
+        ? 'Keep Editing'
+        : undefined;
+
+  const onBannerAction = (): void => {
+    if (errorAction === 'retry') {
+      void onPrimaryAction();
+      return;
+    }
+
+    if (errorAction === 'open-settings') {
+      document
+        .querySelector<HTMLElement>('[data-testid="settings-panel"]')
+        ?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    }
+  };
 
   return (
     <main data-testid="app-shell" className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-4 px-4 py-6">
@@ -332,15 +379,30 @@ export default function App(): JSX.Element {
         onPrimaryAction={() => void onPrimaryAction()}
         onSecondaryAction={() => void onSecondaryAction()}
         disabled={settings === null || meetingActionPending}
+        {...(meetingSecondaryActionLabel
+          ? { secondaryActionLabel: meetingSecondaryActionLabel }
+          : {})}
       />
-      <StatusBanner message={bannerMessage} />
+      <StatusBanner
+        message={bannerMessage}
+        {...(bannerActionLabel
+          ? {
+              actionLabel: bannerActionLabel,
+              onAction: onBannerAction
+            }
+          : {})}
+      />
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
         <div className="rounded-2xl bg-zinc-50/70 p-3">
           <Notepad
             key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
             content={editorContent}
-            editable={meetingState === 'recording' || meetingState === 'stopped'}
+            editable={
+              meetingState === 'recording' ||
+              meetingState === 'stopped' ||
+              meetingState === 'enhance_failed'
+            }
             onChange={setNoteContent}
           />
         </div>

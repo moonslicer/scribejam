@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   IPC_CHANNELS,
   type AudioLevelEvent,
+  type DismissEnhancementFailureRequest,
+  type DismissEnhancementFailureResponse,
   type EnhanceMeetingRequest,
   type EnhanceProgressEvent,
   type EnhanceMeetingResponse,
@@ -31,6 +33,9 @@ interface ScribejamApi {
   resetMeeting: () => Promise<MeetingResetResponse>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
+  dismissEnhancementFailure: (
+    payload: DismissEnhancementFailureRequest
+  ) => Promise<DismissEnhancementFailureResponse>;
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
   saveNotes: (payload: NotesSaveRequest) => void;
@@ -52,6 +57,8 @@ const api: ScribejamApi = {
   resetMeeting: () => ipcRenderer.invoke(IPC_CHANNELS.meetingReset),
   getMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingGet, payload),
   enhanceMeeting: (payload) => ipcRenderer.invoke(IPC_CHANNELS.meetingEnhance, payload),
+  dismissEnhancementFailure: (payload) =>
+    ipcRenderer.invoke(IPC_CHANNELS.meetingDismissEnhancementFailure, payload),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsGet),
   saveSettings: (payload) => ipcRenderer.invoke(IPC_CHANNELS.settingsSave, payload),
   saveNotes: (payload) => {

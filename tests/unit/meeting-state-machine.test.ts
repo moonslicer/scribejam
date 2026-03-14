@@ -36,6 +36,19 @@ describe('MeetingStateMachine', () => {
     expect(idle.state).toBe('idle');
   });
 
+  it('lets a failed enhancement return to stopped for continued note-taking', () => {
+    const machine = new MeetingStateMachine();
+
+    const started = machine.start('Weekly sync');
+    const stopped = machine.stop(started.meetingId ?? '');
+    const enhancing = machine.beginEnhancement(stopped.meetingId ?? '');
+    const failed = machine.failEnhancement(enhancing.meetingId ?? '');
+    const dismissed = machine.dismissEnhancementFailure(failed.meetingId ?? '');
+
+    expect(dismissed.state).toBe('stopped');
+    expect(dismissed.meetingId).toBe(started.meetingId);
+  });
+
   it('resumes the same meeting after enhancement completes', () => {
     const machine = new MeetingStateMachine();
 

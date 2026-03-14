@@ -230,4 +230,43 @@ describe('EnhancementOrchestrator', () => {
 
     harness.db.close();
   });
+
+  it('allows a later enhancement retry after a failed run', async () => {
+    let invocations = 0;
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async () => {
+          invocations += 1;
+          if (invocations === 1) {
+            throw new EnhancementProviderError('invalid_api_key', 'Invalid OpenAI key.', {
+              provider: 'openai'
+            });
+          }
+
+          return {
+            blocks: [{ source: 'ai', content: 'Retried enhancement' }],
+            actionItems: [],
+            decisions: [],
+            summary: 'Recovered after manual retry'
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Retry later sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    await expect(harness.orchestrator.enhanceMeeting(started.meetingId ?? '')).rejects.toMatchObject({
+      code: 'invalid_api_key'
+    });
+
+    const retried = await harness.orchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    expect(invocations).toBe(2);
+    expect(retried.output.summary).toBe('Recovered after manual retry');
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
 });

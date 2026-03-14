@@ -2,6 +2,7 @@ import type { BrowserWindow, IpcMainInvokeEvent } from 'electron';
 import { ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
+  isDismissEnhancementFailureRequest,
   isEnhanceMeetingRequest,
   isMeetingGetRequest,
   isNotesSaveRequest,
@@ -127,6 +128,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.removeHandler(IPC_CHANNELS.meetingReset);
   ipcMain.removeHandler(IPC_CHANNELS.meetingGet);
   ipcMain.removeHandler(IPC_CHANNELS.meetingEnhance);
+  ipcMain.removeHandler(IPC_CHANNELS.meetingDismissEnhancementFailure);
   ipcMain.removeHandler(IPC_CHANNELS.settingsGet);
   ipcMain.removeHandler(IPC_CHANNELS.settingsSave);
   ipcMain.removeHandler(IPC_CHANNELS.settingsValidateKey);
@@ -234,6 +236,25 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
       emitEnhancementError(context.window, error);
       throw error;
     }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.meetingDismissEnhancementFailure, async (_event, payload: unknown) => {
+    if (!isDismissEnhancementFailureRequest(payload)) {
+      throw new Error('Invalid enhancement dismissal payload.');
+    }
+
+    const meetingId = payload.meetingId;
+    const snapshot = services.stateMachine.dismissEnhancementFailure(meetingId);
+    services.meetingRecordsService.recordMeetingEnhancementDismissed(snapshot);
+    emitMeetingState(context.window, {
+      state: snapshot.state,
+      meetingId
+    });
+
+    return {
+      meetingId,
+      state: snapshot.state
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.settingsGet, async () => {

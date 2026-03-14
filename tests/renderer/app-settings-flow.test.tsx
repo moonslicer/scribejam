@@ -11,6 +11,7 @@ const api = {
   resetMeeting: vi.fn(),
   getMeeting: vi.fn(),
   enhanceMeeting: vi.fn(),
+  dismissEnhancementFailure: vi.fn(),
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
@@ -46,6 +47,7 @@ describe('App settings flow', () => {
     api.resetMeeting.mockReset();
     api.getMeeting.mockReset();
     api.enhanceMeeting.mockReset();
+    api.dismissEnhancementFailure.mockReset();
     api.getSettings.mockReset();
     api.saveSettings.mockReset();
     api.saveNotes.mockReset();

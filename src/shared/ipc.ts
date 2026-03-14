@@ -4,6 +4,7 @@ export const IPC_CHANNELS = {
   meetingReset: 'meeting:reset',
   meetingGet: 'meeting:get',
   meetingEnhance: 'meeting:enhance',
+  meetingDismissEnhancementFailure: 'meeting:dismiss-enhancement-failure',
   enhanceProgress: 'enhance:progress',
   settingsGet: 'settings:get',
   settingsSave: 'settings:save',
@@ -93,6 +94,15 @@ export interface EnhanceMeetingResponse {
   meetingId: string;
   output: EnhancedOutput;
   completedAt: string;
+}
+
+export interface DismissEnhancementFailureRequest {
+  meetingId: string;
+}
+
+export interface DismissEnhancementFailureResponse {
+  meetingId: string;
+  state: Extract<MeetingState, 'stopped'>;
 }
 
 export interface EnhanceProgressEvent {
@@ -290,6 +300,17 @@ export function isEnhanceMeetingRequest(value: unknown): value is EnhanceMeeting
   }
 
   const candidate = value as Partial<EnhanceMeetingRequest>;
+  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
+}
+
+export function isDismissEnhancementFailureRequest(
+  value: unknown
+): value is DismissEnhancementFailureRequest {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<DismissEnhancementFailureRequest>;
   return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
 }
 

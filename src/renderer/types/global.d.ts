@@ -1,5 +1,7 @@
 import type {
   AudioLevelEvent,
+  DismissEnhancementFailureRequest,
+  DismissEnhancementFailureResponse,
   EnhanceMeetingRequest,
   EnhanceProgressEvent,
   EnhanceMeetingResponse,
@@ -29,6 +31,9 @@ interface ScribejamApi {
   resetMeeting: () => Promise<MeetingResetResponse>;
   getMeeting: (payload: MeetingGetRequest) => Promise<MeetingDetails | null>;
   enhanceMeeting: (payload: EnhanceMeetingRequest) => Promise<EnhanceMeetingResponse>;
+  dismissEnhancementFailure: (
+    payload: DismissEnhancementFailureRequest
+  ) => Promise<DismissEnhancementFailureResponse>;
   getSettings: () => Promise<Settings>;
   saveSettings: (payload: SettingsSaveRequest) => Promise<void>;
   saveNotes: (payload: NotesSaveRequest) => void;

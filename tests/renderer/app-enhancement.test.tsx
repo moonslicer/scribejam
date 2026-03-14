@@ -18,6 +18,9 @@ let progressListener:
       detail: string;
     }) => void)
   | null = null;
+let errorListener:
+  | ((event: { message: string; action?: 'open-settings' | 'retry' }) => void)
+  | null = null;
 
 const api = {
   startMeeting: vi.fn(),
@@ -25,6 +28,7 @@ const api = {
   resetMeeting: vi.fn(),
   getMeeting: vi.fn(),
   enhanceMeeting: vi.fn(),
+  dismissEnhancementFailure: vi.fn(),
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   saveNotes: vi.fn(),
@@ -60,7 +64,12 @@ const api = {
   onAudioLevel: vi.fn(() => () => {}),
   onTranscriptUpdate: vi.fn(() => () => {}),
   onTranscriptionStatus: vi.fn(() => () => {}),
-  onErrorDisplay: vi.fn(() => () => {}),
+  onErrorDisplay: vi.fn((listener: (event: { message: string; action?: 'open-settings' | 'retry' }) => void) => {
+    errorListener = listener;
+    return () => {
+      errorListener = null;
+    };
+  }),
   simulateSttDisconnect: vi.fn()
 };
 
@@ -68,6 +77,7 @@ describe('App enhancement flow', () => {
   beforeEach(() => {
     stateListener = null;
     progressListener = null;
+    errorListener = null;
     useMeetingStore.setState({
       meetingState: 'idle',
       meetingId: null,
@@ -86,6 +96,7 @@ describe('App enhancement flow', () => {
     api.resetMeeting.mockReset();
     api.getMeeting.mockReset();
     api.enhanceMeeting.mockReset();
+    api.dismissEnhancementFailure.mockReset();
     api.getSettings.mockReset();
     api.saveSettings.mockReset();
     api.saveNotes.mockReset();
@@ -157,6 +168,10 @@ describe('App enhancement flow', () => {
     });
     api.resetMeeting.mockResolvedValue({
       state: 'idle'
+    });
+    api.dismissEnhancementFailure.mockResolvedValue({
+      meetingId: 'meeting-1',
+      state: 'stopped'
     });
 
     Object.defineProperty(window, 'scribejam', {
@@ -312,6 +327,123 @@ describe('App enhancement flow', () => {
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('enhance_failed');
     expect(screen.getByText('Invalid OpenAI key.')).toBeInTheDocument();
+  });
+
+  it('retries enhancement from the failure banner action', async () => {
+    const user = userEvent.setup();
+    api.enhanceMeeting
+      .mockRejectedValueOnce(new Error('Enhancement delayed.'))
+      .mockResolvedValueOnce({
+        meetingId: 'meeting-1',
+        completedAt: '2026-03-12T18:22:00.000Z',
+        output: {
+          blocks: [{ source: 'ai', content: 'Recovered enhancement' }],
+          actionItems: [],
+          decisions: [],
+          summary: 'Recovered'
+        }
+      });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await user.click(screen.getByTestId('meeting-primary-action'));
+
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      errorListener?.({
+        message: 'Enhancement delayed — retry when ready.',
+        action: 'retry'
+      });
+    });
+
+    expect(await screen.findByTestId('status-banner-action')).toHaveTextContent('Retry');
+    await user.click(screen.getByTestId('status-banner-action'));
+
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Recovered enhancement')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
+  });
+
+  it('keeps the notepad editable after enhancement failure and lets the user dismiss back to stopped', async () => {
+    const user = userEvent.setup();
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'enhance_failed',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:20:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: 'Follow up with design'
+              }
+            ]
+          }
+        ]
+      },
+      enhancedOutput: null,
+      transcriptSegments: []
+    });
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'enhance_failed',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(screen.getByText('Typing enabled')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('meeting-secondary-action'));
+
+    await waitFor(() =>
+      expect(api.dismissEnhancementFailure).toHaveBeenCalledWith({
+        meetingId: 'meeting-1'
+      })
+    );
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('stopped');
+  });
+
+  it('offers an open-settings recovery action for invalid-key failures', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const settingsPanel = await screen.findByTestId('settings-panel');
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(settingsPanel, 'scrollIntoView', {
+      value: scrollIntoView,
+      configurable: true
+    });
+
+    await act(async () => {
+      errorListener?.({
+        message: 'Invalid OpenAI key.',
+        action: 'open-settings'
+      });
+    });
+
+    expect(await screen.findByTestId('status-banner-action')).toHaveTextContent('Open Settings');
+    await user.click(screen.getByTestId('status-banner-action'));
+
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it('offers a new meeting action from done state and clears the completed meeting view', async () => {

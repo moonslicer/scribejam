@@ -95,6 +95,18 @@ export class MeetingRecordsService {
     });
   }
 
+  public recordMeetingEnhancementDismissed(snapshot: MeetingSnapshot): void {
+    if (!snapshot.meetingId) {
+      throw new Error('Meeting snapshot is missing enhancement metadata.');
+    }
+
+    this.meetings.updateState({
+      id: snapshot.meetingId,
+      state: snapshot.state,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
   public appendTranscriptSegment(meetingId: string | undefined, event: TranscriptUpdateEvent): void {
     if (!meetingId || !event.isFinal) {
       return;

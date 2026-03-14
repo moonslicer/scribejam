@@ -33,7 +33,7 @@ export class EnhancementOrchestrator {
   }
 
   public async enhanceMeeting(meetingId: string): Promise<EnhanceMeetingResponse> {
-    const beginSnapshot = this.stateMachine.beginEnhancement(meetingId);
+    const beginSnapshot = this.beginEnhancement(meetingId);
     this.meetingRecordsService.recordMeetingEnhancementStarted(beginSnapshot);
     this.emitProgress(meetingId, 'streaming', 'Preparing saved notes and transcript...');
 
@@ -70,6 +70,15 @@ export class EnhancementOrchestrator {
       this.emitProgress(meetingId, 'error', 'Enhancement failed.');
       throw normalized;
     }
+  }
+
+  private beginEnhancement(meetingId: string) {
+    const snapshot = this.stateMachine.getSnapshot();
+    if (snapshot.state === 'enhance_failed' && snapshot.meetingId === meetingId) {
+      return this.stateMachine.retryEnhancement(meetingId);
+    }
+
+    return this.stateMachine.beginEnhancement(meetingId);
   }
 
   private async runEnhancementWithRetry(
