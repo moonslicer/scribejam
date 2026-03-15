@@ -26,6 +26,7 @@ export interface MeetingStoreState {
   enhancementProgress: EnhanceProgressEvent | null;
   editorInstanceKey: number;
   noteSaveState: NoteSaveState;
+  noteEditedAfterEnhancement: boolean;
 }
 
 export interface MeetingStoreActions {
@@ -69,6 +70,7 @@ export const createMeetingStore = () =>
     enhancementProgress: null,
     editorInstanceKey: 0,
     noteSaveState: 'idle',
+  noteEditedAfterEnhancement: false,
     setMeetingState: (meetingState) =>
       set((state) => {
         const editorMode = deriveEditorMode(
@@ -103,7 +105,8 @@ export const createMeetingStore = () =>
         enhancedOutput: null,
         enhancementProgress: null,
         editorInstanceKey: state.editorInstanceKey + 1,
-        noteSaveState: 'idle'
+        noteSaveState: 'idle',
+        noteEditedAfterEnhancement: false
       })),
     resetTranscript: () => set({ transcriptEntries: [] }),
     applyTranscriptUpdate: (event) =>
@@ -124,7 +127,8 @@ export const createMeetingStore = () =>
             state.editorMode === 'notes'
               ? cloneJsonObject(noteContent)
               : cloneJsonObject(state.editorContent),
-          noteSaveState: noteContent ? 'dirty' : 'idle'
+          noteSaveState: noteContent ? 'dirty' : 'idle',
+          noteEditedAfterEnhancement: state.meetingState === 'done' ? true : state.noteEditedAfterEnhancement
         };
       }),
     setEnhancedNoteContent: (enhancedNoteContent) =>
@@ -141,7 +145,8 @@ export const createMeetingStore = () =>
             state.editorMode === 'enhanced'
               ? cloneJsonObject(enhancedNoteContent)
               : cloneJsonObject(state.editorContent),
-          noteSaveState: enhancedNoteContent ? 'dirty' : 'idle'
+          noteSaveState: enhancedNoteContent ? 'dirty' : 'idle',
+          noteEditedAfterEnhancement: state.meetingState === 'done' ? true : state.noteEditedAfterEnhancement
         };
       }),
     setEnhancedOutput: (enhancedOutput) =>
@@ -159,7 +164,8 @@ export const createMeetingStore = () =>
             enhancedNoteContent,
             enhancedOutput
           ),
-          noteSaveState: enhancedNoteContent ? 'saved' : state.noteSaveState
+          noteSaveState: enhancedNoteContent ? 'saved' : state.noteSaveState,
+          noteEditedAfterEnhancement: false
         };
       }),
     setEnhancementProgress: (enhancementProgress) => set({ enhancementProgress }),
