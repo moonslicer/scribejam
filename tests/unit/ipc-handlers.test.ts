@@ -245,6 +245,182 @@ describe('registerIpcHandlers', () => {
     );
   });
 
+  it('treats a stale persisted recording as stopped before resuming it', async () => {
+    const send = vi.fn();
+    const getSnapshot = vi.fn(() => ({ state: 'idle' }));
+    const primeForResume = vi.fn();
+    const resume = vi.fn(() => ({
+      state: 'recording',
+      meetingId: 'meeting-2',
+      title: 'Customer call',
+      startedAt: Date.now()
+    }));
+    const getMeeting = vi.fn(() => ({
+      id: 'meeting-2',
+      title: 'Customer call',
+      state: 'recording',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:15:00.000Z',
+      durationMs: 900000,
+      noteContent: null,
+      enhancedNoteContent: null,
+      enhancedOutput: null,
+      transcriptSegments: []
+    }));
+    const startRecording = vi.fn().mockResolvedValue(undefined);
+    const startTranscription = vi.fn().mockResolvedValue(undefined);
+    const recordMeetingResumed = vi.fn();
+
+    registerIpcHandlers(
+      {
+        window: {
+          webContents: {
+            send
+          }
+        } as never
+      },
+      {
+        stateMachine: {
+          getSnapshot,
+          primeForResume,
+          resume
+        },
+        settingsStore: {
+          getSettings: vi.fn(() => ({
+            firstRunAcknowledged: true,
+            deepgramApiKeySet: true
+          })),
+          saveSettings: vi.fn()
+        },
+        audioManager: {
+          ingestMicPayload: vi.fn(),
+          startRecording
+        },
+        transcriptionService: {
+          start: startTranscription,
+          validateDeepgramKey: vi.fn()
+        },
+        meetingRecordsService: {
+          getMeeting,
+          listMeetingHistory: vi.fn(),
+          recordMeetingResumed
+        },
+        notesRepository: {
+          save: vi.fn()
+        },
+        enhancedNoteDocumentsRepository: {
+          save: vi.fn()
+        },
+        enhancementOrchestrator: {
+          enhanceMeeting: vi.fn()
+        }
+      } as never
+    );
+
+    const handler = handlers.get(IPC_CHANNELS.meetingStart);
+
+    await expect(
+      handler?.({} as never, {
+        title: 'Customer call',
+        meetingId: 'meeting-2'
+      })
+    ).resolves.toEqual({
+      meetingId: 'meeting-2',
+      title: 'Customer call'
+    });
+
+    expect(getMeeting).toHaveBeenCalledWith('meeting-2');
+    expect(primeForResume).toHaveBeenCalledWith({
+      meetingId: 'meeting-2',
+      title: 'Customer call',
+      state: 'stopped'
+    });
+    expect(resume).toHaveBeenCalledWith('meeting-2');
+    expect(startRecording).toHaveBeenCalledTimes(1);
+    expect(startTranscription).toHaveBeenCalledTimes(1);
+    expect(recordMeetingResumed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'recording',
+        meetingId: 'meeting-2'
+      })
+    );
+  });
+
+  it('persists stopped state before cleanup so stop still succeeds when teardown fails', async () => {
+    const send = vi.fn();
+    const stop = vi.fn(() => ({
+      state: 'stopped',
+      meetingId: 'meeting-3',
+      title: 'Design review',
+      startedAt: Date.now() - 5_000,
+      stoppedAt: Date.now()
+    }));
+    const recordMeetingStopped = vi.fn();
+    const stopRecording = vi.fn().mockRejectedValue(new Error('system stop failed'));
+    const stopTranscription = vi.fn().mockResolvedValue(undefined);
+
+    registerIpcHandlers(
+      {
+        window: {
+          webContents: {
+            send
+          }
+        } as never
+      },
+      {
+        stateMachine: {
+          getSnapshot: () => ({ state: 'recording', meetingId: 'meeting-3' }),
+          stop
+        },
+        settingsStore: {
+          getSettings: vi.fn(),
+          saveSettings: vi.fn()
+        },
+        audioManager: {
+          ingestMicPayload: vi.fn(),
+          stopRecording
+        },
+        transcriptionService: {
+          stop: stopTranscription,
+          validateDeepgramKey: vi.fn()
+        },
+        meetingRecordsService: {
+          getMeeting: vi.fn(),
+          listMeetingHistory: vi.fn(),
+          recordMeetingStopped
+        },
+        notesRepository: {
+          save: vi.fn()
+        },
+        enhancedNoteDocumentsRepository: {
+          save: vi.fn()
+        },
+        enhancementOrchestrator: {
+          enhanceMeeting: vi.fn()
+        }
+      } as never
+    );
+
+    const handler = handlers.get(IPC_CHANNELS.meetingStop);
+
+    await expect(handler?.({} as never, { meetingId: 'meeting-3' })).resolves.toBeUndefined();
+
+    expect(stop).toHaveBeenCalledWith('meeting-3');
+    expect(recordMeetingStopped).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: 'stopped',
+        meetingId: 'meeting-3'
+      })
+    );
+    expect(send).toHaveBeenCalledWith(IPC_CHANNELS.meetingStateChanged, {
+      state: 'stopped',
+      meetingId: 'meeting-3'
+    });
+    expect(send).toHaveBeenCalledWith(IPC_CHANNELS.errorDisplay, {
+      message: 'Meeting stopped, but cleanup hit an issue: audio capture: system stop failed'
+    });
+  });
+
   it('treats meeting:reset as a safe no-op when the main state machine is already idle', async () => {
     const send = vi.fn();
     const resetToIdle = vi.fn(() => ({ state: 'idle' }));

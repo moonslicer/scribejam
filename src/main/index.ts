@@ -65,14 +65,32 @@ async function createWindow(): Promise<void> {
       }
 
       try {
-        await services.audioManager.stopRecording();
-        await services.transcriptionService.stop();
         const stopped = services.stateMachine.stop(snapshot.meetingId);
         services.meetingRecordsService.recordMeetingStopped(stopped);
         mainWindow?.webContents.send(IPC_CHANNELS.meetingStateChanged, {
           state: stopped.state,
           meetingId: stopped.meetingId
         });
+
+        const stopErrors: string[] = [];
+
+        try {
+          await services.audioManager.stopRecording();
+        } catch (error) {
+          stopErrors.push(formatStopError('audio capture', error));
+        }
+
+        try {
+          await services.transcriptionService.stop();
+        } catch (error) {
+          stopErrors.push(formatStopError('transcription', error));
+        }
+
+        if (stopErrors.length > 0) {
+          mainWindow?.webContents.send(IPC_CHANNELS.errorDisplay, {
+            message: `Meeting stopped, but cleanup hit an issue: ${stopErrors.join(' ')}`
+          });
+        }
       } catch (error) {
         mainWindow?.webContents.send(IPC_CHANNELS.errorDisplay, {
           message: error instanceof Error ? error.message : 'Unable to stop the active recording.'
@@ -121,3 +139,11 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+function formatStopError(component: string, error: unknown): string {
+  const detail =
+    error instanceof Error && error.message.trim().length > 0
+      ? error.message.trim()
+      : 'Unknown error.';
+  return `${component}: ${detail}`;
+}

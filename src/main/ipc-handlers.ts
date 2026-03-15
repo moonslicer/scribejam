@@ -195,10 +195,7 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
   ipcMain.handle(IPC_CHANNELS.meetingStop, async (_event, payload: unknown) => {
     const meetingId = parseMeetingStop(payload);
     const snapshot = services.stateMachine.stop(meetingId);
-    await services.audioManager.stopRecording();
-    await services.transcriptionService.stop();
     services.meetingRecordsService.recordMeetingStopped(snapshot);
-
     emitMeetingState(
       context.window,
       snapshot.meetingId
@@ -210,6 +207,26 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
             state: snapshot.state
           }
     );
+
+    const stopErrors: string[] = [];
+
+    try {
+      await services.audioManager.stopRecording();
+    } catch (error) {
+      stopErrors.push(formatStopError('audio capture', error));
+    }
+
+    try {
+      await services.transcriptionService.stop();
+    } catch (error) {
+      stopErrors.push(formatStopError('transcription', error));
+    }
+
+    if (stopErrors.length > 0) {
+      context.window.webContents.send(IPC_CHANNELS.errorDisplay, {
+        message: `Meeting stopped, but cleanup hit an issue: ${stopErrors.join(' ')}`
+      });
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.meetingReset, async () => {
@@ -467,15 +484,35 @@ function primeSavedMeetingState(
   if (!meeting) {
     throw new Error('Cannot load a meeting that does not exist.');
   }
-  if (!isAllowedResumableState(meeting.state) || !allowedStates.includes(meeting.state)) {
+  const primedState = resolveStateForPriming(current, meeting.id, meeting.state);
+  if (!isAllowedResumableState(primedState) || !allowedStates.includes(primedState)) {
     throw new Error(`Cannot load meeting from ${meeting.state} state.`);
   }
 
   services.stateMachine.primeForResume({
     meetingId: meeting.id,
     title: meeting.title,
-    state: meeting.state
+    state: primedState
   });
+}
+
+function resolveStateForPriming(
+  current: ReturnType<MainServices['stateMachine']['getSnapshot']>,
+  meetingId: string,
+  meetingState: MeetingState
+): MeetingState {
+  const isStaleRecording =
+    meetingState === 'recording' &&
+    !(current.state === 'recording' && current.meetingId === meetingId);
+
+  return isStaleRecording ? 'stopped' : meetingState;
+}
+
+function formatStopError(component: string, error: unknown): string {
+  const detail = error instanceof Error && error.message.trim().length > 0
+    ? error.message.trim()
+    : 'Unknown error.';
+  return `${component}: ${detail}`;
 }
 
 function isAllowedResumableState(
