@@ -11,7 +11,8 @@ import { MeetingBar } from './components/MeetingBar';
 import { MeetingDock } from './components/MeetingDock';
 import { MeetingsSidebar } from './components/MeetingsSidebar';
 import { Notepad } from './components/Notepad';
-import { SettingsPanel } from './components/SettingsPanel';
+import type { SettingsSection } from './components/SettingsShell';
+import { SettingsShell } from './components/SettingsShell';
 import { SetupWizard } from './components/SetupWizard';
 import { StatusBanner } from './components/StatusBanner';
 import { TranscriptPanel } from './components/TranscriptPanel';
@@ -36,6 +37,7 @@ export default function App(): JSX.Element {
   const noteEditedAfterEnhancement = useMeetingStore((state) => state.noteEditedAfterEnhancement);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<AppPage>('workspace');
+  const [activeSettingsSection, setActiveSettingsSection] = useState<SettingsSection>('providers');
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>('auto');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
@@ -485,7 +487,7 @@ export default function App(): JSX.Element {
 
     if (errorAction === 'open-settings') {
       setActivePage('settings');
-      setSidebarOpen(true);
+      setActiveSettingsSection('providers');
     }
   };
 
@@ -607,7 +609,7 @@ export default function App(): JSX.Element {
 
   const onEditTemplates = (): void => {
     setActivePage('settings');
-    setSidebarOpen(true);
+    setActiveSettingsSection('templates');
   };
 
   return (
@@ -672,7 +674,7 @@ export default function App(): JSX.Element {
           setActivePage('workspace');
           void onNewMeeting();
         }}
-        onOpenSettings={() => setActivePage('settings')}
+        onOpenSettings={() => { setActivePage('settings'); setActiveSettingsSection('providers'); }}
         onArchiveMeeting={(id) => void onArchiveMeeting(id)}
       />
 
@@ -781,20 +783,14 @@ export default function App(): JSX.Element {
               />
             </div>
           ) : (
-            <div className="flex flex-1 items-start justify-center overflow-auto px-4 py-12 sm:px-8">
-              <section data-testid="settings-page" className="w-full max-w-3xl rounded-[2rem] border border-white/10 bg-[#2d2926] p-6 shadow-[0_28px_80px_rgba(0,0,0,0.3)]">
-                <h1 data-testid="app-shell-title" className="mb-2 text-2xl font-semibold text-[#f4efe6]">
-                  Settings
-                </h1>
-                <p className="mb-6 text-sm text-[#b7aea2]">
-                  Provider keys and capture preferences stay separate from the meeting workspace.
-                </p>
-                <SettingsPanel
-                  settings={settings}
-                  onSave={saveSettings}
-                  onValidateKey={validateProviderKey}
-                />
-              </section>
+            <div className="flex flex-1 items-start justify-center overflow-auto px-4 py-10 sm:px-8">
+              <SettingsShell
+                settings={settings}
+                activeSection={activeSettingsSection}
+                onSectionChange={setActiveSettingsSection}
+                onSave={saveSettings}
+                onValidateKey={validateProviderKey}
+              />
             </div>
           )}
         </main>
