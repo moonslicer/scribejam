@@ -51,24 +51,28 @@ describe('App layout', () => {
     cleanup();
   });
 
-  it('renders the split-pane notepad and transcript workspace', async () => {
+  it('renders the full-screen notepad workspace with a bottom meeting dock', async () => {
     render(<App />);
 
     expect(await screen.findByTestId('notepad-editor')).toBeInTheDocument();
     expect(screen.getByTestId('meetings-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('meeting-history-search')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-settings-button')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-dock')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-activity-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-settings-button')).toBeInTheDocument();
     expect(screen.getByTestId('transcript-panel')).toBeInTheDocument();
-    expect(screen.getByText('Meeting notepad')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('New note')).toBeInTheDocument();
+    expect(screen.queryByText('Me')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Add to folder/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Write follow up email/i)).not.toBeInTheDocument();
   });
 
-  it('opens the settings page from the sidebar footer button', async () => {
+  it('opens the settings page from the workspace chrome button', async () => {
     const user = userEvent.setup();
 
     render(<App />);
 
     await screen.findByTestId('notepad-editor');
-    await user.click(screen.getByTestId('sidebar-settings-button'));
+    await user.click(screen.getByTestId('workspace-settings-button'));
 
     expect(screen.getByTestId('settings-page')).toBeInTheDocument();
     expect(screen.getByTestId('settings-panel')).toBeInTheDocument();

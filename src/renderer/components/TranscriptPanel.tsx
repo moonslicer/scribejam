@@ -7,6 +7,8 @@ import {
 
 interface TranscriptPanelProps {
   entries: TranscriptEntry[];
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 function formatTime(ts: number): string {
@@ -18,7 +20,7 @@ function formatTime(ts: number): string {
   });
 }
 
-export function TranscriptPanel({ entries }: TranscriptPanelProps): JSX.Element {
+export function TranscriptPanel({ entries, isOpen, onClose }: TranscriptPanelProps): JSX.Element {
   const endRef = useRef<HTMLDivElement | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const transcriptText = useMemo(() => transcriptEntriesToText(entries), [entries]);
@@ -46,11 +48,32 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps): JSX.Element 
   };
 
   return (
-    <section data-testid="transcript-panel" className="rounded-xl border border-zinc-200 bg-white/90 p-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-ink">Live Transcript</h2>
-        <div className="flex items-center gap-2">
-          <span data-testid="transcript-count" className="text-xs text-zinc-500">
+    <section
+      data-testid="transcript-panel"
+      aria-hidden={!isOpen}
+      className={`fixed bottom-28 left-1/2 z-30 flex max-h-[24rem] w-[min(46rem,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-[1.9rem] border border-white/10 bg-[#2f2a26]/96 text-[#f1ece4] shadow-[0_24px_60px_rgba(0,0,0,0.45)] transition-all duration-200 ${
+        isOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-6 opacity-0'
+      }`}
+    >
+      <div className="border-b border-white/8 px-5 py-4">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Live Transcript</h2>
+            <p className="text-xs text-[#b7aea2]">Tap the activity button again to collapse.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-white/10 bg-[#39332f] px-3 py-1 text-xs font-medium text-[#f2ede5] transition hover:bg-[#433c37]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span data-testid="transcript-count" className="text-xs text-[#b7aea2]">
             {entries.length} line{entries.length === 1 ? '' : 's'}
           </span>
           <button
@@ -58,39 +81,43 @@ export function TranscriptPanel({ entries }: TranscriptPanelProps): JSX.Element 
             type="button"
             onClick={() => void handleCopy()}
             disabled={transcriptText.length === 0}
-            className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+            className="rounded-full border border-white/10 bg-[#39332f] px-3 py-1 text-xs font-medium text-[#f2ede5] transition hover:bg-[#433c37] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Copy Transcript
           </button>
         </div>
       </div>
 
-      {copyStatus === 'copied' ? (
-        <p data-testid="transcript-copy-status" className="mb-2 text-xs text-emerald-700">
-          Copied transcript text.
-        </p>
-      ) : null}
-      {copyStatus === 'error' ? (
-        <p data-testid="transcript-copy-status" className="mb-2 text-xs text-rose-700">
-          Could not copy transcript. Try again.
-        </p>
-      ) : null}
-
-      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-        {entries.length === 0 ? (
-          <p className="text-sm text-zinc-500">Transcript will appear after recording starts.</p>
+      <div className="overflow-y-auto px-5 py-4">
+        {copyStatus === 'copied' ? (
+          <p data-testid="transcript-copy-status" className="mb-2 text-xs text-[#a4d455]">
+            Copied transcript text.
+          </p>
+        ) : null}
+        {copyStatus === 'error' ? (
+          <p data-testid="transcript-copy-status" className="mb-2 text-xs text-[#f6a199]">
+            Could not copy transcript. Try again.
+          </p>
         ) : null}
 
-        {entries.map((entry) => (
-          <div key={entry.id} className="rounded border border-zinc-100 bg-zinc-50 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              {formatTranscriptSpeakerLabel(entry.speaker)} • {formatTime(entry.ts)} {!entry.isFinal ? '• live' : ''}
+        <div className="space-y-2 pr-1">
+          {entries.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-white/10 bg-[#38312d] px-4 py-6 text-sm text-[#b7aea2]">
+              Transcript will appear here while recording.
             </p>
-            <p className="mt-1 text-sm text-zinc-800">{entry.text}</p>
-          </div>
-        ))}
+          ) : null}
 
-        <div ref={endRef} />
+          {entries.map((entry) => (
+            <div key={entry.id} className="rounded-2xl border border-white/8 bg-[#38312d] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-[#a79d91]">
+                {formatTranscriptSpeakerLabel(entry.speaker)} • {formatTime(entry.ts)} {!entry.isFinal ? '• live' : ''}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#f3eee6]">{entry.text}</p>
+            </div>
+          ))}
+
+          <div ref={endRef} />
+        </div>
       </div>
     </section>
   );

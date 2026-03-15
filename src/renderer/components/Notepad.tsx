@@ -33,6 +33,7 @@ export function Notepad({
   onChange
 }: NotepadProps): JSX.Element {
   const editableRef = useRef(editable);
+  const isEmptyDocument = !content || JSON.stringify(content) === JSON.stringify(EMPTY_NOTE_DOCUMENT);
 
   useEffect(() => {
     editableRef.current = editable;
@@ -44,7 +45,7 @@ export function Notepad({
     editorProps: {
       attributes: {
         class:
-          'min-h-[18rem] rounded-xl border border-zinc-200 bg-white px-4 py-4 text-sm leading-6 text-ink shadow-sm outline-none focus-visible:border-zinc-400',
+          'min-h-[18rem] bg-transparent px-6 pb-10 pt-2 text-[1.08rem] leading-[1.9] text-ink outline-none',
         'data-testid': 'notepad-editor-input'
       }
     },
@@ -76,7 +77,7 @@ export function Notepad({
     return (
       <section
         data-testid="notepad-editor"
-        className="rounded-xl border border-zinc-200 bg-white/85 p-4 shadow-sm"
+        className="flex h-full items-center justify-center px-6 py-10 text-[#6b6257]"
       >
         Loading editor...
       </section>
@@ -84,48 +85,46 @@ export function Notepad({
   }
 
   return (
-    <section data-testid="notepad-editor" className="flex h-full flex-col gap-3">
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Notes</p>
-          <h2 className="text-lg font-semibold text-ink">Meeting notepad</h2>
+    <section data-testid="notepad-editor" className="relative flex h-full flex-col">
+      {showViewToggle ? (
+        <div
+          className="absolute right-6 top-0 z-10 inline-flex rounded-full border border-[#d9cfbf] bg-[#f8f3ea] p-1 shadow-[0_12px_24px_rgba(57,47,37,0.08)]"
+          data-testid="notepad-view-toggle"
+        >
+          <button
+            type="button"
+            data-testid="notepad-view-original"
+            onClick={onShowOriginalNotes}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              editorMode === 'notes'
+                ? 'bg-[#2d2926] text-white'
+                : 'text-[#6b6257] hover:bg-[#eee7d9] hover:text-ink'
+            }`}
+          >
+            Original
+          </button>
+          <button
+            type="button"
+            data-testid="notepad-view-enhanced"
+            onClick={onShowEnhancedNotes}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+              editorMode === 'enhanced'
+                ? 'bg-[#2d2926] text-white'
+                : 'text-[#6b6257] hover:bg-[#eee7d9] hover:text-ink'
+            }`}
+          >
+            Enhanced
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          {showViewToggle ? (
-            <div
-              className="inline-flex rounded-lg border border-zinc-200 bg-white p-1"
-              data-testid="notepad-view-toggle"
-            >
-              <button
-                type="button"
-                data-testid="notepad-view-original"
-                onClick={onShowOriginalNotes}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                  editorMode === 'notes'
-                    ? 'bg-zinc-900 text-white'
-                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                }`}
-              >
-                Original Notes
-              </button>
-              <button
-                type="button"
-                data-testid="notepad-view-enhanced"
-                onClick={onShowEnhancedNotes}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                  editorMode === 'enhanced'
-                    ? 'bg-zinc-900 text-white'
-                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                }`}
-              >
-                Enhanced
-              </button>
-            </div>
-          ) : null}
-          <p className="text-xs text-zinc-500">{editable ? 'Typing enabled' : 'Read-only'}</p>
-        </div>
-      </header>
-      <EditorContent editor={editor} />
+      ) : null}
+
+      {isEmptyDocument ? (
+        <p className="pointer-events-none absolute left-6 top-4 text-[1.08rem] text-[#8f877c]">
+          Write notes...
+        </p>
+      ) : null}
+
+      <EditorContent editor={editor} className="h-full" />
     </section>
   );
 }

@@ -59,7 +59,8 @@ test('meeting bar and notepad persist typed notes for the active meeting', async
     await context.page.waitForTimeout(500);
     await context.page.getByTestId('meeting-primary-action').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
-    await expect(context.page.getByTestId('meeting-primary-action')).toContainText('Enhance Notes');
+    await expect(context.page.getByTestId('meeting-primary-action')).toContainText('Resume Recording');
+    await expect(context.page.getByTestId('generate-notes-button')).toContainText('Generate notes');
 
     const meetingId = await getLastMeetingId(context.page);
     expect(meetingId).not.toBeNull();
@@ -155,8 +156,8 @@ test('enhancement flow renders AI content and persists the enhanced output', asy
     }, meetingId ?? '');
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
     await expect(context.page.getByText('mock transcript token')).toBeVisible();
-    await expect(primaryAction).toContainText('Enhance Notes');
-    await primaryAction.click({ force: true });
+    await expect(primaryAction).toContainText('Resume Recording');
+    await context.page.getByTestId('generate-notes-button').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');
     await expect(context.page.locator('[data-authorship="ai"]').first()).toBeVisible();
     await expect(context.page.getByRole('heading', { name: 'Summary' })).toBeVisible();
@@ -197,7 +198,7 @@ test('latest enhanced meeting is restored after relaunch', async () => {
     }, meetingId ?? '');
     await expect(first.page.getByTestId('meeting-state-value')).toHaveText('stopped');
 
-    await first.page.getByTestId('meeting-primary-action').click();
+    await first.page.getByTestId('generate-notes-button').click();
     await expect(first.page.getByTestId('meeting-state-value')).toHaveText('done');
     await expect(first.page.locator('[data-authorship="ai"]').first()).toBeVisible();
   } finally {
@@ -241,7 +242,7 @@ test('enhancement failure keeps note-taking available and supports manual retry'
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
 
     await configureEnhancementMock(context.page, ['network', 'network', 'success']);
-    await context.page.getByTestId('meeting-primary-action').click();
+    await context.page.getByTestId('generate-notes-button').click();
 
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('enhance_failed');
     await expect(context.page.getByTestId('status-banner')).toContainText(
@@ -287,7 +288,7 @@ test('editing AI-authored enhanced content removes its AI authorship marker', as
       await window.scribejam.stopMeeting({ meetingId: id });
     }, meetingId ?? '');
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('stopped');
-    await context.page.getByTestId('meeting-primary-action').click();
+    await context.page.getByTestId('generate-notes-button').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');
 
     const targetedAiText = context.page
@@ -368,7 +369,7 @@ test('stopped meetings ignore transcript updates after stop', async () => {
     expect(afterStopMeeting?.transcriptSegments).toHaveLength(1);
     expect(afterStopMeeting?.transcriptSegments?.[0]?.text).toBe('mock transcript token');
 
-    await context.page.getByTestId('meeting-primary-action').click();
+    await context.page.getByTestId('generate-notes-button').click();
     await expect(context.page.getByTestId('meeting-state-value')).toHaveText('done');
 
     const enhancedMeeting = (await getMeeting(context.page, meetingId ?? '')) as {

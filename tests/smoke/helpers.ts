@@ -98,7 +98,7 @@ export async function completeFirstRunSetup(page: Page): Promise<void> {
 }
 
 export async function openSettingsPage(page: Page): Promise<void> {
-  await page.getByTestId('sidebar-settings-button').click();
+  await page.getByTestId('workspace-settings-button').click();
   await expect(page.getByTestId('settings-page')).toBeVisible();
 }
 

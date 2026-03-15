@@ -81,7 +81,7 @@ async function launchApp(options: LaunchOptions = {}): Promise<LaunchContext> {
 }
 
 async function openSettingsPage(page: Page): Promise<void> {
-  await page.getByTestId('sidebar-settings-button').click();
+  await page.getByTestId('workspace-settings-button').click();
   await expect(page.getByTestId('settings-page')).toBeVisible();
 }
 
@@ -155,7 +155,7 @@ test('startup renders shell and preload bridge', async () => {
 
   try {
     await expect(context.page).toHaveTitle(/Scribejam/i);
-    await expect(context.page.getByTestId('app-shell-title')).toContainText('Notepad-first meeting capture shell');
+    await expect(context.page.getByTestId('app-shell-title')).toContainText('Granola-style workspace');
 
     const bridgeReady = await context.page.evaluate(() => {
       const api = (window as unknown as { scribejam?: Record<string, unknown> }).scribejam;

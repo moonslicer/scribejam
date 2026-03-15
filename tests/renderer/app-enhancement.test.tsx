@@ -205,12 +205,41 @@ describe('App enhancement flow', () => {
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(await screen.findByText('Follow up with design')).toBeInTheDocument();
-    await user.click(screen.getByTestId('meeting-primary-action'));
+    await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
+    await user.click(screen.getByTestId('generate-notes-button'));
 
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
+  });
+
+  it('resumes recording from stopped state without triggering enhancement', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(screen.getByTestId('meeting-primary-action')).toHaveTextContent('Resume Recording');
+    await waitFor(() => expect(screen.getByTestId('meeting-primary-action')).toBeEnabled());
+
+    await user.click(screen.getByTestId('meeting-primary-action'));
+
+    await waitFor(() =>
+      expect(api.startMeeting).toHaveBeenCalledWith({
+        title: 'Weekly sync',
+        meetingId: 'meeting-1'
+      })
+    );
+    expect(api.enhanceMeeting).not.toHaveBeenCalled();
+    expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('recording');
   });
 
   it('triggers enhancement from the Cmd/Ctrl+E shortcut when a meeting is stopped', async () => {
@@ -225,7 +254,6 @@ describe('App enhancement flow', () => {
     });
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
-    expect(await screen.findByText('Cmd/Ctrl+E')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
 
@@ -280,7 +308,8 @@ describe('App enhancement flow', () => {
     });
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
-    await user.click(screen.getByTestId('meeting-primary-action'));
+    await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
+    await user.click(screen.getByTestId('generate-notes-button'));
 
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     await act(async () => {
@@ -347,6 +376,7 @@ describe('App enhancement flow', () => {
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('meeting-primary-action')).toBeEnabled());
 
     await user.click(screen.getByTestId('meeting-primary-action'));
 
@@ -437,7 +467,8 @@ describe('App enhancement flow', () => {
     });
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
-    await user.click(screen.getByTestId('meeting-primary-action'));
+    await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
+    await user.click(screen.getByTestId('generate-notes-button'));
 
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('enhance_failed');
@@ -470,7 +501,8 @@ describe('App enhancement flow', () => {
     });
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
-    await user.click(screen.getByTestId('meeting-primary-action'));
+    await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
+    await user.click(screen.getByTestId('generate-notes-button'));
 
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledTimes(1));
     await act(async () => {
@@ -526,7 +558,7 @@ describe('App enhancement flow', () => {
     });
 
     await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
-    expect(screen.getByText('Typing enabled')).toBeInTheDocument();
+    expect(screen.getByTestId('notepad-editor-input')).toHaveAttribute('contenteditable', 'true');
 
     await user.click(screen.getByTestId('meeting-secondary-action'));
 

@@ -1,8 +1,9 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/ipc';
 import { useMicCapture } from './audio/useMicCapture';
-import { AudioLevel } from './components/AudioLevel';
 import { MeetingBar } from './components/MeetingBar';
+import { MeetingDock } from './components/MeetingDock';
 import { MeetingsSidebar } from './components/MeetingsSidebar';
 import { Notepad } from './components/Notepad';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -21,13 +22,15 @@ export default function App(): JSX.Element {
   const saveNotes = api?.saveNotes ?? NOOP_SAVE_NOTES;
   const saveEnhancedNote = api?.saveEnhancedNote ?? NOOP_SAVE_NOTES;
   const didRestoreInitialMeetingRef = useRef(false);
+  const mainProcessRecordingIdRef = useRef<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorAction, setErrorAction] = useState<ErrorAction | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<AppPage>('workspace');
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
   const meetingState = useMeetingStore((state) => state.meetingState);
@@ -104,7 +107,12 @@ export default function App(): JSX.Element {
       .getMeeting({ meetingId })
       .then((meeting) => {
         if (!cancelled && meeting) {
-          hydrateMeeting(meeting);
+          // Crash recovery: if the DB has a stale 'recording' state but the main
+          // process is not actually recording this meeting, treat it as 'stopped'.
+          const isStaleRecording =
+            meeting.state === 'recording' &&
+            mainProcessRecordingIdRef.current !== meeting.id;
+          hydrateMeeting(isStaleRecording ? { ...meeting, state: 'stopped' } : meeting);
         }
       })
       .catch(() => {
@@ -165,6 +173,7 @@ export default function App(): JSX.Element {
       if (event.meetingId) {
         setMeetingId(event.meetingId);
       }
+      mainProcessRecordingIdRef.current = event.state === 'recording' && event.meetingId ? event.meetingId : null;
     });
     const unsubEnhanceProgress = api.onEnhanceProgress((event) => {
       const activeMeetingId = useMeetingStore.getState().meetingId;
@@ -204,6 +213,67 @@ export default function App(): JSX.Element {
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
 
+  const resumeMeetingRecording = async (): Promise<void> => {
+    if (!api) {
+      setErrorMessage('Desktop bridge unavailable.');
+      return;
+    }
+    if (!meetingId) {
+      setErrorMessage('No completed meeting id found.');
+      return;
+    }
+
+    flushPendingEnhancedNote();
+
+    const response = await api.startMeeting({
+      title: meetingTitle.trim(),
+      meetingId
+    });
+    setMeetingTitle(response.title);
+    setMeetingId(response.meetingId);
+    resumeEditingNotes();
+    setMeetingState('recording');
+  };
+
+  const onEnhanceAction = async (): Promise<void> => {
+    if (meetingActionPending) {
+      return;
+    }
+
+    setMeetingActionPending(true);
+    try {
+      setErrorMessage(null);
+      setErrorAction(null);
+      setEnhancementProgress(null);
+
+      if (meetingState !== 'stopped' && meetingState !== 'enhance_failed') {
+        return;
+      }
+      if (!api) {
+        setErrorMessage('Desktop bridge unavailable.');
+        return;
+      }
+      if (!meetingId) {
+        setErrorMessage('No stopped meeting id found.');
+        return;
+      }
+
+      setMeetingState('enhancing');
+      try {
+        const response = await api.enhanceMeeting({ meetingId });
+        setEnhancedOutput(response.output);
+        setMeetingState('done');
+      } catch (error) {
+        setMeetingState('enhance_failed');
+        throw error;
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update meeting state.');
+    } finally {
+      setMeetingActionPending(false);
+    }
+  };
+
   const onPrimaryAction = async (): Promise<void> => {
     if (meetingActionPending) {
       return;
@@ -226,13 +296,17 @@ export default function App(): JSX.Element {
         await api.stopMeeting({ meetingId });
         return;
       }
-      if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
+      if (meetingState === 'stopped' || meetingState === 'done') {
+        await resumeMeetingRecording();
+        return;
+      }
+      if (meetingState === 'enhance_failed') {
         if (!api) {
           setErrorMessage('Desktop bridge unavailable.');
           return;
         }
         if (!meetingId) {
-          setErrorMessage('No stopped meeting id found.');
+          setErrorMessage('No failed meeting id found.');
           return;
         }
 
@@ -245,28 +319,6 @@ export default function App(): JSX.Element {
           setMeetingState('enhance_failed');
           throw error;
         }
-        return;
-      }
-      if (meetingState === 'done') {
-        if (!api) {
-          setErrorMessage('Desktop bridge unavailable.');
-          return;
-        }
-        if (!meetingId) {
-          setErrorMessage('No completed meeting id found.');
-          return;
-        }
-
-        flushPendingEnhancedNote();
-
-        const response = await api.startMeeting({
-          title: meetingTitle.trim(),
-          meetingId
-        });
-        setMeetingTitle(response.title);
-        setMeetingId(response.meetingId);
-        resumeEditingNotes();
-        setMeetingState('recording');
         return;
       }
       if (setupRequired) {
@@ -389,14 +441,6 @@ export default function App(): JSX.Element {
       : errorMessage && errorAction === 'open-settings'
         ? 'Open Settings'
         : undefined;
-  const meetingSecondaryActionLabel =
-    meetingState === 'done'
-      ? 'New Meeting'
-      : meetingState === 'enhance_failed'
-        ? 'Keep Editing'
-        : undefined;
-  const meetingPrimaryShortcutLabel =
-    meetingState === 'stopped' || meetingState === 'enhance_failed' ? 'Cmd/Ctrl+E' : undefined;
   const onBannerAction = (): void => {
     if (errorAction === 'retry') {
       void onPrimaryAction();
@@ -470,14 +514,20 @@ export default function App(): JSX.Element {
       }
 
       event.preventDefault();
-      void onPrimaryAction();
+      void onEnhanceAction();
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [api, meetingActionPending, meetingState, onPrimaryAction, setupRequired]);
+  }, [api, meetingActionPending, meetingState, onEnhanceAction, setupRequired]);
+
+  useEffect(() => {
+    if (activePage !== 'workspace' && transcriptOpen) {
+      setTranscriptOpen(false);
+    }
+  }, [activePage, transcriptOpen]);
 
   const onArchiveMeeting = async (meetingIdToArchive: string): Promise<void> => {
     if (!api?.archiveMeeting) {
@@ -515,30 +565,48 @@ export default function App(): JSX.Element {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden pt-7">
-      {/* macOS title bar — sits above the sidebar/content, traffic lights live here */}
+    <div className="flex h-screen overflow-hidden bg-[#262321] pt-7 text-[#f3eee8]">
       <div
-        className="fixed inset-x-0 top-0 z-50 flex h-7 items-center"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        className="fixed inset-x-0 top-0 z-50 flex h-7 items-center justify-between px-3"
+        style={{ WebkitAppRegion: 'drag' } as CSSProperties}
       >
-        {/* Space for macOS traffic lights (~78px) */}
-        <div className="w-[78px] flex-shrink-0" />
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          className="flex-shrink-0 rounded p-0.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M3 4.5h10M3 8h10M3 11.5h10"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-[78px] flex-shrink-0" />
+          {activePage === 'workspace' ? (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label={sidebarOpen ? 'Close history' : 'Open history'}
+              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-2 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
+              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+            >
+              <MenuIcon />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setActivePage('workspace')}
+              className="rounded-full border border-white/10 bg-[#2d2926]/90 px-3 py-1.5 text-xs font-medium text-[#efe9de] transition hover:border-white/20 hover:bg-[#37312d]"
+              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+            >
+              Back to notes
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {activePage === 'workspace' ? (
+            <button
+              data-testid="workspace-settings-button"
+              type="button"
+              onClick={() => setActivePage('settings')}
+              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-2 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
+              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+            >
+              <SettingsIcon />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <MeetingsSidebar
@@ -562,101 +630,146 @@ export default function App(): JSX.Element {
         onArchiveMeeting={(id) => void onArchiveMeeting(id)}
       />
 
-      <div className="flex flex-1 flex-col overflow-auto">
+      <div className="flex flex-1 flex-col overflow-hidden">
         <main
           data-testid="app-shell"
-          className="flex flex-col gap-4 px-4 py-6"
+          className="relative flex flex-1 flex-col overflow-hidden"
         >
-          <header className="flex items-center gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
-              <h1 data-testid="app-shell-title" className="text-2xl font-semibold text-ink">
-                {activePage === 'settings' ? 'Settings' : 'Notepad-first meeting capture shell'}
-              </h1>
-              {activePage === 'workspace' ? (
-                <p data-testid="transcription-status" className="mt-1 text-xs text-zinc-500">
-                  Transcription: {transcriptionStatus.status}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-zinc-500">
+          {activePage === 'workspace' ? (
+            <div className="relative flex flex-1 flex-col overflow-hidden px-4 pb-36 pt-6 sm:px-8 lg:px-12">
+              <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4">
+                <h1 data-testid="app-shell-title" className="sr-only">
+                  Granola-style workspace
+                </h1>
+
+                {setupRequired ? (
+                  <SetupWizard
+                    hasStoredDeepgramKey={settings?.deepgramApiKeySet === true}
+                    onValidateKey={validateProviderKey}
+                    onComplete={completeFirstRunSetup}
+                  />
+                ) : null}
+
+                <StatusBanner
+                  message={bannerMessage}
+                  {...(bannerActionLabel
+                    ? {
+                        actionLabel: bannerActionLabel,
+                        onAction: onBannerAction
+                      }
+                    : {})}
+                />
+
+                <section className="relative flex min-h-0 flex-1 overflow-hidden rounded-[2rem] border border-white/10 bg-[#efe9dd] shadow-[0_32px_90px_rgba(0,0,0,0.28)]">
+                  <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white/50 to-transparent" />
+                  <div className="relative flex min-h-0 flex-1 flex-col">
+                    <MeetingBar
+                      meetingState={meetingState}
+                      meetingTitle={meetingTitle}
+                      onMeetingTitleChange={setMeetingTitle}
+                      disabled={settings === null || meetingActionPending}
+                    />
+                    <div className="min-h-0 flex-1 px-1 pb-8">
+                      <Notepad
+                        key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
+                        content={editorContent}
+                        editable={meetingState !== 'enhancing'}
+                        editorMode={editorMode}
+                        showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
+                        onShowOriginalNotes={resumeEditingNotes}
+                        onShowEnhancedNotes={showEnhancedNotes}
+                        onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {(meetingState === 'stopped' || meetingState === 'enhance_failed') ? (
+                  <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[35] flex justify-center">
+                    <button
+                      data-testid="generate-notes-button"
+                      type="button"
+                      disabled={settings === null || meetingActionPending}
+                      onClick={() => void onEnhanceAction()}
+                      className="pointer-events-auto rounded-[2rem] bg-[#7ea218] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_32px_rgba(0,0,0,0.28)] transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {meetingState === 'enhance_failed' ? '✦ Retry notes' : '✦ Generate notes'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <TranscriptPanel
+                entries={transcriptEntries}
+                isOpen={transcriptOpen}
+                onClose={() => setTranscriptOpen(false)}
+              />
+
+              <MeetingDock
+                meetingState={meetingState}
+                transcriptOpen={transcriptOpen}
+                micLevel={levels.mic}
+                systemLevel={levels.system}
+                transcriptionStatus={transcriptionStatus}
+                onToggleTranscript={() => setTranscriptOpen((previous) => !previous)}
+                onPrimaryAction={() => void onPrimaryAction()}
+                onSecondaryAction={() => void onSecondaryAction()}
+                secondaryActionLabel={
+                  meetingState === 'done'
+                    ? 'New Meeting'
+                    : meetingState === 'enhance_failed'
+                      ? 'Keep Editing'
+                      : undefined
+                }
+                disabled={settings === null || meetingActionPending}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-1 items-start justify-center overflow-auto px-4 py-12 sm:px-8">
+              <section data-testid="settings-page" className="w-full max-w-3xl rounded-[2rem] border border-white/10 bg-[#2d2926] p-6 shadow-[0_28px_80px_rgba(0,0,0,0.3)]">
+                <h1 data-testid="app-shell-title" className="mb-2 text-2xl font-semibold text-[#f4efe6]">
+                  Settings
+                </h1>
+                <p className="mb-6 text-sm text-[#b7aea2]">
                   Provider keys and capture preferences stay separate from the meeting workspace.
                 </p>
-              )}
-            </div>
-          </header>
-
-          {setupRequired && activePage === 'workspace' ? (
-            <SetupWizard
-              hasStoredDeepgramKey={settings?.deepgramApiKeySet === true}
-              onValidateKey={validateProviderKey}
-              onComplete={completeFirstRunSetup}
-            />
-          ) : null}
-
-          <StatusBanner
-            message={bannerMessage}
-            {...(bannerActionLabel
-              ? {
-                  actionLabel: bannerActionLabel,
-                  onAction: onBannerAction
-                }
-              : {})}
-          />
-
-          {activePage === 'workspace' ? (
-            <>
-              <MeetingBar
-                meetingState={meetingState}
-                meetingTitle={meetingTitle}
-                onMeetingTitleChange={setMeetingTitle}
-                onPrimaryAction={() => void onPrimaryAction()}
-                {...(meetingPrimaryShortcutLabel
-                  ? { primaryShortcutLabel: meetingPrimaryShortcutLabel }
-                  : {})}
-                onSecondaryAction={() => void onSecondaryAction()}
-                disabled={settings === null || meetingActionPending}
-                {...(meetingSecondaryActionLabel
-                  ? { secondaryActionLabel: meetingSecondaryActionLabel }
-                  : {})}
-              />
-              <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.9fr)]">
-                <div className="rounded-2xl bg-zinc-50/70 p-3">
-                  <Notepad
-                    key={`${meetingId ?? 'draft'}:${editorInstanceKey}`}
-                    content={editorContent}
-                    editable={
-                      meetingState === 'recording' ||
-                      meetingState === 'stopped' ||
-                      meetingState === 'enhance_failed' ||
-                      meetingState === 'done'
-                    }
-                    editorMode={editorMode}
-                    showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
-                    onShowOriginalNotes={resumeEditingNotes}
-                    onShowEnhancedNotes={showEnhancedNotes}
-                    onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
-                  />
-                </div>
-                <div className="flex flex-col gap-3">
-                  <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-1">
-                    <AudioLevel source="mic" label="Microphone" value={levels.mic} />
-                    <AudioLevel source="system" label="System Audio" value={levels.system} />
-                  </section>
-                  <TranscriptPanel entries={transcriptEntries} />
-                </div>
+                <SettingsPanel
+                  settings={settings}
+                  onSave={saveSettings}
+                  onValidateKey={validateProviderKey}
+                />
               </section>
-            </>
-          ) : (
-            <section data-testid="settings-page" className="mx-auto w-full max-w-3xl">
-              <SettingsPanel
-                settings={settings}
-                onSave={saveSettings}
-                onValidateKey={validateProviderKey}
-              />
-            </section>
+            </div>
           )}
         </main>
       </div>
     </div>
+  );
+}
+
+function MenuIcon(): JSX.Element {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M3 4.5h10M3 8h10M3 11.5h10"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SettingsIcon(): JSX.Element {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M8 2.5v1.2M8 12.3v1.2M13.5 8h-1.2M3.7 8H2.5M11.9 4.1l-.85.85M4.95 11.05l-.85.85M11.9 11.9l-.85-.85M4.95 4.95l-.85-.85"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
   );
 }

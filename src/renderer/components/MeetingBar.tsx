@@ -1,101 +1,73 @@
+import type { ReactNode } from 'react';
 import type { MeetingState } from '../../shared/ipc';
 
 interface MeetingBarProps {
   meetingState: MeetingState;
   meetingTitle: string;
   onMeetingTitleChange: (value: string) => void;
-  onPrimaryAction: () => void;
-  primaryShortcutLabel?: string;
-  onSecondaryAction?: () => void;
-  secondaryActionLabel?: string;
   disabled?: boolean;
 }
-
-const labels: Record<MeetingState, string> = {
-  idle: 'Start Recording',
-  recording: 'Stop Recording',
-  stopped: 'Enhance Notes',
-  enhancing: 'Enhancing Notes',
-  enhance_failed: 'Retry Enhancement',
-  done: 'Resume Recording'
-};
-
-const statusTone: Record<MeetingState, string> = {
-  idle: 'bg-zinc-400',
-  recording: 'bg-red-500',
-  stopped: 'bg-amber-500',
-  enhancing: 'bg-blue-500',
-  enhance_failed: 'bg-orange-500',
-  done: 'bg-emerald-500'
-};
 
 export function MeetingBar({
   meetingState,
   meetingTitle,
   onMeetingTitleChange,
-  onPrimaryAction,
-  primaryShortcutLabel,
-  onSecondaryAction,
-  secondaryActionLabel,
   disabled = false
 }: MeetingBarProps): JSX.Element {
   const titleLocked = meetingState === 'recording' || meetingState === 'enhancing';
+  const createdAtLabel = new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric'
+  }).format(new Date());
 
   return (
-    <div
+    <section
       data-testid="meeting-bar"
-      className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-zinc-200 bg-white/85 p-4 shadow-sm backdrop-blur"
+      className="flex flex-col gap-4 px-8 pt-8"
     >
-      <div className="flex flex-1 flex-wrap items-end gap-4">
-        <div className="flex items-center gap-3">
-          <span className={`h-2.5 w-2.5 rounded-full ${statusTone[meetingState]}`} />
-          <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-500">Meeting State</p>
-            <p data-testid="meeting-state-value" className="text-sm font-semibold text-ink">
-              {meetingState}
-            </p>
-          </div>
-        </div>
-        <label className="flex min-w-[16rem] flex-1 flex-col gap-1">
-          <span className="text-xs uppercase tracking-wide text-zinc-500">Meeting Title</span>
-          <input
-            data-testid="meeting-title-input"
-            type="text"
-            value={meetingTitle}
-            onChange={(event) => onMeetingTitleChange(event.currentTarget.value)}
-            disabled={disabled || titleLocked}
-            placeholder="Weekly sync"
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:bg-zinc-100"
-          />
-        </label>
+      <input
+        data-testid="meeting-title-input"
+        type="text"
+        value={meetingTitle}
+        onChange={(event) => onMeetingTitleChange(event.currentTarget.value)}
+        disabled={disabled || titleLocked}
+        placeholder="New note"
+        className="w-full border-none bg-transparent p-0 text-[clamp(2rem,3.5vw,3.5rem)] leading-[1.05] text-ink outline-none placeholder:text-[#8d8476] disabled:cursor-default disabled:text-[#756c61]"
+        style={{
+          fontFamily: '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif'
+        }}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <MetaChip>
+          <CalendarIcon />
+          {createdAtLabel}
+        </MetaChip>
       </div>
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center gap-2">
-          {secondaryActionLabel && onSecondaryAction ? (
-            <button
-              data-testid="meeting-secondary-action"
-              type="button"
-              disabled={disabled}
-              onClick={onSecondaryAction}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-ink disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400"
-            >
-              {secondaryActionLabel}
-            </button>
-          ) : null}
-          <button
-            data-testid="meeting-primary-action"
-            type="button"
-            disabled={disabled}
-            onClick={onPrimaryAction}
-            className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:bg-zinc-400"
-          >
-            {labels[meetingState]}
-          </button>
-        </div>
-        {primaryShortcutLabel ? (
-          <p className="text-xs text-zinc-500">{primaryShortcutLabel}</p>
-        ) : null}
-      </div>
-    </div>
+    </section>
+  );
+}
+
+function MetaChip({ children, muted }: { children: ReactNode; muted?: boolean }): JSX.Element {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition ${
+        muted
+          ? 'border-[#d2c8b6] bg-transparent text-[#9b8e7e] hover:border-[#c5baa8] hover:text-[#7a6f62]'
+          : 'border-[#d9cfbf] bg-[#f8f3ea] text-[#6b6257]'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function CalendarIcon(): JSX.Element {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M1 5h10" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M4 1v2M8 1v2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
   );
 }

@@ -4,7 +4,8 @@
 
 :root {
   font-family: 'Avenir Next', 'Segoe UI', sans-serif;
-  color: #101828;
+  color: #f3eee8;
+  background: #262321;
 }
 
 html,
@@ -15,5 +16,39 @@ body,
 }
 
 body {
-  background: radial-gradient(circle at top right, #d6f5e3, #f7f8fb 45%, #eceff5);
+  background:
+    radial-gradient(circle at top center, rgba(141, 182, 28, 0.1), transparent 28%),
+    radial-gradient(circle at bottom left, rgba(255, 255, 255, 0.06), transparent 20%),
+    #262321;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+[data-authorship='human'] {
+  color: #101828;
+}
+
+[data-authorship='ai'] {
+  color: #667085;
+}
+
+.ProseMirror {
+  min-height: 100%;
+  white-space: pre-wrap;
+}
+
+.ProseMirror p {
+  margin: 0 0 0.85rem;
+}
+
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+* {
+  box-sizing: border-box;
 }

@@ -278,7 +278,7 @@ export function MeetingsSidebar({
 
       <div className="border-t border-zinc-200 px-3 py-3">
         <button
-          data-testid="sidebar-settings-button"
+          data-testid="meetings-sidebar-settings-button"
           type="button"
           onClick={onOpenSettings}
           className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
