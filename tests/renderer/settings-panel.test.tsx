@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe('SettingsPanel', () => {
-  it('preserves stored keys when saving unrelated settings changes', async () => {
+  it('omits empty api keys from save payload', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn(async () => {});
     const onValidateKey = vi.fn(async () => ({ valid: true }));
@@ -20,7 +20,7 @@ describe('SettingsPanel', () => {
           firstRunAcknowledged: true,
           sttProvider: 'deepgram',
           llmProvider: 'openai',
-          captureSource: 'mixed',
+
           deepgramApiKeySet: true,
           openaiApiKeySet: true,
           anthropicApiKeySet: false
@@ -30,12 +30,11 @@ describe('SettingsPanel', () => {
       />
     );
 
-    await user.selectOptions(screen.getByTestId('settings-input-capture-source'), 'system');
     await user.click(screen.getByTestId('settings-save-button'));
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({
-        captureSource: 'system'
+        llmProvider: 'openai'
       })
     );
   });
@@ -51,7 +50,7 @@ describe('SettingsPanel', () => {
           firstRunAcknowledged: true,
           sttProvider: 'deepgram',
           llmProvider: 'openai',
-          captureSource: 'mixed',
+
           deepgramApiKeySet: true,
           openaiApiKeySet: false,
           anthropicApiKeySet: false
@@ -66,7 +65,7 @@ describe('SettingsPanel', () => {
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({
-        captureSource: 'mixed',
+        llmProvider: 'openai',
         deepgramApiKey: 'dg-replacement'
       })
     );

@@ -36,7 +36,6 @@ describe('SettingsStore', () => {
     const loaded = store.getSettings();
     expect(loaded.firstRunAcknowledged).toBe(true);
     expect(loaded.llmProvider).toBe('anthropic');
-    expect(loaded.captureSource).toBe('mixed');
     expect(loaded.deepgramApiKeySet).toBe(true);
     expect(loaded.openaiApiKeySet).toBe(false);
   });
@@ -55,15 +54,5 @@ describe('SettingsStore', () => {
     expect(store.getSettings().openaiApiKeySet).toBe(false);
   });
 
-  it('persists capture source selection', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'scribejam-settings-'));
-    tempDirs.push(dir);
-
-    const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
-    const store = new SettingsStore({ baseDir: dir, secrets });
-
-    store.saveSettings({ captureSource: 'system' });
-
-    expect(store.getSettings().captureSource).toBe('system');
-  });
 });
+

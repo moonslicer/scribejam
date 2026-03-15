@@ -71,7 +71,6 @@ describe('App settings flow', () => {
         firstRunAcknowledged: false,
         sttProvider: 'deepgram',
         llmProvider: 'openai',
-        captureSource: 'mixed',
         deepgramApiKeySet: true,
         openaiApiKeySet: false,
         anthropicApiKeySet: false
@@ -80,7 +79,6 @@ describe('App settings flow', () => {
         firstRunAcknowledged: true,
         sttProvider: 'deepgram',
         llmProvider: 'openai',
-        captureSource: 'mixed',
         deepgramApiKeySet: true,
         openaiApiKeySet: false,
         anthropicApiKeySet: false

@@ -35,7 +35,6 @@ export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
 export type SettingsKeyProvider = SttProvider | 'openai';
-export type CaptureSource = 'mixed' | 'mic' | 'system';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
 export type TestEnhancementOutcome =
@@ -219,7 +218,6 @@ export interface Settings {
   firstRunAcknowledged: boolean;
   sttProvider: SttProvider;
   llmProvider: LlmProvider;
-  captureSource: CaptureSource;
   deepgramApiKeySet: boolean;
   openaiApiKeySet: boolean;
   anthropicApiKeySet: boolean;
@@ -229,7 +227,6 @@ export interface SettingsSaveRequest {
   firstRunAcknowledged?: boolean;
   sttProvider?: SttProvider;
   llmProvider?: LlmProvider;
-  captureSource?: CaptureSource;
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
@@ -293,15 +290,6 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
   ) {
     return false;
   }
-  if (
-    candidate.captureSource !== undefined &&
-    candidate.captureSource !== 'mixed' &&
-    candidate.captureSource !== 'mic' &&
-    candidate.captureSource !== 'system'
-  ) {
-    return false;
-  }
-
   return (
     (candidate.deepgramApiKey === undefined || typeof candidate.deepgramApiKey === 'string') &&
     (candidate.openaiApiKey === undefined || typeof candidate.openaiApiKey === 'string') &&

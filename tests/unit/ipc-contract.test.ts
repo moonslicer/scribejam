@@ -98,13 +98,6 @@ describe('ipc contract validators', () => {
     expect(isNotesSaveRequest({ meetingId: 'meeting-1', content: null })).toBe(false);
   });
 
-  it('accepts valid capture source settings and rejects unknown values', () => {
-    expect(isSettingsSaveRequest({ captureSource: 'system' })).toBe(true);
-    expect(isSettingsSaveRequest({ captureSource: 'mic' })).toBe(true);
-    expect(isSettingsSaveRequest({ captureSource: 'mixed' })).toBe(true);
-    expect(isSettingsSaveRequest({ captureSource: 'loopback' })).toBe(false);
-  });
-
   it('accepts dismissal requests for failed enhancement state', () => {
     expect(isDismissEnhancementFailureRequest({ meetingId: 'meeting-1' })).toBe(true);
     expect(isDismissEnhancementFailureRequest({ meetingId: '' })).toBe(false);

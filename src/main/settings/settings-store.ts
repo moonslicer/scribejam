@@ -8,14 +8,12 @@ interface PersistedSettings {
   firstRunAcknowledged: boolean;
   sttProvider: Settings['sttProvider'];
   llmProvider: Settings['llmProvider'];
-  captureSource: Settings['captureSource'];
 }
 
 const DEFAULT_SETTINGS: PersistedSettings = {
   firstRunAcknowledged: false,
   sttProvider: 'deepgram',
-  llmProvider: 'openai',
-  captureSource: 'mixed'
+  llmProvider: 'openai'
 };
 
 export class SettingsStore {
@@ -34,7 +32,6 @@ export class SettingsStore {
       firstRunAcknowledged: persisted.firstRunAcknowledged,
       sttProvider: persisted.sttProvider,
       llmProvider: persisted.llmProvider,
-      captureSource: persisted.captureSource,
       deepgramApiKeySet: this.secrets.has('deepgramApiKey'),
       openaiApiKeySet: this.secrets.has('openaiApiKey'),
       anthropicApiKeySet: this.secrets.has('anthropicApiKey')
@@ -53,10 +50,6 @@ export class SettingsStore {
     if (update.llmProvider !== undefined) {
       next.llmProvider = update.llmProvider;
     }
-    if (update.captureSource !== undefined) {
-      next.captureSource = update.captureSource;
-    }
-
     if (update.deepgramApiKey !== undefined) {
       this.secrets.set('deepgramApiKey', update.deepgramApiKey);
     }
@@ -92,16 +85,10 @@ export class SettingsStore {
         return { ...DEFAULT_SETTINGS };
       }
 
-      const captureSource =
-        parsed.captureSource === 'mic' || parsed.captureSource === 'system'
-          ? parsed.captureSource
-          : 'mixed';
-
       return {
         firstRunAcknowledged: parsed.firstRunAcknowledged,
         sttProvider: parsed.sttProvider,
-        llmProvider: parsed.llmProvider,
-        captureSource
+        llmProvider: parsed.llmProvider
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

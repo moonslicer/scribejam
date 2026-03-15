@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Settings, SettingsSaveRequest } from '../../shared/ipc';
+import type { LlmProvider, SettingsSaveRequest, Settings } from '../../shared/ipc';
 
 interface SettingsPanelProps {
   settings: Settings | null;
@@ -10,11 +10,25 @@ interface SettingsPanelProps {
   ) => Promise<{ valid: boolean; error?: string }>;
 }
 
+function KeyStatus({ isSet }: { isSet: boolean }): JSX.Element {
+  return isSet ? (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      Key saved
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500">
+      <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
+      No key set
+    </span>
+  );
+}
+
 export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanelProps): JSX.Element {
   const [deepgramApiKey, setDeepgramApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
-  const [captureSource, setCaptureSource] = useState<Settings['captureSource']>('mixed');
+  const [llmProvider, setLlmProvider] = useState<LlmProvider>('openai');
   const [saving, setSaving] = useState(false);
   const [validatingDeepgram, setValidatingDeepgram] = useState(false);
   const [validatingOpenAI, setValidatingOpenAI] = useState(false);
@@ -25,7 +39,7 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
 
   useEffect(() => {
     if (settings) {
-      setCaptureSource(settings.captureSource);
+      setLlmProvider(settings.llmProvider);
     }
   }, [settings]);
 
@@ -33,7 +47,7 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
     setSaving(true);
     try {
       const payload: SettingsSaveRequest = {
-        captureSource
+        llmProvider
       };
 
       if (deepgramApiKey.trim().length > 0) {
@@ -85,96 +99,113 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   return (
     <section data-testid="settings-panel" className="rounded-xl border border-zinc-200 bg-white/90 p-4 shadow-sm">
       <h2 className="mb-1 text-sm font-semibold text-ink">Settings</h2>
-      <p className="mb-3 text-xs text-slate">API values are stored via Electron safeStorage.</p>
+      <p className="mb-4 text-xs text-slate">API keys are encrypted via Electron safeStorage.</p>
 
-      <div className="grid gap-2 text-xs text-zinc-600">
-        <span data-testid="settings-deepgram-configured">
-          Deepgram key configured: {settings?.deepgramApiKeySet ? 'yes' : 'no'}
-        </span>
-        <span data-testid="settings-openai-configured">OpenAI key configured: {settings?.openaiApiKeySet ? 'yes' : 'no'}</span>
-        <span data-testid="settings-anthropic-configured">
-          Anthropic key configured: {settings?.anthropicApiKeySet ? 'yes' : 'no'}
-        </span>
-        <span data-testid="settings-first-run-ack">First-run acknowledged: {settings?.firstRunAcknowledged ? 'yes' : 'no'}</span>
-        <span data-testid="settings-capture-source">Capture source: {settings?.captureSource ?? 'mixed'}</span>
-      </div>
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">AI Providers</h3>
 
-      <div className="mt-3 grid gap-2">
-        <label className="grid gap-1 text-sm text-zinc-700" htmlFor="settings-capture-source-input">
-          <span className="font-medium">Capture source</span>
+        <div className="mb-3 grid gap-1">
+          <label className="text-sm font-medium text-zinc-700" htmlFor="settings-llm-provider-input">
+            LLM provider
+          </label>
           <select
-            id="settings-capture-source-input"
-            data-testid="settings-input-capture-source"
-            value={captureSource}
-            onChange={(event) => setCaptureSource(event.target.value as Settings['captureSource'])}
+            id="settings-llm-provider-input"
+            data-testid="settings-input-llm-provider"
+            value={llmProvider}
+            onChange={(event) => setLlmProvider(event.target.value as LlmProvider)}
             className="rounded border border-zinc-300 px-3 py-2 text-sm"
           >
-            <option value="mixed">System audio + microphone</option>
-            <option value="system">System audio only</option>
-            <option value="mic">Microphone only</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
           </select>
-        </label>
-        <p className="text-xs text-zinc-500">
-          Use `system audio only` to debug lyric pickup without mic bleed. Changes apply fully on the next meeting start.
-        </p>
-        <input
-          data-testid="settings-input-deepgram"
-          value={deepgramApiKey}
-          onChange={(event) => {
-            setDeepgramApiKey(event.target.value);
-            setDeepgramValidation(null);
-          }}
-          className="rounded border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="Deepgram API key"
-          autoComplete="off"
-        />
-        <button
-          data-testid="settings-validate-deepgram-button"
-          type="button"
-          onClick={() => void handleValidate('deepgram')}
-          disabled={deepgramApiKey.trim().length === 0 || validatingDeepgram}
-          className="w-fit rounded bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
-        >
-          {validatingDeepgram ? 'Validating...' : 'Validate Deepgram'}
-        </button>
-        {deepgramValidation ? (
-          <p data-testid="settings-validation-deepgram" className={`text-sm ${deepgramValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
-            {deepgramValidation.valid ? 'Key is valid.' : deepgramValidation.error ?? 'Unable to validate key.'}
-          </p>
-        ) : null}
-        <input
-          data-testid="settings-input-openai"
-          value={openaiApiKey}
-          onChange={(event) => {
-            setOpenaiApiKey(event.target.value);
-            setOpenaiValidation(null);
-          }}
-          className="rounded border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="OpenAI API key"
-          autoComplete="off"
-        />
-        <button
-          data-testid="settings-validate-openai-button"
-          type="button"
-          onClick={() => void handleValidate('openai')}
-          disabled={openaiApiKey.trim().length === 0 || validatingOpenAI}
-          className="w-fit rounded bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
-        >
-          {validatingOpenAI ? 'Validating...' : 'Validate OpenAI'}
-        </button>
-        {openaiValidation ? (
-          <p data-testid="settings-validation-openai" className={`text-sm ${openaiValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
-            {openaiValidation.valid ? 'Key is valid.' : openaiValidation.error ?? 'Unable to validate key.'}
-          </p>
-        ) : null}
-        <input
-          data-testid="settings-input-anthropic"
-          value={anthropicApiKey}
-          onChange={(event) => setAnthropicApiKey(event.target.value)}
-          className="rounded border border-zinc-300 px-3 py-2 text-sm"
-          placeholder="Anthropic API key"
-          autoComplete="off"
-        />
+        </div>
+
+        <div className="mb-3 grid gap-1.5 border-t border-zinc-100 pt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-zinc-700">Deepgram</span>
+            <span className="text-xs text-zinc-400">Speech-to-text</span>
+            <KeyStatus isSet={settings?.deepgramApiKeySet ?? false} />
+          </div>
+          <div className="flex gap-2">
+            <input
+              data-testid="settings-input-deepgram"
+              value={deepgramApiKey}
+              onChange={(event) => {
+                setDeepgramApiKey(event.target.value);
+                setDeepgramValidation(null);
+              }}
+              className="min-w-0 flex-1 rounded border border-zinc-300 px-3 py-2 text-sm"
+              placeholder={settings?.deepgramApiKeySet ? 'Replace existing key…' : 'Enter API key…'}
+              autoComplete="off"
+            />
+            <button
+              data-testid="settings-validate-deepgram-button"
+              type="button"
+              onClick={() => void handleValidate('deepgram')}
+              disabled={deepgramApiKey.trim().length === 0 || validatingDeepgram}
+              className="shrink-0 rounded bg-zinc-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+            >
+              {validatingDeepgram ? 'Validating…' : 'Validate'}
+            </button>
+          </div>
+          {deepgramValidation ? (
+            <p data-testid="settings-validation-deepgram" className={`text-xs ${deepgramValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {deepgramValidation.valid ? 'Key is valid.' : deepgramValidation.error ?? 'Unable to validate key.'}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mb-3 grid gap-1.5 border-t border-zinc-100 pt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-zinc-700">OpenAI</span>
+            <KeyStatus isSet={settings?.openaiApiKeySet ?? false} />
+          </div>
+          <div className="flex gap-2">
+            <input
+              data-testid="settings-input-openai"
+              value={openaiApiKey}
+              onChange={(event) => {
+                setOpenaiApiKey(event.target.value);
+                setOpenaiValidation(null);
+              }}
+              className="min-w-0 flex-1 rounded border border-zinc-300 px-3 py-2 text-sm"
+              placeholder={settings?.openaiApiKeySet ? 'Replace existing key…' : 'Enter API key…'}
+              autoComplete="off"
+            />
+            <button
+              data-testid="settings-validate-openai-button"
+              type="button"
+              onClick={() => void handleValidate('openai')}
+              disabled={openaiApiKey.trim().length === 0 || validatingOpenAI}
+              className="shrink-0 rounded bg-zinc-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+            >
+              {validatingOpenAI ? 'Validating…' : 'Validate'}
+            </button>
+          </div>
+          {openaiValidation ? (
+            <p data-testid="settings-validation-openai" className={`text-xs ${openaiValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {openaiValidation.valid ? 'Key is valid.' : openaiValidation.error ?? 'Unable to validate key.'}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mb-3 grid gap-1.5 border-t border-zinc-100 pt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-zinc-700">Anthropic</span>
+            <KeyStatus isSet={settings?.anthropicApiKeySet ?? false} />
+          </div>
+          <input
+            data-testid="settings-input-anthropic"
+            value={anthropicApiKey}
+            onChange={(event) => setAnthropicApiKey(event.target.value)}
+            className="rounded border border-zinc-300 px-3 py-2 text-sm"
+            placeholder={settings?.anthropicApiKeySet ? 'Replace existing key…' : 'Enter API key…'}
+            autoComplete="off"
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-100 pt-3">
         <button
           data-testid="settings-save-button"
           type="button"
@@ -182,7 +213,7 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
           disabled={!hasLoaded || saving}
           className="w-fit rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
         >
-          {saving ? 'Saving...' : 'Save Settings'}
+          {saving ? 'Saving…' : 'Save Settings'}
         </button>
       </div>
     </section>

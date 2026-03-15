@@ -63,7 +63,6 @@ describe('App hydration', () => {
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',
       llmProvider: 'openai',
-      captureSource: 'mixed',
       deepgramApiKeySet: true,
       openaiApiKeySet: false,
       anthropicApiKeySet: false
