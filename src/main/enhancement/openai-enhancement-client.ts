@@ -11,6 +11,7 @@ import type { EnhancementArtifacts } from './enhancement-artifacts';
 import {
   EnhancementProviderError,
   normalizeEnhancementError,
+  type EnhancementInvocationOptions,
   type LlmClient
 } from './llm-client';
 import { parseEnhancedOutput } from './parse-enhanced-output';
@@ -127,8 +128,11 @@ export class OpenAIEnhancementClient implements LlmClient {
       });
   }
 
-  public async enhance(input: EnhancementArtifacts): Promise<EnhancedOutput> {
-    const prompt = buildEnhancementPrompt(input);
+  public async enhance(
+    input: EnhancementArtifacts,
+    options?: EnhancementInvocationOptions
+  ): Promise<EnhancedOutput> {
+    const prompt = buildEnhancementPrompt(input, options?.templateInstructions);
 
     try {
       const response = await this.client.responses.create({

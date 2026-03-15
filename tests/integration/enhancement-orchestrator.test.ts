@@ -322,6 +322,80 @@ describe('EnhancementOrchestrator', () => {
     harness.db.close();
   });
 
+  it('passes template instructions through to the llm client on first enhancement', async () => {
+    const receivedOptions: Array<{ templateId?: string; templateInstructions?: string } | undefined> = [];
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async (_input, options) => {
+          receivedOptions.push(options);
+          return {
+            blocks: [{ source: 'ai', content: 'Template-aware output' }],
+            actionItems: [],
+            decisions: [],
+            summary: 'Template-aware summary'
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Template sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    await harness.orchestrator.enhanceMeeting(started.meetingId ?? '', {
+      templateId: 'standup',
+      templateInstructions: 'Focus on blockers.'
+    });
+
+    expect(receivedOptions).toEqual([
+      {
+        templateId: 'standup',
+        templateInstructions: 'Focus on blockers.'
+      }
+    ]);
+
+    harness.db.close();
+  });
+
+  it('passes template instructions through to the llm client on retry after enhance_failed', async () => {
+    const receivedOptions: Array<{ templateId?: string; templateInstructions?: string } | undefined> = [];
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async (_input, options) => {
+          receivedOptions.push(options);
+          return {
+            blocks: [{ source: 'ai', content: 'Template-aware retry output' }],
+            actionItems: [],
+            decisions: [],
+            summary: 'Retry summary'
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Retry sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+    harness.stateMachine.beginEnhancement(started.meetingId ?? '');
+    const failed = harness.stateMachine.failEnhancement(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingEnhancementFailed(failed);
+
+    await harness.orchestrator.enhanceMeeting(started.meetingId ?? '', {
+      templateId: 'tech-review',
+      templateInstructions: 'Call out open questions.'
+    });
+
+    expect(receivedOptions).toEqual([
+      {
+        templateId: 'tech-review',
+        templateInstructions: 'Call out open questions.'
+      }
+    ]);
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
+
   it('marks the meeting as enhance_failed after terminal provider failure and keeps artifacts', async () => {
     const harness = createHarness({
       getLlmClient: () => ({

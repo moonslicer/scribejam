@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   IPC_CHANNELS,
+  MAX_TEMPLATE_INSTRUCTIONS_LENGTH,
   TEMPLATE_IDS,
   isDismissEnhancementFailureRequest,
   isEnhancedNoteSaveRequest,
@@ -78,12 +79,29 @@ describe('ipc contract validators', () => {
 
   it('accepts and rejects meeting enhance payloads', () => {
     const payload: EnhanceMeetingRequest = {
-      meetingId: 'meeting-1'
+      meetingId: 'meeting-1',
+      templateId: 'standup',
+      templateInstructions: 'Summarize blockers per person.'
     };
 
     expect(isEnhanceMeetingRequest(payload)).toBe(true);
     expect(isEnhanceMeetingRequest({ meetingId: '' })).toBe(false);
     expect(isEnhanceMeetingRequest({ meetingId: 123 })).toBe(false);
+    expect(
+      isEnhanceMeetingRequest({
+        meetingId: 'meeting-1',
+        templateInstructions: 'a'.repeat(MAX_TEMPLATE_INSTRUCTIONS_LENGTH)
+      })
+    ).toBe(true);
+    expect(
+      isEnhanceMeetingRequest({
+        meetingId: 'meeting-1',
+        templateInstructions: 'a'.repeat(MAX_TEMPLATE_INSTRUCTIONS_LENGTH + 1)
+      })
+    ).toBe(false);
+    expect(isEnhanceMeetingRequest({ meetingId: 'meeting-1', templateId: 'invalid' })).toBe(
+      false
+    );
     expect(isEnhanceMeetingRequest(null)).toBe(false);
   });
 

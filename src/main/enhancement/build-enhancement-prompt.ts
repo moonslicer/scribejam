@@ -7,7 +7,8 @@ export interface EnhancementPrompt {
 }
 
 export function buildEnhancementPrompt(
-  artifacts: EnhancementArtifacts
+  artifacts: EnhancementArtifacts,
+  templateInstructions?: string
 ): EnhancementPrompt {
   const noteAnchors = extractNoteAnchors(artifacts.noteContent);
   const firstTs = artifacts.transcriptSegments[0]?.startTs ?? 0;
@@ -59,7 +60,8 @@ export function buildEnhancementPrompt(
       '- Speculating about participants\' motivations or intentions.',
       '- Filling empty sections with placeholder content.',
       '',
-      'Return structured JSON that matches the EnhancedOutput contract.'
+      'Return structured JSON that matches the EnhancedOutput contract.',
+      ...buildTemplateInstructionLines(templateInstructions)
     ].join('\n'),
     userPrompt: [
       `Meeting title: ${artifacts.meetingTitle || 'Untitled meeting'}`,
@@ -80,6 +82,19 @@ export function buildEnhancementPrompt(
       '- If a section has no content, return an empty array rather than guessing.'
     ].join('\n')
   };
+}
+
+function buildTemplateInstructionLines(templateInstructions?: string): string[] {
+  const normalized = templateInstructions?.trim() ?? '';
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  return [
+    '',
+    'MEETING TYPE — shape all output fields according to these instructions:',
+    normalized
+  ];
 }
 
 function formatNoteAnchors(noteAnchors: string[]): string {

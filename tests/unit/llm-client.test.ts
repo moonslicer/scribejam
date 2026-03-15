@@ -11,19 +11,27 @@ import {
 describe('llm-client contract', () => {
   it('can be mocked cleanly in orchestrator-style tests', async () => {
     const client: LlmClient = {
-      enhance: async (_input: EnhancementArtifacts): Promise<EnhancedOutput> => ({
+      enhance: async (
+        _input: EnhancementArtifacts,
+        options
+      ): Promise<EnhancedOutput> => ({
         blocks: [{ source: 'ai', content: 'Structured summary' }],
         actionItems: [],
         decisions: [],
-        summary: 'Summary'
+        summary: options?.templateId ? `Summary (${options.templateId})` : 'Summary'
       })
     };
 
-    await expect(client.enhance(createArtifacts())).resolves.toEqual({
+    await expect(
+      client.enhance(createArtifacts(), {
+        templateId: 'standup',
+        templateInstructions: 'Capture blockers only.'
+      })
+    ).resolves.toEqual({
       blocks: [{ source: 'ai', content: 'Structured summary' }],
       actionItems: [],
       decisions: [],
-      summary: 'Summary'
+      summary: 'Summary (standup)'
     });
   });
 });

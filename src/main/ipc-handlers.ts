@@ -274,10 +274,16 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
       throw new Error('Invalid meeting enhancement payload.');
     }
 
-    const meetingId = (payload as EnhanceMeetingRequest).meetingId;
+    const request = payload as EnhanceMeetingRequest;
+    const meetingId = request.meetingId;
 
     try {
-      const response = await services.enhancementOrchestrator.enhanceMeeting(meetingId);
+      const response = await services.enhancementOrchestrator.enhanceMeeting(meetingId, {
+        ...(request.templateId ? { templateId: request.templateId } : {}),
+        ...(request.templateInstructions
+          ? { templateInstructions: request.templateInstructions }
+          : {})
+      });
       emitMeetingState(context.window, {
         state: services.stateMachine.getSnapshot().state,
         meetingId

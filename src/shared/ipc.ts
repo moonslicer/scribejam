@@ -39,6 +39,7 @@ export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
 export const TEMPLATE_IDS = ['auto', 'one-on-one', 'standup', 'tech-review', 'custom'] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
+export const MAX_TEMPLATE_INSTRUCTIONS_LENGTH = 4000;
 export type TestEnhancementOutcome =
   | 'success'
   | 'invalid_api_key'
@@ -113,6 +114,8 @@ export interface EnhancedOutput {
 
 export interface EnhanceMeetingRequest {
   meetingId: string;
+  templateId?: TemplateId;
+  templateInstructions?: string;
 }
 
 export interface EnhanceMeetingResponse {
@@ -403,7 +406,14 @@ export function isEnhanceMeetingRequest(value: unknown): value is EnhanceMeeting
   }
 
   const candidate = value as Partial<EnhanceMeetingRequest>;
-  return typeof candidate.meetingId === 'string' && candidate.meetingId.length > 0;
+  return (
+    typeof candidate.meetingId === 'string' &&
+    candidate.meetingId.length > 0 &&
+    (candidate.templateId === undefined || isTemplateId(candidate.templateId)) &&
+    (candidate.templateInstructions === undefined ||
+      (typeof candidate.templateInstructions === 'string' &&
+        candidate.templateInstructions.length <= MAX_TEMPLATE_INSTRUCTIONS_LENGTH))
+  );
 }
 
 export function isDismissEnhancementFailureRequest(
@@ -419,4 +429,8 @@ export function isDismissEnhancementFailureRequest(
 
 function isJsonObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isTemplateId(value: unknown): value is TemplateId {
+  return typeof value === 'string' && (TEMPLATE_IDS as readonly string[]).includes(value);
 }

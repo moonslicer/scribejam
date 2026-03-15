@@ -8,6 +8,7 @@ import {
 } from '../storage/repositories';
 import { toEnhancementArtifacts } from './enhancement-artifacts';
 import {
+  type EnhancementInvocationOptions,
   isRetryableEnhancementError,
   normalizeEnhancementError,
   type LlmClient
@@ -34,7 +35,10 @@ export class EnhancementOrchestrator {
     this.sleep = options?.sleep ?? defaultSleep;
   }
 
-  public async enhanceMeeting(meetingId: string): Promise<EnhanceMeetingResponse> {
+  public async enhanceMeeting(
+    meetingId: string,
+    options?: EnhancementInvocationOptions
+  ): Promise<EnhanceMeetingResponse> {
     const artifacts = this.meetingArtifactsRepository.getMeetingWithArtifacts(meetingId);
     if (!artifacts) {
       throw new Error('Meeting not found for enhancement.');
@@ -48,7 +52,7 @@ export class EnhancementOrchestrator {
       const llmClient = this.getLlmClient();
       const enhancementInput = toEnhancementArtifacts(artifacts);
       this.emitProgress(meetingId, 'streaming', 'Sending saved notes and transcript for enhancement...');
-      const output = await this.runEnhancementWithRetry(llmClient, enhancementInput);
+      const output = await this.runEnhancementWithRetry(llmClient, enhancementInput, options);
       const completedAt = new Date().toISOString();
       this.enhancedNoteDocumentsRepository.deleteByMeetingId(meetingId);
       this.enhancedOutputsRepository.save({
@@ -116,10 +120,11 @@ export class EnhancementOrchestrator {
 
   private async runEnhancementWithRetry(
     llmClient: LlmClient,
-    input: ReturnType<typeof toEnhancementArtifacts>
+    input: ReturnType<typeof toEnhancementArtifacts>,
+    options?: EnhancementInvocationOptions
   ) {
     try {
-      return await llmClient.enhance(input);
+      return await llmClient.enhance(input, options);
     } catch (error) {
       const normalized = normalizeEnhancementError(error);
       if (!isRetryableEnhancementError(normalized)) {
@@ -130,7 +135,7 @@ export class EnhancementOrchestrator {
       await this.sleep(this.retryDelayMs);
 
       try {
-        return await llmClient.enhance(input);
+        return await llmClient.enhance(input, options);
       } catch (retryError) {
         throw normalizeEnhancementError(retryError, createRetryOptions(normalized));
       }

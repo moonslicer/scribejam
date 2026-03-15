@@ -54,6 +54,29 @@ describe('buildEnhancementPrompt', () => {
     expect(prompt.userPrompt).toContain('- No user notes were captured.');
     expect(prompt.userPrompt).toContain('- No finalized transcript context was captured.');
   });
+
+  it('keeps the system prompt unchanged when template instructions are absent or empty', () => {
+    const baseline = buildEnhancementPrompt(createArtifacts());
+    const withUndefined = buildEnhancementPrompt(createArtifacts(), undefined);
+    const withEmpty = buildEnhancementPrompt(createArtifacts(), '   ');
+
+    expect(withUndefined.systemPrompt).toBe(baseline.systemPrompt);
+    expect(withEmpty.systemPrompt).toBe(baseline.systemPrompt);
+  });
+
+  it('appends template instructions to the system prompt when provided', () => {
+    const prompt = buildEnhancementPrompt(
+      createArtifacts(),
+      'This is a technical design review. Collect open questions explicitly.'
+    );
+
+    expect(prompt.systemPrompt).toContain(
+      'MEETING TYPE — shape all output fields according to these instructions:'
+    );
+    expect(prompt.systemPrompt).toContain(
+      'This is a technical design review. Collect open questions explicitly.'
+    );
+  });
 });
 
 function createArtifacts(): EnhancementArtifacts {

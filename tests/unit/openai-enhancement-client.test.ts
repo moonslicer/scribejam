@@ -119,6 +119,38 @@ describe('OpenAIEnhancementClient', () => {
         'OpenAI rejected the validation check because the API project is out of quota or rate-limited. You can continue setup and fix billing before using enhancement.'
     });
   });
+
+  it('appends template instructions when the enhancement invocation provides them', async () => {
+    const create = vi.fn().mockResolvedValue({
+      output_text: JSON.stringify({
+        blocks: [{ source: 'ai', content: 'AI expansion' }],
+        actionItems: [],
+        decisions: [],
+        summary: 'Summary'
+      }),
+      error: null,
+      incomplete_details: null
+    });
+
+    const client = new OpenAIEnhancementClient({
+      apiKey: 'sk-openai-test',
+      client: {
+        responses: { create }
+      }
+    });
+
+    await client.enhance(createArtifacts(), {
+      templateId: 'tech-review',
+      templateInstructions: 'Collect unresolved questions explicitly.'
+    });
+
+    expect(create.mock.calls[0]?.[0]?.instructions).toContain(
+      'MEETING TYPE — shape all output fields according to these instructions:'
+    );
+    expect(create.mock.calls[0]?.[0]?.instructions).toContain(
+      'Collect unresolved questions explicitly.'
+    );
+  });
 });
 
 function createArtifacts(): EnhancementArtifacts {

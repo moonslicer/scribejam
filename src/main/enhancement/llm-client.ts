@@ -1,4 +1,4 @@
-import type { EnhancedOutput } from '../../shared/ipc';
+import type { EnhancedOutput, TemplateId } from '../../shared/ipc';
 import type { EnhancementArtifacts } from './enhancement-artifacts';
 
 export type EnhancementErrorCode =
@@ -9,8 +9,16 @@ export type EnhancementErrorCode =
   | 'invalid_response'
   | 'unknown';
 
+export interface EnhancementInvocationOptions {
+  templateId?: TemplateId;
+  templateInstructions?: string;
+}
+
 export interface LlmClient {
-  enhance(input: EnhancementArtifacts): Promise<EnhancedOutput>;
+  enhance(
+    input: EnhancementArtifacts,
+    options?: EnhancementInvocationOptions
+  ): Promise<EnhancedOutput>;
 }
 
 export interface EnhancementProviderErrorOptions {
