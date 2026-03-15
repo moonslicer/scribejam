@@ -10,6 +10,7 @@ interface MeetingDockProps {
   secondaryActionLabel?: string | undefined;
   onPrimaryAction: () => void;
   onSecondaryAction?: () => void;
+  onEnhanceAction?: () => void;
   onToggleTranscript: () => void;
 }
 
@@ -41,11 +42,58 @@ export function MeetingDock({
   secondaryActionLabel,
   onPrimaryAction,
   onSecondaryAction,
+  onEnhanceAction,
   onToggleTranscript
 }: MeetingDockProps): JSX.Element {
   const micPercent = Math.round(clampLevel(micLevel) * 100);
   const systemPercent = Math.round(clampLevel(systemLevel) * 100);
   const isRecording = meetingState === 'recording';
+
+  const showTranscriptToggle = meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done';
+
+  let centerContent: JSX.Element | null = null;
+  if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
+    centerContent = (
+      <button
+        data-testid="generate-notes-button"
+        type="button"
+        disabled={disabled}
+        onClick={onEnhanceAction}
+        className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-[#7ea218] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {meetingState === 'enhance_failed' ? '✦ Retry notes' : '✦ Generate notes'}
+      </button>
+    );
+  } else if (isRecording) {
+    centerContent = (
+      <button
+        type="button"
+        onClick={onToggleTranscript}
+        aria-label={transcriptOpen ? 'Hide transcript' : 'Show transcript'}
+        className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/8 bg-[#37322e]/60 px-4 py-2.5 text-sm text-[#9a9085] transition hover:border-white/15 hover:text-[#d8d1c6]"
+      >
+        <ChevronIcon expanded={transcriptOpen} />
+        <span>{transcriptOpen ? 'Hide transcript' : 'Show transcript'}</span>
+      </button>
+    );
+  } else if (meetingState === 'enhancing') {
+    centerContent = (
+      <div className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/6 bg-[#37322e]/40 px-4 py-2.5 text-sm text-[#8b8074]">
+        <span className="animate-pulse">Enhancing notes…</span>
+      </div>
+    );
+  } else if (meetingState === 'done' && secondaryActionLabel && onSecondaryAction) {
+    centerContent = (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onSecondaryAction}
+        className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/8 bg-[#37322e]/60 px-4 py-2.5 text-sm text-[#d8d1c6] transition hover:border-white/15 hover:bg-[#3d3832]"
+      >
+        {secondaryActionLabel}
+      </button>
+    );
+  }
 
   return (
     <>
@@ -54,7 +102,7 @@ export function MeetingDock({
           data-testid="meeting-dock"
           className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl"
         >
-          {/* Left: record/activity button */}
+          {/* Left: record/activity button (+ transcript toggle when applicable) */}
           <div
             className={`flex items-center rounded-[1.4rem] border transition ${
               isRecording
@@ -76,21 +124,28 @@ export function MeetingDock({
               />
               <span className="text-sm font-medium">{recordLabel[meetingState]}</span>
             </button>
-            {isRecording && (
-              <button
-                type="button"
-                onClick={onToggleTranscript}
-                className="border-l border-[#8aa71e]/30 px-2.5 py-2.5 transition hover:opacity-80"
-                aria-label={transcriptOpen ? 'Hide transcript' : 'Show transcript'}
-              >
-                <ChevronIcon expanded={transcriptOpen} />
-              </button>
-            )}
+            {showTranscriptToggle ? (
+              <>
+                <div className="h-5 w-px bg-white/10" />
+                <button
+                  type="button"
+                  onClick={onToggleTranscript}
+                  aria-label={transcriptOpen ? 'Hide transcript' : 'Show transcript'}
+                  className={`px-3 py-2.5 transition ${
+                    transcriptOpen
+                      ? 'text-[#d8d1c6]'
+                      : 'text-[#9a9085] hover:text-[#d8d1c6]'
+                  }`}
+                >
+                  <TranscriptIcon />
+                </button>
+              </>
+            ) : null}
           </div>
 
-          {/* Center: Ask anything */}
-          <div className="min-w-0 flex-1 rounded-[1.2rem] border border-white/6 bg-[#37322e]/45 px-3 py-2.5 text-sm text-[#6b6257]">
-            Ask anything
+          {/* Center: context-aware action area */}
+          <div className="min-w-0 flex-1">
+            {centerContent}
           </div>
         </div>
       </div>
@@ -156,6 +211,14 @@ function AudioActivityGlyph({
         ))}
       </span>
     </span>
+  );
+}
+
+function TranscriptIcon(): JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   );
 }
 

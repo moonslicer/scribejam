@@ -684,19 +684,6 @@ export default function App(): JSX.Element {
                   </div>
                 </section>
 
-                {(meetingState === 'stopped' || meetingState === 'enhance_failed') ? (
-                  <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[35] flex justify-center">
-                    <button
-                      data-testid="generate-notes-button"
-                      type="button"
-                      disabled={settings === null || meetingActionPending}
-                      onClick={() => void onEnhanceAction()}
-                      className="pointer-events-auto rounded-[2rem] bg-[#7ea218] px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_32px_rgba(0,0,0,0.28)] transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {meetingState === 'enhance_failed' ? '✦ Retry notes' : '✦ Generate notes'}
-                    </button>
-                  </div>
-                ) : null}
               </div>
 
               <TranscriptPanel
@@ -714,13 +701,8 @@ export default function App(): JSX.Element {
                 onToggleTranscript={() => setTranscriptOpen((previous) => !previous)}
                 onPrimaryAction={() => void onPrimaryAction()}
                 onSecondaryAction={() => void onSecondaryAction()}
-                secondaryActionLabel={
-                  meetingState === 'done'
-                    ? 'New Meeting'
-                    : meetingState === 'enhance_failed'
-                      ? 'Keep Editing'
-                      : undefined
-                }
+                onEnhanceAction={() => void onEnhanceAction()}
+                secondaryActionLabel={meetingState === 'done' ? 'New Meeting' : undefined}
                 disabled={settings === null || meetingActionPending}
               />
             </div>

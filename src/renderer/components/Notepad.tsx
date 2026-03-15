@@ -124,7 +124,7 @@ export function Notepad({
         </p>
       ) : null}
 
-      <EditorContent editor={editor} className="h-full" />
+      <EditorContent editor={editor} className="min-h-0 flex-1 overflow-y-auto" />
     </section>
   );
 }

@@ -92,15 +92,15 @@ function MeetingItem({
       }}
       className={`group relative mx-2 mb-1 cursor-pointer rounded-xl border px-3 py-2.5 transition ${
         isSelected
-          ? 'border-zinc-900 bg-zinc-950 shadow-sm'
-          : 'border-zinc-200 bg-zinc-50/80 hover:border-zinc-300 hover:bg-white'
+          ? 'border-[#7ea218]/25 bg-[#1e1b18]'
+          : 'border-white/6 bg-[#37322e]/50 hover:border-white/12 hover:bg-[#3d3832]'
       } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
     >
       {/* pr-7 leaves room for the archive button so title never overlaps it */}
-      <p className={`truncate pr-7 text-sm font-medium leading-snug ${isSelected ? 'text-white' : 'text-ink'}`}>
+      <p className={`truncate pr-7 text-sm font-medium leading-snug ${isSelected ? 'text-[#f3eee8]' : 'text-[#d8d1c6]'}`}>
         {item.title}
       </p>
-      <p className={`mt-0.5 text-xs ${isSelected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+      <p className={`mt-0.5 text-xs ${isSelected ? 'text-[#9a9085]' : 'text-[#6b6257]'}`}>
         {formatSidebarTime(item.createdAt)}
       </p>
 
@@ -115,8 +115,8 @@ function MeetingItem({
         aria-label={`Archive ${item.title}`}
         className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover:opacity-100 ${
           isSelected
-            ? 'text-zinc-400 hover:bg-white/10 hover:text-zinc-100'
-            : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600'
+            ? 'text-[#6b6257] hover:bg-white/10 hover:text-[#d8d1c6]'
+            : 'text-[#6b6257] hover:bg-white/8 hover:text-[#9a9085]'
         }`}
       >
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -157,7 +157,7 @@ function MeetingGroup({
   if (items.length === 0) return null;
   return (
     <div className="mb-3">
-      <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+      <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#5a5248]">
         {label}
       </p>
       {items.map((item) => (
@@ -196,13 +196,13 @@ export function MeetingsSidebar({
   return (
     <aside
       data-testid="meetings-sidebar"
-      className={`flex flex-shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 transition-[width] duration-200 ${
+      className={`flex flex-shrink-0 flex-col border-r border-white/8 bg-[#2d2926] transition-[width] duration-200 ${
         isOpen ? 'w-64' : 'w-0 overflow-hidden'
       }`}
     >
       {/* Header */}
       <div className="px-4 pb-3 pt-3">
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Scribejam</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-[#6b6257]">Scribejam</p>
       </div>
 
       {/* New Meeting button */}
@@ -211,7 +211,7 @@ export function MeetingsSidebar({
           type="button"
           disabled={newMeetingDisabled}
           onClick={onNewMeeting}
-          className="flex w-full items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-zinc-400"
+          className="flex w-full items-center gap-2 rounded-lg bg-[#7ea218] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
             <path
@@ -233,7 +233,7 @@ export function MeetingsSidebar({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.currentTarget.value)}
           placeholder="Search meetings…"
-          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-ink outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100"
+          className="w-full rounded-lg border border-white/10 bg-[#37322e] px-3 py-1.5 text-sm text-[#f3eee8] outline-none transition placeholder:text-[#6b6257] focus:border-white/20"
         />
       </div>
 
@@ -243,12 +243,12 @@ export function MeetingsSidebar({
           <p className="px-4 py-2 text-xs text-zinc-500">Loading…</p>
         ) : null}
         {errorMessage ? (
-          <p className="mx-3 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <p className="mx-3 mb-2 rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs text-red-300">
             {errorMessage}
           </p>
         ) : null}
         {!isLoading && items.length === 0 ? (
-          <p className="px-4 py-2 text-xs text-zinc-400">No meetings yet.</p>
+          <p className="px-4 py-2 text-xs text-[#6b6257]">No meetings yet.</p>
         ) : null}
         <MeetingGroup
           label="Today"
@@ -276,15 +276,15 @@ export function MeetingsSidebar({
         />
       </div>
 
-      <div className="border-t border-zinc-200 px-3 py-3">
+      <div className="border-t border-white/8 px-3 py-3">
         <button
           data-testid="meetings-sidebar-settings-button"
           type="button"
           onClick={onOpenSettings}
           className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
             activePage === 'settings'
-              ? 'bg-zinc-900 text-white'
-              : 'bg-white text-zinc-700 hover:bg-zinc-100'
+              ? 'bg-[#37322e] text-[#f3eee8]'
+              : 'text-[#9a9085] hover:bg-[#37322e] hover:text-[#f3eee8]'
           }`}
         >
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
