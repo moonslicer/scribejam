@@ -18,6 +18,7 @@ interface NotepadProps {
   editable: boolean;
   editorMode?: 'notes' | 'enhanced';
   showViewToggle?: boolean;
+  templateBadgeLabel?: string;
   onShowOriginalNotes?: () => void;
   onShowEnhancedNotes?: () => void;
   onChange: (content: JsonObject) => void;
@@ -28,6 +29,7 @@ export function Notepad({
   editable,
   editorMode = 'notes',
   showViewToggle = false,
+  templateBadgeLabel,
   onShowOriginalNotes,
   onShowEnhancedNotes,
   onChange
@@ -86,6 +88,14 @@ export function Notepad({
 
   return (
     <section data-testid="notepad-editor" className="relative flex h-full flex-col">
+      {templateBadgeLabel ? (
+        <div
+          data-testid="notepad-template-badge"
+          className="absolute left-6 top-0 z-10 inline-flex rounded-full border border-[#d7cdbd] bg-[#f7f1e7] px-3 py-1 text-xs font-medium text-[#6b6257] shadow-[0_12px_24px_rgba(57,47,37,0.08)]"
+        >
+          {templateBadgeLabel}
+        </div>
+      ) : null}
       {showViewToggle ? (
         <div
           className="absolute right-6 top-0 z-10 inline-flex rounded-full border border-[#d9cfbf] bg-[#f8f3ea] p-1 shadow-[0_12px_24px_rgba(57,47,37,0.08)]"

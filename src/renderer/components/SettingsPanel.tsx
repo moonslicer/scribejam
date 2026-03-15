@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { LlmProvider, SettingsSaveRequest, Settings } from '../../shared/ipc';
+import { BUILT_IN_TEMPLATES } from '../../shared/templates';
 
 interface SettingsPanelProps {
   settings: Settings | null;
@@ -29,6 +30,7 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('openai');
+  const [defaultTemplateId, setDefaultTemplateId] = useState<NonNullable<Settings['defaultTemplateId']>>('auto');
   const [saving, setSaving] = useState(false);
   const [validatingDeepgram, setValidatingDeepgram] = useState(false);
   const [validatingOpenAI, setValidatingOpenAI] = useState(false);
@@ -42,6 +44,7 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   useEffect(() => {
     if (settings) {
       setLlmProvider(settings.llmProvider);
+      setDefaultTemplateId(settings.defaultTemplateId ?? 'auto');
     }
   }, [settings]);
 
@@ -49,7 +52,8 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
     setSaving(true);
     try {
       const payload: SettingsSaveRequest = {
-        llmProvider
+        llmProvider,
+        defaultTemplateId
       };
 
       if (deepgramApiKey.trim().length > 0) {
@@ -124,6 +128,27 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
           >
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
+          </select>
+        </div>
+
+        <div className="mb-3 grid gap-1 border-t border-zinc-100 pt-3">
+          <label className="text-sm font-medium text-zinc-700" htmlFor="settings-default-template-input">
+            Default enhancement template
+          </label>
+          <select
+            id="settings-default-template-input"
+            data-testid="settings-input-default-template"
+            value={defaultTemplateId}
+            onChange={(event) =>
+              setDefaultTemplateId(event.target.value as NonNullable<Settings['defaultTemplateId']>)
+            }
+            className="rounded border border-zinc-300 px-3 py-2 text-sm"
+          >
+            {BUILT_IN_TEMPLATES.filter((template) => template.id !== 'custom').map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
           </select>
         </div>
 

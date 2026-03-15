@@ -7,6 +7,7 @@ import {
   MeetingArtifactsRepository
 } from '../storage/repositories';
 import { toEnhancementArtifacts } from './enhancement-artifacts';
+import { getBuiltInTemplateById } from '../../shared/templates';
 import {
   type EnhancementInvocationOptions,
   isRetryableEnhancementError,
@@ -62,7 +63,18 @@ export class EnhancementOrchestrator {
       });
 
       const completedSnapshot = this.stateMachine.completeEnhancement(meetingId);
-      this.meetingRecordsService.recordMeetingEnhancementCompleted(completedSnapshot);
+      const appliedTemplate = options?.templateId
+        ? getBuiltInTemplateById(options.templateId)
+        : undefined;
+      this.meetingRecordsService.recordMeetingEnhancementCompleted(
+        completedSnapshot,
+        appliedTemplate
+          ? {
+              id: appliedTemplate.id,
+              name: appliedTemplate.name
+            }
+          : undefined
+      );
       this.emitProgress(meetingId, 'done', 'Enhanced notes are ready.');
 
       return {

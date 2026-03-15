@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import type { ErrorAction, Settings, TranscriptionStatusEvent } from '../shared/ipc';
+import type { ErrorAction, Settings, TemplateId, TranscriptionStatusEvent } from '../shared/ipc';
+import { BUILT_IN_TEMPLATES, getBuiltInTemplateById } from '../shared/templates';
 import { useMicCapture } from './audio/useMicCapture';
 import { MeetingBar } from './components/MeetingBar';
 import { MeetingDock } from './components/MeetingDock';
@@ -31,6 +32,7 @@ export default function App(): JSX.Element {
   const noteEditedAfterEnhancement = useMeetingStore((state) => state.noteEditedAfterEnhancement);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<AppPage>('workspace');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>('auto');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatusEvent>({ status: 'idle' });
   const [levels, setLevels] = useState({ mic: 0, system: 0 });
@@ -45,6 +47,9 @@ export default function App(): JSX.Element {
   const editorMode = useMeetingStore((state) => state.editorMode);
   const noteSaveState = useMeetingStore((state) => state.noteSaveState);
   const enhancementProgress = useMeetingStore((state) => state.enhancementProgress);
+  const lastTemplateName = useMeetingStore((state) => state.lastTemplateName);
+  const enhancedOutputCreatedAt = useMeetingStore((state) => state.enhancedOutputCreatedAt);
+  const enhancedNoteUpdatedAt = useMeetingStore((state) => state.enhancedNoteUpdatedAt);
   const setMeetingState = useMeetingStore((state) => state.setMeetingState);
   const setMeetingId = useMeetingStore((state) => state.setMeetingId);
   const setMeetingTitle = useMeetingStore((state) => state.setMeetingTitle);
@@ -56,6 +61,7 @@ export default function App(): JSX.Element {
   const setEnhancedNoteContent = useMeetingStore((state) => state.setEnhancedNoteContent);
   const setEnhancedOutput = useMeetingStore((state) => state.setEnhancedOutput);
   const setEnhancementProgress = useMeetingStore((state) => state.setEnhancementProgress);
+  const setAppliedTemplate = useMeetingStore((state) => state.setAppliedTemplate);
   const showEnhancedNotes = useMeetingStore((state) => state.showEnhancedNotes);
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
@@ -103,7 +109,15 @@ export default function App(): JSX.Element {
           const isStaleRecording =
             meeting.state === 'recording' &&
             mainProcessRecordingIdRef.current !== meeting.id;
-          hydrateMeeting(isStaleRecording ? { ...meeting, state: 'stopped' } : meeting);
+          const resolvedMeeting: typeof meeting = isStaleRecording
+            ? { ...meeting, state: 'stopped' }
+            : meeting;
+          hydrateMeeting(resolvedMeeting);
+          setSelectedTemplateId(
+            resolvedMeeting.lastTemplateId
+              ? resolveSelectableTemplateId(resolvedMeeting.lastTemplateId)
+              : resolveSelectableTemplateId(settings?.defaultTemplateId)
+          );
         }
       })
       .catch(() => {
@@ -115,7 +129,7 @@ export default function App(): JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [api, hydrateMeeting, meetingId]);
+  }, [api, hydrateMeeting, meetingId, settings?.defaultTemplateId]);
 
   useEffect(() => {
     setSelectedHistoryMeetingId(meetingId);
@@ -206,6 +220,15 @@ export default function App(): JSX.Element {
   }, [api, applyTranscriptUpdate, loadHistory, setEnhancementProgress, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
+  const availableTemplates = BUILT_IN_TEMPLATES.filter((template) => template.id !== 'custom');
+
+  useEffect(() => {
+    if (!settings) {
+      return;
+    }
+
+    setSelectedTemplateId(resolveSelectableTemplateId(settings.defaultTemplateId));
+  }, [settings]);
 
   const resumeMeetingRecording = async (): Promise<void> => {
     if (!api) {
@@ -252,11 +275,37 @@ export default function App(): JSX.Element {
         return;
       }
 
+      const selectedTemplate = getBuiltInTemplateById(selectedTemplateId);
+      if (!selectedTemplate) {
+        setErrorMessage('Selected template is unavailable.');
+        return;
+      }
+      if (
+        meetingState === 'done' &&
+        shouldConfirmReenhancement({
+          noteEditedAfterEnhancement,
+          enhancedOutputCreatedAt,
+          enhancedNoteUpdatedAt
+        }) &&
+        !window.confirm('Re-enhancing will replace your edited notes. Continue?')
+      ) {
+        return;
+      }
+
       setMeetingState('enhancing');
       setMeetingActionPending(false);
       try {
-        const response = await api.enhanceMeeting({ meetingId });
+        const response = await api.enhanceMeeting({
+          meetingId,
+          templateId: selectedTemplate.id,
+          templateInstructions: selectedTemplate.instructions
+        });
         setEnhancedOutput(response.output);
+        setAppliedTemplate({
+          id: selectedTemplate.id,
+          name: selectedTemplate.name,
+          completedAt: response.completedAt
+        });
         setMeetingState('done');
       } catch (error) {
         setMeetingState('enhance_failed');
@@ -296,25 +345,8 @@ export default function App(): JSX.Element {
         return;
       }
       if (meetingState === 'enhance_failed') {
-        if (!api) {
-          setErrorMessage('Desktop bridge unavailable.');
-          return;
-        }
-        if (!meetingId) {
-          setErrorMessage('No failed meeting id found.');
-          return;
-        }
-
-        setMeetingState('enhancing');
         setMeetingActionPending(false);
-        try {
-          const response = await api.enhanceMeeting({ meetingId });
-          setEnhancedOutput(response.output);
-          setMeetingState('done');
-        } catch (error) {
-          setMeetingState('enhance_failed');
-          throw error;
-        }
+        await onEnhanceAction();
         return;
       }
       if (setupRequired) {
@@ -439,7 +471,7 @@ export default function App(): JSX.Element {
         : undefined;
   const onBannerAction = (): void => {
     if (errorAction === 'retry') {
-      void onPrimaryAction();
+      void onEnhanceAction();
       return;
     }
 
@@ -505,7 +537,11 @@ export default function App(): JSX.Element {
       if (meetingActionPending || setupRequired) {
         return;
       }
-      if (meetingState !== 'stopped' && meetingState !== 'enhance_failed') {
+      if (
+        meetingState !== 'stopped' &&
+        meetingState !== 'enhance_failed' &&
+        meetingState !== 'done'
+      ) {
         return;
       }
 
@@ -673,12 +709,26 @@ export default function App(): JSX.Element {
                         editable={meetingState !== 'enhancing'}
                         editorMode={editorMode}
                         showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
+                        {...(editorMode === 'enhanced' && lastTemplateName
+                          ? { templateBadgeLabel: lastTemplateName }
+                          : {})}
                         onShowOriginalNotes={resumeEditingNotes}
                         onShowEnhancedNotes={showEnhancedNotes}
-                        onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : (content) => {
-                          setNoteContent(content);
-                          if (meetingState === 'done') setNoteEditedAfterEnhancement(true);
-                        }}
+                        onChange={
+                          editorMode === 'enhanced'
+                            ? (content) => {
+                                setEnhancedNoteContent(content);
+                                if (meetingState === 'done') {
+                                  setNoteEditedAfterEnhancement(true);
+                                }
+                              }
+                            : (content) => {
+                                setNoteContent(content);
+                                if (meetingState === 'done') {
+                                  setNoteEditedAfterEnhancement(true);
+                                }
+                              }
+                        }
                       />
                     </div>
                   </div>
@@ -693,15 +743,18 @@ export default function App(): JSX.Element {
               />
 
               <MeetingDock
-                meetingState={noteEditedAfterEnhancement && meetingState === 'done' ? 'stopped' : meetingState}
+                meetingState={meetingState}
                 transcriptOpen={transcriptOpen}
                 micLevel={levels.mic}
                 systemLevel={levels.system}
                 transcriptionStatus={transcriptionStatus}
+                templateOptions={availableTemplates}
+                selectedTemplateId={selectedTemplateId}
                 onToggleTranscript={() => setTranscriptOpen((previous) => !previous)}
                 onPrimaryAction={() => void onPrimaryAction()}
                 onSecondaryAction={() => void onSecondaryAction()}
                 onEnhanceAction={() => void onEnhanceAction()}
+                onTemplateChange={setSelectedTemplateId}
                 secondaryActionLabel={
                   meetingState === 'enhance_failed'
                     ? 'Dismiss'
@@ -760,4 +813,34 @@ function SettingsIcon(): JSX.Element {
       <circle cx="8" cy="8" r="2.4" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
+}
+
+function resolveSelectableTemplateId(templateId?: TemplateId): TemplateId {
+  const resolvedTemplate = templateId ? getBuiltInTemplateById(templateId) : undefined;
+  return resolvedTemplate?.id ?? 'auto';
+}
+
+function shouldConfirmReenhancement({
+  noteEditedAfterEnhancement,
+  enhancedOutputCreatedAt,
+  enhancedNoteUpdatedAt
+}: {
+  noteEditedAfterEnhancement: boolean;
+  enhancedOutputCreatedAt: string | null;
+  enhancedNoteUpdatedAt: string | null;
+}): boolean {
+  if (noteEditedAfterEnhancement) {
+    return true;
+  }
+  if (!enhancedOutputCreatedAt || !enhancedNoteUpdatedAt) {
+    return false;
+  }
+
+  const outputCreatedAt = Date.parse(enhancedOutputCreatedAt);
+  const noteUpdatedAt = Date.parse(enhancedNoteUpdatedAt);
+  if (Number.isNaN(outputCreatedAt) || Number.isNaN(noteUpdatedAt)) {
+    return false;
+  }
+
+  return noteUpdatedAt > outputCreatedAt;
 }

@@ -1,4 +1,5 @@
-import type { MeetingState, TranscriptionStatusEvent } from '../../shared/ipc';
+import type { MeetingState, TemplateId, TranscriptionStatusEvent } from '../../shared/ipc';
+import type { TemplateDefinition } from '../../shared/templates';
 
 interface MeetingDockProps {
   meetingState: MeetingState;
@@ -8,9 +9,12 @@ interface MeetingDockProps {
   transcriptionStatus?: TranscriptionStatusEvent;
   disabled?: boolean;
   secondaryActionLabel?: string | undefined;
+  templateOptions?: TemplateDefinition[];
+  selectedTemplateId?: TemplateId;
   onPrimaryAction: () => void;
   onSecondaryAction?: () => void;
   onEnhanceAction?: () => void;
+  onTemplateChange?: (templateId: TemplateId) => void;
   onToggleTranscript: () => void;
 }
 
@@ -40,9 +44,12 @@ export function MeetingDock({
   transcriptionStatus,
   disabled = false,
   secondaryActionLabel,
+  templateOptions,
+  selectedTemplateId,
   onPrimaryAction,
   onSecondaryAction,
   onEnhanceAction,
+  onTemplateChange,
   onToggleTranscript
 }: MeetingDockProps): JSX.Element {
   const micPercent = Math.round(clampLevel(micLevel) * 100);
@@ -52,18 +59,59 @@ export function MeetingDock({
   const showTranscriptToggle = meetingState === 'recording' || meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done';
 
   let centerContent: JSX.Element | null = null;
-  if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
+  if (meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done') {
     centerContent = (
-      <button
-        data-testid="generate-notes-button"
-        type="button"
-        disabled={disabled}
-        onClick={onEnhanceAction}
-        className="flex items-center gap-2 rounded-[1.4rem] border border-[#7ea218]/60 bg-[#7ea218] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <SparkleIcon />
-        <span>{meetingState === 'enhance_failed' ? 'Retry' : 'Generate notes'}</span>
-      </button>
+      <div className="flex items-center gap-2">
+        {templateOptions && selectedTemplateId && onTemplateChange ? (
+          <label
+            className="flex items-center gap-2 rounded-[1.4rem] border border-white/8 bg-[#37322e]/60 px-3 py-2.5 text-sm text-[#d8d1c6]"
+            data-testid="meeting-template-picker"
+          >
+            <SparkleIcon />
+            <select
+              data-testid="meeting-template-select"
+              value={selectedTemplateId}
+              disabled={disabled}
+              onChange={(event) => onTemplateChange(event.target.value as TemplateId)}
+              className="bg-transparent text-sm font-medium text-[#f1ede5] outline-none"
+            >
+              {templateOptions.map((template) => (
+                <option key={template.id} value={template.id} className="bg-[#2d2926] text-[#f1ede5]">
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        <button
+          data-testid="generate-notes-button"
+          type="button"
+          disabled={disabled}
+          onClick={onEnhanceAction}
+          className="flex items-center gap-2 rounded-[1.4rem] border border-[#7ea218]/60 bg-[#7ea218] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <SparkleIcon />
+          <span>
+            {meetingState === 'enhance_failed'
+              ? 'Retry'
+              : meetingState === 'done'
+                ? 'Re-enhance'
+                : 'Generate notes'}
+          </span>
+        </button>
+
+        {secondaryActionLabel && onSecondaryAction ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onSecondaryAction}
+            className="flex items-center gap-2 rounded-[1.4rem] border border-white/8 bg-[#37322e]/60 px-3 py-2.5 text-sm text-[#d8d1c6] transition hover:border-white/15 hover:bg-[#3d3832]"
+          >
+            {secondaryActionLabel}
+          </button>
+        ) : null}
+      </div>
     );
   } else if (meetingState === 'enhancing') {
     centerContent = (
@@ -71,17 +119,6 @@ export function MeetingDock({
         <SparkleIcon />
         <span className="animate-pulse">Enhancing…</span>
       </div>
-    );
-  } else if (meetingState === 'done' && secondaryActionLabel && onSecondaryAction) {
-    centerContent = (
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onSecondaryAction}
-        className="flex items-center gap-2 rounded-[1.4rem] border border-white/8 bg-[#37322e]/60 px-3 py-2.5 text-sm text-[#d8d1c6] transition hover:border-white/15 hover:bg-[#3d3832]"
-      >
-        {secondaryActionLabel}
-      </button>
     );
   }
 

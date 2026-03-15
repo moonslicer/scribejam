@@ -76,15 +76,30 @@ export class MeetingRecordsService {
     });
   }
 
-  public recordMeetingEnhancementCompleted(snapshot: MeetingSnapshot): void {
+  public recordMeetingEnhancementCompleted(
+    snapshot: MeetingSnapshot,
+    template?: { id: TemplateId; name: string }
+  ): void {
     if (!snapshot.meetingId) {
       throw new Error('Meeting snapshot is missing enhancement metadata.');
+    }
+
+    const updatedAt = new Date().toISOString();
+    if (template) {
+      this.meetings.updateEnhancementCompleted({
+        id: snapshot.meetingId,
+        state: snapshot.state,
+        updatedAt,
+        lastTemplateId: template.id,
+        lastTemplateName: template.name
+      });
+      return;
     }
 
     this.meetings.updateState({
       id: snapshot.meetingId,
       state: snapshot.state,
-      updatedAt: new Date().toISOString()
+      updatedAt
     });
   }
 

@@ -49,6 +49,10 @@ describe('meeting store', () => {
       },
       enhancedNoteContent: null,
       enhancedOutput: null,
+      lastTemplateId: 'standup',
+      lastTemplateName: 'Team Standup',
+      enhancedOutputCreatedAt: '2026-03-12T18:20:00.000Z',
+      enhancedNoteUpdatedAt: '2026-03-12T18:21:00.000Z',
       transcriptSegments: [
         {
           id: 2,
@@ -65,7 +69,11 @@ describe('meeting store', () => {
       meetingState: 'stopped',
       meetingId: 'meeting-1',
       meetingTitle: 'Design review',
-      noteSaveState: 'saved'
+      noteSaveState: 'saved',
+      lastTemplateId: 'standup',
+      lastTemplateName: 'Team Standup',
+      enhancedOutputCreatedAt: '2026-03-12T18:20:00.000Z',
+      enhancedNoteUpdatedAt: '2026-03-12T18:21:00.000Z'
     });
     expect(store.getState().transcriptEntries[0]?.text).toBe('I will send the draft.');
   });
@@ -366,5 +374,22 @@ describe('meeting store', () => {
 
     expect(store.getState().editorMode).toBe('enhanced');
     expect(store.getState().editorContent).toEqual(store.getState().enhancedNoteContent);
+  });
+
+  it('tracks the last applied template after enhancement completes', () => {
+    const store = createMeetingStore();
+
+    store.getState().setAppliedTemplate({
+      id: 'tech-review',
+      name: 'Technical Design Review',
+      completedAt: '2026-03-12T18:21:00.000Z'
+    });
+
+    expect(store.getState()).toMatchObject({
+      lastTemplateId: 'tech-review',
+      lastTemplateName: 'Technical Design Review',
+      enhancedOutputCreatedAt: '2026-03-12T18:21:00.000Z',
+      enhancedNoteUpdatedAt: null
+    });
   });
 });

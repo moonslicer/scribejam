@@ -139,4 +139,30 @@ describe('Notepad', () => {
     expect(latestText).toContain('!');
     expect(latestDocument.content?.[0]?.content?.[0]?.marks).toBeUndefined();
   });
+
+  it('renders the applied template badge when provided', async () => {
+    render(
+      <Notepad
+        content={{
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'AI summary'
+                }
+              ]
+            }
+          ]
+        }}
+        editable={false}
+        templateBadgeLabel="Team Standup"
+        onChange={vi.fn()}
+      />
+    );
+
+    expect(await screen.findByTestId('notepad-template-badge')).toHaveTextContent('Team Standup');
+  });
 });

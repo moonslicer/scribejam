@@ -36,6 +36,11 @@ export interface UpdateMeetingStateInput {
   updatedAt: string;
 }
 
+export interface UpdateMeetingEnhancementCompletedInput extends UpdateMeetingStateInput {
+  lastTemplateId: string;
+  lastTemplateName: string;
+}
+
 export interface SaveNotesInput {
   id: string;
   meetingId: string;
@@ -162,6 +167,29 @@ export class MeetingsRepository {
           UPDATE meetings
           SET state = @state,
               updated_at = @updatedAt
+          WHERE id = @id
+        `
+      )
+      .run(input);
+
+    const meeting = this.getById(input.id);
+    if (!meeting) {
+      throw new Error('Meeting update failed.');
+    }
+    return meeting;
+  }
+
+  public updateEnhancementCompleted(
+    input: UpdateMeetingEnhancementCompletedInput
+  ): MeetingRecord {
+    this.db
+      .prepare(
+        `
+          UPDATE meetings
+          SET state = @state,
+              updated_at = @updatedAt,
+              last_template_id = @lastTemplateId,
+              last_template_name = @lastTemplateName
           WHERE id = @id
         `
       )

@@ -1,19 +1,21 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
-import type { Settings, SettingsSaveRequest } from '../../shared/ipc';
+import { TEMPLATE_IDS, type Settings, type SettingsSaveRequest } from '../../shared/ipc';
 import { SecureSecrets } from './secure-secrets';
 
 interface PersistedSettings {
   firstRunAcknowledged: boolean;
   sttProvider: Settings['sttProvider'];
   llmProvider: Settings['llmProvider'];
+  defaultTemplateId: NonNullable<Settings['defaultTemplateId']>;
 }
 
 const DEFAULT_SETTINGS: PersistedSettings = {
   firstRunAcknowledged: false,
   sttProvider: 'deepgram',
-  llmProvider: 'openai'
+  llmProvider: 'openai',
+  defaultTemplateId: 'auto'
 };
 
 export class SettingsStore {
@@ -32,6 +34,7 @@ export class SettingsStore {
       firstRunAcknowledged: persisted.firstRunAcknowledged,
       sttProvider: persisted.sttProvider,
       llmProvider: persisted.llmProvider,
+      defaultTemplateId: persisted.defaultTemplateId,
       deepgramApiKeySet: this.secrets.has('deepgramApiKey'),
       openaiApiKeySet: this.secrets.has('openaiApiKey'),
       anthropicApiKeySet: this.secrets.has('anthropicApiKey')
@@ -49,6 +52,9 @@ export class SettingsStore {
     }
     if (update.llmProvider !== undefined) {
       next.llmProvider = update.llmProvider;
+    }
+    if (update.defaultTemplateId !== undefined) {
+      next.defaultTemplateId = update.defaultTemplateId;
     }
     if (update.deepgramApiKey !== undefined) {
       this.secrets.set('deepgramApiKey', update.deepgramApiKey);
@@ -77,10 +83,13 @@ export class SettingsStore {
     try {
       const raw = readFileSync(this.settingsPath, 'utf8');
       const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
+      const defaultTemplateId =
+        parsed.defaultTemplateId === undefined ? DEFAULT_SETTINGS.defaultTemplateId : parsed.defaultTemplateId;
       if (
         typeof parsed.firstRunAcknowledged !== 'boolean' ||
         parsed.sttProvider !== 'deepgram' ||
-        (parsed.llmProvider !== 'openai' && parsed.llmProvider !== 'anthropic')
+        (parsed.llmProvider !== 'openai' && parsed.llmProvider !== 'anthropic') ||
+        !TEMPLATE_IDS.includes(defaultTemplateId as (typeof TEMPLATE_IDS)[number])
       ) {
         return { ...DEFAULT_SETTINGS };
       }
@@ -88,7 +97,8 @@ export class SettingsStore {
       return {
         firstRunAcknowledged: parsed.firstRunAcknowledged,
         sttProvider: parsed.sttProvider,
-        llmProvider: parsed.llmProvider
+        llmProvider: parsed.llmProvider,
+        defaultTemplateId
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

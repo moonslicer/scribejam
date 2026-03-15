@@ -20,7 +20,7 @@ describe('SettingsPanel', () => {
           firstRunAcknowledged: true,
           sttProvider: 'deepgram',
           llmProvider: 'openai',
-
+          defaultTemplateId: 'auto',
           deepgramApiKeySet: true,
           openaiApiKeySet: true,
           anthropicApiKeySet: false
@@ -34,7 +34,8 @@ describe('SettingsPanel', () => {
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({
-        llmProvider: 'openai'
+        llmProvider: 'openai',
+        defaultTemplateId: 'auto'
       })
     );
   });
@@ -50,7 +51,7 @@ describe('SettingsPanel', () => {
           firstRunAcknowledged: true,
           sttProvider: 'deepgram',
           llmProvider: 'openai',
-
+          defaultTemplateId: 'auto',
           deepgramApiKeySet: true,
           openaiApiKeySet: false,
           anthropicApiKeySet: false
@@ -66,7 +67,40 @@ describe('SettingsPanel', () => {
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith({
         llmProvider: 'openai',
+        defaultTemplateId: 'auto',
         deepgramApiKey: 'dg-replacement'
+      })
+    );
+  });
+
+  it('saves the selected default template', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(async () => {});
+    const onValidateKey = vi.fn(async () => ({ valid: true }));
+
+    render(
+      <SettingsPanel
+        settings={{
+          firstRunAcknowledged: true,
+          sttProvider: 'deepgram',
+          llmProvider: 'openai',
+          defaultTemplateId: 'auto',
+          deepgramApiKeySet: false,
+          openaiApiKeySet: false,
+          anthropicApiKeySet: false
+        }}
+        onSave={onSave}
+        onValidateKey={onValidateKey}
+      />
+    );
+
+    await user.selectOptions(screen.getByTestId('settings-input-default-template'), 'standup');
+    await user.click(screen.getByTestId('settings-save-button'));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        llmProvider: 'openai',
+        defaultTemplateId: 'standup'
       })
     );
   });

@@ -5,6 +5,7 @@ import type {
   JsonObject,
   MeetingDetails,
   MeetingState,
+  TemplateId,
   TranscriptUpdateEvent
 } from '../../shared/ipc';
 import { enhancedOutputToDoc } from '../editor/enhanced-output-to-doc';
@@ -24,6 +25,10 @@ export interface MeetingStoreState {
   editorMode: EditorMode;
   enhancedOutput: EnhancedOutput | null;
   enhancementProgress: EnhanceProgressEvent | null;
+  lastTemplateId: TemplateId | null;
+  lastTemplateName: string | null;
+  enhancedOutputCreatedAt: string | null;
+  enhancedNoteUpdatedAt: string | null;
   editorInstanceKey: number;
   noteSaveState: NoteSaveState;
   noteEditedAfterEnhancement: boolean;
@@ -40,6 +45,7 @@ export interface MeetingStoreActions {
   setEnhancedNoteContent: (content: JsonObject | null) => void;
   setEnhancedOutput: (output: EnhancedOutput | null) => void;
   setEnhancementProgress: (progress: EnhanceProgressEvent | null) => void;
+  setAppliedTemplate: (template: { id: TemplateId; name: string; completedAt: string }) => void;
   showEnhancedNotes: () => void;
   resumeEditingNotes: () => void;
   setNoteEditedAfterEnhancement: (value: boolean) => void;
@@ -69,9 +75,13 @@ export const createMeetingStore = () =>
     editorMode: 'notes',
     enhancedOutput: null,
     enhancementProgress: null,
+    lastTemplateId: null,
+    lastTemplateName: null,
+    enhancedOutputCreatedAt: null,
+    enhancedNoteUpdatedAt: null,
     editorInstanceKey: 0,
     noteSaveState: 'idle',
-  noteEditedAfterEnhancement: false,
+    noteEditedAfterEnhancement: false,
     setMeetingState: (meetingState) =>
       set((state) => {
         const editorMode = deriveEditorMode(
@@ -105,6 +115,10 @@ export const createMeetingStore = () =>
         editorMode: 'notes',
         enhancedOutput: null,
         enhancementProgress: null,
+        lastTemplateId: null,
+        lastTemplateName: null,
+        enhancedOutputCreatedAt: null,
+        enhancedNoteUpdatedAt: null,
         editorInstanceKey: state.editorInstanceKey + 1,
         noteSaveState: 'idle',
         noteEditedAfterEnhancement: false
@@ -168,6 +182,13 @@ export const createMeetingStore = () =>
         };
       }),
     setEnhancementProgress: (enhancementProgress) => set({ enhancementProgress }),
+    setAppliedTemplate: ({ id, name, completedAt }) =>
+      set({
+        lastTemplateId: id,
+        lastTemplateName: name,
+        enhancedOutputCreatedAt: completedAt,
+        enhancedNoteUpdatedAt: null
+      }),
     showEnhancedNotes: () =>
       set((state) => ({
         enhancementProgress: null,
@@ -205,6 +226,10 @@ export const createMeetingStore = () =>
           enhancedNoteContent: cloneJsonObject(meeting.enhancedNoteContent),
           enhancedOutput: meeting.enhancedOutput,
           enhancementProgress: null,
+          lastTemplateId: meeting.lastTemplateId ?? null,
+          lastTemplateName: meeting.lastTemplateName ?? null,
+          enhancedOutputCreatedAt: meeting.enhancedOutputCreatedAt ?? null,
+          enhancedNoteUpdatedAt: meeting.enhancedNoteUpdatedAt ?? null,
           editorMode,
           editorContent: deriveEditorContent(
             editorMode,

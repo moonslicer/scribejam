@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -30,12 +30,14 @@ describe('SettingsStore', () => {
     store.saveSettings({
       firstRunAcknowledged: true,
       llmProvider: 'anthropic',
+      defaultTemplateId: 'standup',
       deepgramApiKey: 'dg-test'
     });
 
     const loaded = store.getSettings();
     expect(loaded.firstRunAcknowledged).toBe(true);
     expect(loaded.llmProvider).toBe('anthropic');
+    expect(loaded.defaultTemplateId).toBe('standup');
     expect(loaded.deepgramApiKeySet).toBe(true);
     expect(loaded.openaiApiKeySet).toBe(false);
   });
@@ -54,5 +56,69 @@ describe('SettingsStore', () => {
     expect(store.getSettings().openaiApiKeySet).toBe(false);
   });
 
-});
+  it('defaults the template selection to auto on a new store', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-settings-'));
+    tempDirs.push(dir);
 
+    const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
+    const store = new SettingsStore({ baseDir: dir, secrets });
+
+    expect(store.getSettings().defaultTemplateId).toBe('auto');
+  });
+
+  it('falls back to defaults when the persisted template id is invalid', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-settings-'));
+    tempDirs.push(dir);
+
+    const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
+    const store = new SettingsStore({ baseDir: dir, secrets });
+
+    store.saveSettings({ llmProvider: 'anthropic', defaultTemplateId: 'standup' });
+    const settingsPath = join(dir, 'settings.json');
+    const persisted = JSON.parse(readFileSync(settingsPath, 'utf8')) as {
+      firstRunAcknowledged: boolean;
+      sttProvider: string;
+      llmProvider: string;
+      defaultTemplateId: string;
+    };
+    persisted.defaultTemplateId = 'broken-template';
+    writeFileSync(settingsPath, JSON.stringify(persisted, null, 2), 'utf8');
+
+    expect(store.getSettings()).toMatchObject({
+      firstRunAcknowledged: false,
+      sttProvider: 'deepgram',
+      llmProvider: 'openai',
+      defaultTemplateId: 'auto'
+    });
+  });
+
+  it('upgrades persisted settings without a template id to auto', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-settings-'));
+    tempDirs.push(dir);
+
+    const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
+    const store = new SettingsStore({ baseDir: dir, secrets });
+
+    writeFileSync(
+      join(dir, 'settings.json'),
+      JSON.stringify(
+        {
+          firstRunAcknowledged: true,
+          sttProvider: 'deepgram',
+          llmProvider: 'anthropic'
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    expect(store.getSettings()).toMatchObject({
+      firstRunAcknowledged: true,
+      sttProvider: 'deepgram',
+      llmProvider: 'anthropic',
+      defaultTemplateId: 'auto'
+    });
+  });
+
+});

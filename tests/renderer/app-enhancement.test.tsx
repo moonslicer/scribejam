@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/renderer/App';
 import { AUTOSAVE_DELAY_MS } from '../../src/renderer/hooks/use-note-autosave';
 import { useMeetingStore } from '../../src/renderer/stores/meeting-store';
+import { getBuiltInTemplateById } from '../../src/shared/templates';
 
 let stateListener:
   | ((event: {
@@ -75,6 +76,12 @@ const api = {
   simulateSttDisconnect: vi.fn()
 };
 
+const AUTO_TEMPLATE_PAYLOAD = {
+  meetingId: 'meeting-1',
+  templateId: 'auto',
+  templateInstructions: ''
+};
+
 describe('App enhancement flow', () => {
   beforeEach(() => {
     stateListener = null;
@@ -91,8 +98,13 @@ describe('App enhancement flow', () => {
       editorMode: 'notes',
       enhancedOutput: null,
       enhancementProgress: null,
+      lastTemplateId: null,
+      lastTemplateName: null,
+      enhancedOutputCreatedAt: null,
+      enhancedNoteUpdatedAt: null,
       editorInstanceKey: 0,
-      noteSaveState: 'idle'
+      noteSaveState: 'idle',
+      noteEditedAfterEnhancement: false
     });
 
     api.startMeeting.mockReset();
@@ -119,6 +131,7 @@ describe('App enhancement flow', () => {
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',
       llmProvider: 'openai',
+      defaultTemplateId: 'auto',
       deepgramApiKeySet: true,
       openaiApiKeySet: false,
       anthropicApiKeySet: false
@@ -187,6 +200,7 @@ describe('App enhancement flow', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     cleanup();
   });
 
@@ -207,7 +221,7 @@ describe('App enhancement flow', () => {
     await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
     await user.click(screen.getByTestId('generate-notes-button'));
 
-    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith(AUTO_TEMPLATE_PAYLOAD));
     expect(await screen.findByText('AI expansion')).toBeInTheDocument();
     expect(container.querySelector('[data-authorship="ai"]')).not.toBeNull();
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
@@ -256,7 +270,7 @@ describe('App enhancement flow', () => {
 
     fireEvent.keyDown(window, { key: 'e', ctrlKey: true });
 
-    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith(AUTO_TEMPLATE_PAYLOAD));
   });
 
   it('ignores the Cmd/Ctrl+E shortcut while recording is in progress', async () => {
@@ -310,7 +324,7 @@ describe('App enhancement flow', () => {
     await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
     await user.click(screen.getByTestId('generate-notes-button'));
 
-    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith(AUTO_TEMPLATE_PAYLOAD));
     await act(async () => {
       progressListener?.({
         meetingId: 'meeting-1',
@@ -469,7 +483,7 @@ describe('App enhancement flow', () => {
     await waitFor(() => expect(screen.getByTestId('generate-notes-button')).toBeEnabled());
     await user.click(screen.getByTestId('generate-notes-button'));
 
-    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledWith(AUTO_TEMPLATE_PAYLOAD));
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('enhance_failed');
     expect(screen.getByText('Invalid OpenAI key.')).toBeInTheDocument();
   });
@@ -517,6 +531,273 @@ describe('App enhancement flow', () => {
     await waitFor(() => expect(api.enhanceMeeting).toHaveBeenCalledTimes(2));
     expect(await screen.findByText('Recovered enhancement')).toBeInTheDocument();
     expect(screen.getByTestId('meeting-state-value')).toHaveTextContent('done');
+  });
+
+  it('uses the selected built-in template for enhancement and shows its badge after completion', async () => {
+    const user = userEvent.setup();
+    const standupTemplate = getBuiltInTemplateById('standup');
+    if (!standupTemplate) {
+      throw new Error('Expected standup template to exist.');
+    }
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    await user.selectOptions(screen.getByTestId('meeting-template-select'), 'standup');
+    await user.click(screen.getByTestId('generate-notes-button'));
+
+    await waitFor(() =>
+      expect(api.enhanceMeeting).toHaveBeenCalledWith({
+        meetingId: 'meeting-1',
+        templateId: 'standup',
+        templateInstructions: standupTemplate.instructions
+      })
+    );
+    expect(await screen.findByTestId('notepad-template-badge')).toHaveTextContent('Team Standup');
+  });
+
+  it('initializes the enhancement picker from the saved default template', async () => {
+    api.getSettings.mockResolvedValueOnce({
+      firstRunAcknowledged: true,
+      sttProvider: 'deepgram',
+      llmProvider: 'openai',
+      defaultTemplateId: 'tech-review',
+      deepgramApiKeySet: true,
+      openaiApiKeySet: false,
+      anthropicApiKeySet: false
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('meeting-template-select')).toHaveValue('tech-review')
+    );
+  });
+
+  it('falls back to auto when settings contain the future custom template id', async () => {
+    api.getSettings.mockResolvedValueOnce({
+      firstRunAcknowledged: true,
+      sttProvider: 'deepgram',
+      llmProvider: 'openai',
+      defaultTemplateId: 'custom',
+      deepgramApiKeySet: true,
+      openaiApiKeySet: false,
+      anthropicApiKeySet: false
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('meeting-template-select')).toHaveValue('auto'));
+  });
+
+  it('confirms before re-enhancing when a persisted enhanced note was edited after enhancement', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Follow up with design' }]
+          }
+        ]
+      },
+      enhancedNoteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Edited enhanced note' }]
+          }
+        ]
+      },
+      enhancedOutput: {
+        blocks: [{ source: 'ai', content: 'AI expansion' }],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      lastTemplateId: 'standup',
+      lastTemplateName: 'Team Standup',
+      enhancedOutputCreatedAt: '2026-03-12T18:21:00.000Z',
+      enhancedNoteUpdatedAt: '2026-03-12T18:25:00.000Z',
+      transcriptSegments: []
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(await screen.findByTestId('generate-notes-button')).toHaveTextContent('Re-enhance');
+    await user.click(screen.getByTestId('generate-notes-button'));
+
+    expect(confirmSpy).toHaveBeenCalledWith('Re-enhancing will replace your edited notes. Continue?');
+    expect(api.enhanceMeeting).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('confirms before re-enhancing when the enhanced note was edited in the current session', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Follow up with design' }]
+          }
+        ]
+      },
+      enhancedNoteContent: null,
+      enhancedOutput: {
+        blocks: [{ source: 'ai', content: 'AI expansion' }],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      lastTemplateId: 'auto',
+      lastTemplateName: 'Auto',
+      enhancedOutputCreatedAt: '2026-03-12T18:21:00.000Z',
+      transcriptSegments: []
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    act(() => {
+      useMeetingStore.getState().setEnhancedNoteContent({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Edited enhanced note' }]
+          }
+        ]
+      });
+      useMeetingStore.getState().setNoteEditedAfterEnhancement(true);
+    });
+
+    await user.click(screen.getByTestId('generate-notes-button'));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(api.enhanceMeeting).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('re-enhances without confirmation when the enhanced note was not edited', async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const techReviewTemplate = getBuiltInTemplateById('tech-review');
+    if (!techReviewTemplate) {
+      throw new Error('Expected tech-review template to exist.');
+    }
+
+    api.getMeeting.mockResolvedValueOnce({
+      id: 'meeting-1',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:21:00.000Z',
+      durationMs: 1200000,
+      noteContent: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Follow up with design' }]
+          }
+        ]
+      },
+      enhancedNoteContent: null,
+      enhancedOutput: {
+        blocks: [{ source: 'ai', content: 'AI expansion' }],
+        actionItems: [],
+        decisions: [],
+        summary: 'Quick summary'
+      },
+      lastTemplateId: 'tech-review',
+      lastTemplateName: 'Technical Design Review',
+      enhancedOutputCreatedAt: '2026-03-12T18:21:00.000Z',
+      enhancedNoteUpdatedAt: '2026-03-12T18:21:00.000Z',
+      transcriptSegments: []
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'done',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(api.getMeeting).toHaveBeenCalledWith({ meetingId: 'meeting-1' }));
+    expect(screen.getByTestId('meeting-template-select')).toHaveValue('tech-review');
+    await user.click(screen.getByTestId('generate-notes-button'));
+
+    await waitFor(() =>
+      expect(api.enhanceMeeting).toHaveBeenCalledWith({
+        meetingId: 'meeting-1',
+        templateId: 'tech-review',
+        templateInstructions: techReviewTemplate.instructions
+      })
+    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
   it('keeps the notepad editable after enhancement failure and lets the user dismiss back to stopped', async () => {

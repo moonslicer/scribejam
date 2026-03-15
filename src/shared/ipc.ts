@@ -227,6 +227,7 @@ export interface Settings {
   firstRunAcknowledged: boolean;
   sttProvider: SttProvider;
   llmProvider: LlmProvider;
+  defaultTemplateId?: TemplateId;
   deepgramApiKeySet: boolean;
   openaiApiKeySet: boolean;
   anthropicApiKeySet: boolean;
@@ -236,6 +237,7 @@ export interface SettingsSaveRequest {
   firstRunAcknowledged?: boolean;
   sttProvider?: SttProvider;
   llmProvider?: LlmProvider;
+  defaultTemplateId?: TemplateId;
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
@@ -297,6 +299,9 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
     candidate.llmProvider !== 'openai' &&
     candidate.llmProvider !== 'anthropic'
   ) {
+    return false;
+  }
+  if (candidate.defaultTemplateId !== undefined && !isTemplateId(candidate.defaultTemplateId)) {
     return false;
   }
   return (
