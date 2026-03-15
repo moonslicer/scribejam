@@ -29,7 +29,6 @@ export default function App(): JSX.Element {
   const [historyReady, setHistoryReady] = useState(false);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
   const [noteEditedAfterEnhancement, setNoteEditedAfterEnhancement] = useState(false);
-  const noteContentAtEnhancement = useRef<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<AppPage>('workspace');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
@@ -261,7 +260,6 @@ export default function App(): JSX.Element {
       }
 
       setNoteEditedAfterEnhancement(false);
-      noteContentAtEnhancement.current = null;
       setMeetingState('enhancing');
       try {
         const response = await api.enhanceMeeting({ meetingId });
@@ -528,16 +526,10 @@ export default function App(): JSX.Element {
   }, [api, meetingActionPending, meetingState, onEnhanceAction, setupRequired]);
 
   useEffect(() => {
-    if (meetingState !== 'done') return;
-    const current = JSON.stringify({ noteContent, enhancedNoteContent });
-    if (noteContentAtEnhancement.current === null) {
-      noteContentAtEnhancement.current = current;
-      return;
-    }
-    if (current !== noteContentAtEnhancement.current) {
+    if (meetingState === 'done' && noteSaveState === 'dirty') {
       setNoteEditedAfterEnhancement(true);
     }
-  }, [meetingState, noteContent, enhancedNoteContent]);
+  }, [meetingState, noteSaveState]);
 
   useEffect(() => {
     if (activePage !== 'workspace' && transcriptOpen) {
