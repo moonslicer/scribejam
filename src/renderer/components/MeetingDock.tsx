@@ -52,6 +52,7 @@ export function MeetingDock({
   const showTranscriptToggle = meetingState === 'recording' || meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done';
 
   let centerContent: JSX.Element | null = null;
+  let centerFullWidth = false;
   if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
     centerContent = (
       <button
@@ -59,12 +60,14 @@ export function MeetingDock({
         type="button"
         disabled={disabled}
         onClick={onEnhanceAction}
-        className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-[#7ea218] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex items-center gap-2 rounded-[1.4rem] border border-[#7ea218]/60 bg-[#7ea218] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {meetingState === 'enhance_failed' ? '✦ Retry notes' : '✦ Generate notes'}
+        <SparkleIcon />
+        <span>{meetingState === 'enhance_failed' ? 'Retry' : 'Generate notes'}</span>
       </button>
     );
   } else if (meetingState === 'enhancing') {
+    centerFullWidth = true;
     centerContent = (
       <div className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/6 bg-[#37322e]/40 px-4 py-2.5 text-sm text-[#8b8074]">
         <span className="animate-pulse">Enhancing notes…</span>
@@ -76,7 +79,7 @@ export function MeetingDock({
         type="button"
         disabled={disabled}
         onClick={onSecondaryAction}
-        className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/8 bg-[#37322e]/60 px-4 py-2.5 text-sm text-[#d8d1c6] transition hover:border-white/15 hover:bg-[#3d3832]"
+        className="flex items-center gap-2 rounded-[1.4rem] border border-white/8 bg-[#37322e]/60 px-3 py-2.5 text-sm text-[#d8d1c6] transition hover:border-white/15 hover:bg-[#3d3832]"
       >
         {secondaryActionLabel}
       </button>
@@ -88,7 +91,7 @@ export function MeetingDock({
       <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
         <div
           data-testid="meeting-dock"
-          className={`pointer-events-auto flex items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl ${centerContent ? 'w-full max-w-3xl' : ''}`}
+          className={`pointer-events-auto flex items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl ${centerFullWidth ? 'w-full max-w-3xl' : ''}`}
         >
           {/* Left: record/activity button (+ transcript toggle when applicable) */}
           <div
@@ -133,7 +136,7 @@ export function MeetingDock({
 
           {/* Center: context-aware action area */}
           {centerContent ? (
-            <div className="min-w-0 flex-1">
+            <div className={centerFullWidth ? 'min-w-0 flex-1' : ''}>
               {centerContent}
             </div>
           ) : null}
@@ -201,6 +204,14 @@ function AudioActivityGlyph({
         ))}
       </span>
     </span>
+  );
+}
+
+function SparkleIcon(): JSX.Element {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1.5L9.5 6.5L14.5 8L9.5 9.5L8 14.5L6.5 9.5L1.5 8L6.5 6.5L8 1.5Z" fill="currentColor" />
+    </svg>
   );
 }
 
