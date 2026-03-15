@@ -70,20 +70,9 @@ export default function App(): JSX.Element {
   const setSelectedHistoryMeetingId = useHistoryStore((state) => state.setSelectedMeetingId);
 
   useMicCapture({
-    enabled: meetingState === 'recording' && settings?.captureSource !== 'system',
+    enabled: meetingState === 'recording',
     onError: setErrorMessage
   });
-
-  useEffect(() => {
-    if (settings?.captureSource === 'system') {
-      setLevels((previous) => ({ ...previous, mic: 0 }));
-      return;
-    }
-
-    if (settings?.captureSource === 'mic') {
-      setLevels((previous) => ({ ...previous, system: 0 }));
-    }
-  }, [settings?.captureSource]);
 
   useNoteAutosave({
     enabled:
@@ -261,13 +250,14 @@ export default function App(): JSX.Element {
       }
 
       setMeetingState('enhancing');
+      setMeetingActionPending(false);
       try {
         const response = await api.enhanceMeeting({ meetingId });
         setEnhancedOutput(response.output);
         setMeetingState('done');
       } catch (error) {
         setMeetingState('enhance_failed');
-        throw error;
+        setErrorMessage(error instanceof Error ? error.message : 'Enhancement failed.');
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to update meeting state.');
@@ -313,6 +303,7 @@ export default function App(): JSX.Element {
         }
 
         setMeetingState('enhancing');
+        setMeetingActionPending(false);
         try {
           const response = await api.enhanceMeeting({ meetingId });
           setEnhancedOutput(response.output);
