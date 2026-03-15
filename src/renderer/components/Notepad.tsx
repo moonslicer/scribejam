@@ -70,7 +70,7 @@ export function Notepad({
         emitUpdate: false
       });
     }
-    editor.setEditable(editable);
+    editor.setEditable(editable, false);
   }, [content, editable, editor]);
 
   if (!editor) {

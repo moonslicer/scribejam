@@ -579,7 +579,7 @@ export default function App(): JSX.Element {
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label={sidebarOpen ? 'Close history' : 'Open history'}
-              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-2 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
+              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-1.5 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
               style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
               <MenuIcon />
@@ -602,7 +602,7 @@ export default function App(): JSX.Element {
               data-testid="workspace-settings-button"
               type="button"
               onClick={() => setActivePage('settings')}
-              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-2 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
+              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-1.5 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
               style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
               <SettingsIcon />
