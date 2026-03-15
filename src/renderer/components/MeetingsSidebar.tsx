@@ -92,8 +92,8 @@ function MeetingItem({
       }}
       className={`group relative mx-2 mb-1 cursor-pointer rounded-xl border px-3 py-2.5 transition ${
         isSelected
-          ? 'border-[#7ea218]/25 bg-[#1e1b18]'
-          : 'border-white/6 bg-[#37322e]/50 hover:border-white/12 hover:bg-[#3d3832]'
+          ? 'border-[#7ea218]/50 bg-[#1e1b18]'
+          : 'border-transparent bg-[#37322e]/50 hover:border-white/8 hover:bg-[#3d3832]'
       } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
     >
       {/* pr-7 leaves room for the archive button so title never overlaps it */}
