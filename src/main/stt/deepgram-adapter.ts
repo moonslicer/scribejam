@@ -25,8 +25,19 @@ export interface DeepgramAdapterOptions {
   now?: () => number;
   setTimeoutFn?: (handler: () => void, delayMs: number) => NodeJS.Timeout;
   clearTimeoutFn?: (timer: NodeJS.Timeout) => void;
-  fetchFn?: typeof fetch;
-  socketFactory?: (apiKey: string) => Promise<DeepgramSocketLike>;
+  socketFactory?: (options: DeepgramSocketConnectOptions) => Promise<DeepgramSocketLike>;
+}
+
+export interface DeepgramSocketConnectOptions {
+  apiKey: string;
+  authorization: string;
+}
+
+export class MissingDeepgramApiKeyError extends Error {
+  public constructor() {
+    super('Deepgram API key is not configured.');
+    this.name = 'MissingDeepgramApiKeyError';
+  }
 }
 
 export class DeepgramAdapter implements RealtimeSttAdapter {
@@ -36,8 +47,7 @@ export class DeepgramAdapter implements RealtimeSttAdapter {
   private readonly now: () => number;
   private readonly setTimeoutFn: (handler: () => void, delayMs: number) => NodeJS.Timeout;
   private readonly clearTimeoutFn: (timer: NodeJS.Timeout) => void;
-  private readonly fetchFn: typeof fetch;
-  private readonly socketFactory: (apiKey: string) => Promise<DeepgramSocketLike>;
+  private readonly socketFactory: (options: DeepgramSocketConnectOptions) => Promise<DeepgramSocketLike>;
 
   private transcriptListener: ((event: SttTranscriptEvent) => void) | null = null;
   private connectionListener: ((event: SttConnectionEvent) => void) | null = null;
@@ -55,7 +65,6 @@ export class DeepgramAdapter implements RealtimeSttAdapter {
     this.now = options.now ?? Date.now;
     this.setTimeoutFn = options.setTimeoutFn ?? setTimeout;
     this.clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
-    this.fetchFn = options.fetchFn ?? fetch;
     this.socketFactory = options.socketFactory ?? createDeepgramSocket;
   }
 
@@ -105,18 +114,13 @@ export class DeepgramAdapter implements RealtimeSttAdapter {
     }
 
     try {
-      const response = await this.fetchFn('https://api.deepgram.com/v1/projects', {
-        method: 'GET',
-        headers: {
-          Authorization: `Token ${trimmed}`
-        }
-      });
-
-      if (response.ok) {
-        return { valid: true };
-      }
-
-      if (response.status === 401 || response.status === 403) {
+      const socket = await this.socketFactory(buildDeepgramSocketConnectOptions(trimmed));
+      socket.connect();
+      await socket.waitForOpen();
+      socket.close();
+      return { valid: true };
+    } catch (error) {
+      if (isLikelyDeepgramAuthError(error)) {
         return {
           valid: false,
           error: 'Deepgram rejected the API key. Check the key and try again.'
@@ -125,12 +129,7 @@ export class DeepgramAdapter implements RealtimeSttAdapter {
 
       return {
         valid: false,
-        error: `Deepgram validation failed (${response.status}).`
-      };
-    } catch {
-      return {
-        valid: false,
-        error: 'Unable to reach Deepgram. Check your network connection.'
+        error: 'Unable to reach Deepgram realtime transcription. Check your network connection.'
       };
     }
   }
@@ -142,13 +141,13 @@ export class DeepgramAdapter implements RealtimeSttAdapter {
 
     const apiKey = this.getApiKey()?.trim();
     if (!apiKey) {
-      throw new Error('Deepgram API key is not configured.');
+      throw new MissingDeepgramApiKeyError();
     }
 
     this.opening = true;
 
     try {
-      const socket = await this.socketFactory(apiKey);
+      const socket = await this.socketFactory(buildDeepgramSocketConnectOptions(apiKey));
       this.bindSocket(socket);
       this.socket = socket;
       socket.connect();
@@ -225,6 +224,42 @@ export class DeepgramAdapter implements RealtimeSttAdapter {
   }
 }
 
+export function isLikelyDeepgramAuthError(error: unknown): boolean {
+  const message = getDeepgramErrorMessage(error);
+  if (!message) {
+    return false;
+  }
+
+  return /\b(401|403)\b|unauthori[sz]ed|forbidden|invalid api key|authentication/i.test(message);
+}
+
+function getDeepgramErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  if ('message' in error && typeof error.message === 'string' && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (
+    'error' in error &&
+    error.error &&
+    typeof error.error === 'object' &&
+    'message' in error.error &&
+    typeof error.error.message === 'string' &&
+    error.error.message.trim().length > 0
+  ) {
+    return error.error.message;
+  }
+
+  return undefined;
+}
+
 function parseDeepgramMessage(message: unknown): DeepgramMessage | null {
   if (!message || typeof message !== 'object') {
     return null;
@@ -242,12 +277,27 @@ function parseDeepgramMessage(message: unknown): DeepgramMessage | null {
   return candidate;
 }
 
-async function createDeepgramSocket(apiKey: string): Promise<DeepgramSocketLike> {
-  const client = new DeepgramClient({ apiKey });
+function formatDeepgramAuthorizationHeader(apiKey: string): string {
+  const trimmed = apiKey.trim();
+  if (/^(Token|Bearer)\s/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `Token ${trimmed}`;
+}
+
+function buildDeepgramSocketConnectOptions(apiKey: string): DeepgramSocketConnectOptions {
+  return {
+    apiKey,
+    authorization: formatDeepgramAuthorizationHeader(apiKey)
+  };
+}
+
+async function createDeepgramSocket(options: DeepgramSocketConnectOptions): Promise<DeepgramSocketLike> {
+  const client = new DeepgramClient({ apiKey: options.apiKey });
   return (await client.listen.v2.connect({
     model: 'flux-general-en',
     encoding: ListenV2Encoding.Linear16,
     sample_rate: 16000,
-    Authorization: apiKey
+    Authorization: options.authorization
   })) as unknown as DeepgramSocketLike;
 }

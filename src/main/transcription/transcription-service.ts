@@ -1,6 +1,7 @@
 import type { ErrorDisplayEvent, TranscriptUpdateEvent, TranscriptionStatusEvent } from '../../shared/ipc';
 import type { SourceAudioFrame } from '../audio/frame-types';
 import { DeterministicMixer } from '../audio/mixer';
+import { isLikelyDeepgramAuthError, MissingDeepgramApiKeyError } from '../stt/deepgram-adapter';
 import type { RealtimeSttAdapter, SttConnectionEvent } from '../stt/types';
 
 export interface TranscriptionServiceEvents {
@@ -93,16 +94,27 @@ export class TranscriptionService {
       this.running = true;
       this.mixer.start();
       this.events.onStatus({ status: 'streaming' });
-    } catch {
+    } catch (error) {
+      const isCredentialFailure =
+        error instanceof MissingDeepgramApiKeyError || isLikelyDeepgramAuthError(error);
+
       this.running = false;
       this.events.onStatus({
         status: 'paused',
-        detail: 'Transcription paused — add a valid Deepgram key in settings.'
+        detail: isCredentialFailure
+          ? 'Transcription paused — add a valid Deepgram key in settings.'
+          : 'Transcription paused — unable to connect to Deepgram.'
       });
-      this.events.onErrorDisplay({
-        message: 'Transcription is unavailable. Add a valid Deepgram key in settings.',
-        action: 'open-settings'
-      });
+      this.events.onErrorDisplay(
+        isCredentialFailure
+          ? {
+              message: 'Transcription is unavailable. Add a valid Deepgram key in settings.',
+              action: 'open-settings'
+            }
+          : {
+              message: 'Transcription is unavailable. Check your Deepgram connection and try again.'
+            }
+      );
     }
   }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TranscriptUpdateEvent, TranscriptionStatusEvent } from '../../src/shared/ipc';
 import type { SourceAudioFrame } from '../../src/main/audio/frame-types';
+import { MissingDeepgramApiKeyError } from '../../src/main/stt/deepgram-adapter';
 import { MockSttAdapter } from '../../src/main/stt/mock-stt-adapter';
 import type {
   KeyValidationResult,
@@ -49,6 +50,34 @@ class ScriptedSttAdapter implements RealtimeSttAdapter {
 
   public emitTranscript(event: SttTranscriptEvent): void {
     this.transcriptListener?.(event);
+  }
+}
+
+class FailingSttAdapter implements RealtimeSttAdapter {
+  public constructor(private readonly error: Error) {}
+
+  public async start(): Promise<void> {
+    throw this.error;
+  }
+
+  public async sendAudio(_frames: Int16Array): Promise<void> {
+    // no-op
+  }
+
+  public async stop(): Promise<void> {
+    // no-op
+  }
+
+  public async validateKey(_key: string): Promise<KeyValidationResult> {
+    return { valid: true };
+  }
+
+  public onTranscript(_listener: (event: SttTranscriptEvent) => void): void {
+    // no-op
+  }
+
+  public onConnectionEvent(_listener: (event: SttConnectionEvent) => void): void {
+    // no-op
   }
 }
 
@@ -192,5 +221,91 @@ describe('TranscriptionService', () => {
     });
 
     expect(transcriptEvents).toHaveLength(0);
+  });
+
+  it('routes missing key failures to settings', async () => {
+    const statusEvents: TranscriptionStatusEvent[] = [];
+    const errorEvents: Array<{ message: string; action?: 'open-settings' | 'retry' }> = [];
+    const service = new TranscriptionService({
+      sttAdapter: new FailingSttAdapter(new MissingDeepgramApiKeyError()),
+      events: {
+        onTranscript: () => {
+          // no-op
+        },
+        onStatus: (event) => statusEvents.push(event),
+        onErrorDisplay: (event) => errorEvents.push(event)
+      }
+    });
+
+    await service.start();
+
+    expect(statusEvents.at(-1)).toEqual({
+      status: 'paused',
+      detail: 'Transcription paused — add a valid Deepgram key in settings.'
+    });
+    expect(errorEvents).toEqual([
+      {
+        message: 'Transcription is unavailable. Add a valid Deepgram key in settings.',
+        action: 'open-settings'
+      }
+    ]);
+  });
+
+  it('routes websocket auth events to settings', async () => {
+    const statusEvents: TranscriptionStatusEvent[] = [];
+    const errorEvents: Array<{ message: string; action?: 'open-settings' | 'retry' }> = [];
+    const service = new TranscriptionService({
+      sttAdapter: new FailingSttAdapter({
+        message: 'Unexpected server response: 401',
+        type: 'error'
+      } as Error),
+      events: {
+        onTranscript: () => {
+          // no-op
+        },
+        onStatus: (event) => statusEvents.push(event),
+        onErrorDisplay: (event) => errorEvents.push(event)
+      }
+    });
+
+    await service.start();
+
+    expect(statusEvents.at(-1)).toEqual({
+      status: 'paused',
+      detail: 'Transcription paused — add a valid Deepgram key in settings.'
+    });
+    expect(errorEvents).toEqual([
+      {
+        message: 'Transcription is unavailable. Add a valid Deepgram key in settings.',
+        action: 'open-settings'
+      }
+    ]);
+  });
+
+  it('reports connection failures without blaming the key', async () => {
+    const statusEvents: TranscriptionStatusEvent[] = [];
+    const errorEvents: Array<{ message: string; action?: 'open-settings' | 'retry' }> = [];
+    const service = new TranscriptionService({
+      sttAdapter: new FailingSttAdapter(new Error('socket hang up')),
+      events: {
+        onTranscript: () => {
+          // no-op
+        },
+        onStatus: (event) => statusEvents.push(event),
+        onErrorDisplay: (event) => errorEvents.push(event)
+      }
+    });
+
+    await service.start();
+
+    expect(statusEvents.at(-1)).toEqual({
+      status: 'paused',
+      detail: 'Transcription paused — unable to connect to Deepgram.'
+    });
+    expect(errorEvents).toEqual([
+      {
+        message: 'Transcription is unavailable. Check your Deepgram connection and try again.'
+      }
+    ]);
   });
 });

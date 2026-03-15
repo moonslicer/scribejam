@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DeepgramAdapter, type DeepgramSocketLike } from '../../src/main/stt/deepgram-adapter';
+import {
+  DeepgramAdapter,
+  MissingDeepgramApiKeyError,
+  type DeepgramSocketConnectOptions,
+  type DeepgramSocketLike
+} from '../../src/main/stt/deepgram-adapter';
 
 class FakeSocket implements DeepgramSocketLike {
   private readonly handlers: {
@@ -79,6 +84,35 @@ class FakeSocket implements DeepgramSocketLike {
 }
 
 describe('DeepgramAdapter', () => {
+  it('formats websocket authorization as a token header', async () => {
+    const connectOptions: DeepgramSocketConnectOptions[] = [];
+    const adapter = new DeepgramAdapter({
+      getApiKey: () => 'dg-key',
+      socketFactory: async (options) => {
+        connectOptions.push(options);
+        return new FakeSocket();
+      }
+    });
+
+    await adapter.start();
+    await adapter.stop();
+
+    expect(connectOptions).toEqual([
+      {
+        apiKey: 'dg-key',
+        authorization: 'Token dg-key'
+      }
+    ]);
+  });
+
+  it('fails fast when the deepgram key is missing', async () => {
+    const adapter = new DeepgramAdapter({
+      getApiKey: () => undefined
+    });
+
+    await expect(adapter.start()).rejects.toBeInstanceOf(MissingDeepgramApiKeyError);
+  });
+
   it('reconnects with bounded retry and emits lifecycle events', async () => {
     const timers: Array<() => void> = [];
     const sockets: FakeSocket[] = [];
@@ -160,17 +194,39 @@ describe('DeepgramAdapter', () => {
     expect(events).toContain('reconnect_failed');
   });
 
-  it('validates keys via Deepgram API endpoint', async () => {
+  it('validates keys through the realtime websocket path', async () => {
     const adapter = new DeepgramAdapter({
       getApiKey: () => 'unused',
-      fetchFn: async () =>
-        ({
-          ok: true,
-          status: 200
-        }) as Response,
       socketFactory: async () => new FakeSocket()
     });
 
     await expect(adapter.validateKey('abc')).resolves.toEqual({ valid: true });
+  });
+
+  it('treats websocket 401 responses as invalid keys during validation', async () => {
+    const adapter = new DeepgramAdapter({
+      getApiKey: () => 'unused',
+      socketFactory: async () =>
+        ({
+          on: () => {
+            // no-op
+          },
+          sendMedia: () => {
+            // no-op
+          },
+          connect: () => {
+            // no-op
+          },
+          close: () => {
+            // no-op
+          },
+          waitForOpen: async () => Promise.reject({ message: 'Unexpected server response: 401', type: 'error' })
+        }) as DeepgramSocketLike
+    });
+
+    await expect(adapter.validateKey('abc')).resolves.toEqual({
+      valid: false,
+      error: 'Deepgram rejected the API key. Check the key and try again.'
+    });
   });
 });
