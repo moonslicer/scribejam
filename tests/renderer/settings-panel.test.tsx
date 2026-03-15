@@ -104,4 +104,74 @@ describe('SettingsPanel', () => {
       })
     );
   });
+
+  it('saves a configured custom template and can select it as the default', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(async () => {});
+    const onValidateKey = vi.fn(async () => ({ valid: true }));
+
+    render(
+      <SettingsPanel
+        settings={{
+          firstRunAcknowledged: true,
+          sttProvider: 'deepgram',
+          llmProvider: 'openai',
+          defaultTemplateId: 'auto',
+          deepgramApiKeySet: false,
+          openaiApiKeySet: false,
+          anthropicApiKeySet: false
+        }}
+        onSave={onSave}
+        onValidateKey={onValidateKey}
+      />
+    );
+
+    await user.type(screen.getByTestId('settings-input-custom-template-name'), 'Customer interview');
+    await user.type(
+      screen.getByTestId('settings-input-custom-template-instructions'),
+      'Focus on pain points and requests.'
+    );
+    await user.selectOptions(screen.getByTestId('settings-input-default-template'), 'custom');
+    await user.click(screen.getByTestId('settings-save-button'));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        llmProvider: 'openai',
+        defaultTemplateId: 'custom',
+        customTemplate: {
+          name: 'Customer interview',
+          instructions: 'Focus on pain points and requests.'
+        }
+      })
+    );
+  });
+
+  it('disables save when the custom template is only partially filled', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn(async () => {});
+    const onValidateKey = vi.fn(async () => ({ valid: true }));
+
+    render(
+      <SettingsPanel
+        settings={{
+          firstRunAcknowledged: true,
+          sttProvider: 'deepgram',
+          llmProvider: 'openai',
+          defaultTemplateId: 'auto',
+          deepgramApiKeySet: false,
+          openaiApiKeySet: false,
+          anthropicApiKeySet: false
+        }}
+        onSave={onSave}
+        onValidateKey={onValidateKey}
+      />
+    );
+
+    await user.type(screen.getByTestId('settings-input-custom-template-name'), 'Customer interview');
+
+    expect(screen.getByTestId('settings-save-button')).toBeDisabled();
+    expect(screen.getByTestId('settings-custom-template-validation')).toHaveTextContent(
+      'Add both a name and instructions to save a custom template.'
+    );
+  });
 });

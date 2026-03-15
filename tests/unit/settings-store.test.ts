@@ -121,4 +121,63 @@ describe('SettingsStore', () => {
     });
   });
 
+  it('round-trips a custom template through persisted settings', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-settings-'));
+    tempDirs.push(dir);
+
+    const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
+    const store = new SettingsStore({ baseDir: dir, secrets });
+
+    store.saveSettings({
+      defaultTemplateId: 'custom',
+      customTemplate: {
+        name: 'Customer interview',
+        instructions: 'Focus on pain points and requests.'
+      }
+    });
+
+    expect(store.getSettings()).toMatchObject({
+      defaultTemplateId: 'custom',
+      customTemplate: {
+        name: 'Customer interview',
+        instructions: 'Focus on pain points and requests.'
+      }
+    });
+  });
+
+  it('drops an invalid persisted custom template but keeps the rest of settings', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-settings-'));
+    tempDirs.push(dir);
+
+    const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
+    const store = new SettingsStore({ baseDir: dir, secrets });
+
+    writeFileSync(
+      join(dir, 'settings.json'),
+      JSON.stringify(
+        {
+          firstRunAcknowledged: true,
+          sttProvider: 'deepgram',
+          llmProvider: 'anthropic',
+          defaultTemplateId: 'custom',
+          customTemplate: {
+            name: '',
+            instructions: ''
+          }
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    expect(store.getSettings()).toMatchObject({
+      firstRunAcknowledged: true,
+      sttProvider: 'deepgram',
+      llmProvider: 'anthropic',
+      defaultTemplateId: 'custom'
+    });
+    expect(store.getSettings().customTemplate).toBeUndefined();
+  });
+
 });

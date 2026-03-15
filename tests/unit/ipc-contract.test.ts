@@ -105,6 +105,46 @@ describe('ipc contract validators', () => {
     expect(isEnhanceMeetingRequest(null)).toBe(false);
   });
 
+  it('accepts and rejects settings save payloads with custom templates', () => {
+    expect(
+      isSettingsSaveRequest({
+        defaultTemplateId: 'custom',
+        customTemplate: {
+          name: 'Customer interview',
+          instructions: 'Focus on pain points and requests.'
+        }
+      })
+    ).toBe(true);
+    expect(
+      isSettingsSaveRequest({
+        customTemplate: {
+          name: 'Customer interview',
+          instructions: 'a'.repeat(MAX_TEMPLATE_INSTRUCTIONS_LENGTH)
+        }
+      })
+    ).toBe(true);
+    expect(
+      isSettingsSaveRequest({
+        customTemplate: {
+          name: 'Customer interview',
+          instructions: 'a'.repeat(MAX_TEMPLATE_INSTRUCTIONS_LENGTH + 1)
+        }
+      })
+    ).toBe(false);
+    expect(
+      isSettingsSaveRequest({
+        customTemplate: {
+          name: 'Customer interview'
+        }
+      })
+    ).toBe(false);
+    expect(
+      isSettingsSaveRequest({
+        defaultTemplateId: 'invalid'
+      })
+    ).toBe(false);
+  });
+
   it('accepts and rejects note save payloads', () => {
     expect(
       isNotesSaveRequest({

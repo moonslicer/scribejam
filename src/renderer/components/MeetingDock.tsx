@@ -1,5 +1,8 @@
 import type { MeetingState, TemplateId, TranscriptionStatusEvent } from '../../shared/ipc';
-import type { TemplateDefinition } from '../../shared/templates';
+import { getTemplatePickerLabel, type TemplateDefinition } from '../../shared/templates';
+
+const EDIT_TEMPLATES_VALUE = '__edit_templates__';
+const PICKER_DIVIDER_VALUE = '__divider__';
 
 interface MeetingDockProps {
   meetingState: MeetingState;
@@ -11,10 +14,12 @@ interface MeetingDockProps {
   secondaryActionLabel?: string | undefined;
   templateOptions?: TemplateDefinition[];
   selectedTemplateId?: TemplateId;
+  showEditTemplatesOption?: boolean;
   onPrimaryAction: () => void;
   onSecondaryAction?: () => void;
   onEnhanceAction?: () => void;
   onTemplateChange?: (templateId: TemplateId) => void;
+  onEditTemplates?: () => void;
   onToggleTranscript: () => void;
 }
 
@@ -46,10 +51,12 @@ export function MeetingDock({
   secondaryActionLabel,
   templateOptions,
   selectedTemplateId,
+  showEditTemplatesOption = false,
   onPrimaryAction,
   onSecondaryAction,
   onEnhanceAction,
   onTemplateChange,
+  onEditTemplates,
   onToggleTranscript
 }: MeetingDockProps): JSX.Element {
   const micPercent = Math.round(clampLevel(micLevel) * 100);
@@ -72,14 +79,31 @@ export function MeetingDock({
               data-testid="meeting-template-select"
               value={selectedTemplateId}
               disabled={disabled}
-              onChange={(event) => onTemplateChange(event.target.value as TemplateId)}
+              onChange={(event) => {
+                if (event.target.value === EDIT_TEMPLATES_VALUE) {
+                  onEditTemplates?.();
+                  return;
+                }
+
+                onTemplateChange(event.target.value as TemplateId);
+              }}
               className="bg-transparent text-sm font-medium text-[#f1ede5] outline-none"
             >
               {templateOptions.map((template) => (
                 <option key={template.id} value={template.id} className="bg-[#2d2926] text-[#f1ede5]">
-                  {template.name}
+                  {getTemplatePickerLabel(template)}
                 </option>
               ))}
+              {showEditTemplatesOption ? (
+                <>
+                  <option value={PICKER_DIVIDER_VALUE} disabled className="bg-[#2d2926] text-[#8b8074]">
+                    ──────────
+                  </option>
+                  <option value={EDIT_TEMPLATES_VALUE} className="bg-[#2d2926] text-[#f1ede5]">
+                    Edit templates…
+                  </option>
+                </>
+              ) : null}
             </select>
           </label>
         ) : null}

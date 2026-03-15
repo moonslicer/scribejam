@@ -1,7 +1,11 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { ErrorAction, Settings, TemplateId, TranscriptionStatusEvent } from '../shared/ipc';
-import { BUILT_IN_TEMPLATES, getBuiltInTemplateById } from '../shared/templates';
+import {
+  BUILT_IN_TEMPLATES,
+  getBuiltInTemplateById,
+  getCustomTemplateDefinition
+} from '../shared/templates';
 import { useMicCapture } from './audio/useMicCapture';
 import { MeetingBar } from './components/MeetingBar';
 import { MeetingDock } from './components/MeetingDock';
@@ -115,8 +119,8 @@ export default function App(): JSX.Element {
           hydrateMeeting(resolvedMeeting);
           setSelectedTemplateId(
             resolvedMeeting.lastTemplateId
-              ? resolveSelectableTemplateId(resolvedMeeting.lastTemplateId)
-              : resolveSelectableTemplateId(settings?.defaultTemplateId)
+              ? resolveSelectableTemplateId(resolvedMeeting.lastTemplateId, settings)
+              : resolveSelectableTemplateId(settings?.defaultTemplateId, settings)
           );
         }
       })
@@ -220,14 +224,18 @@ export default function App(): JSX.Element {
   }, [api, applyTranscriptUpdate, loadHistory, setEnhancementProgress, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
-  const availableTemplates = BUILT_IN_TEMPLATES.filter((template) => template.id !== 'custom');
+  const customTemplate = getCustomTemplateDefinition(settings?.customTemplate);
+  const availableTemplates = [
+    ...BUILT_IN_TEMPLATES.filter((template) => template.id !== 'custom'),
+    ...(customTemplate ? [customTemplate] : [])
+  ];
 
   useEffect(() => {
     if (!settings) {
       return;
     }
 
-    setSelectedTemplateId(resolveSelectableTemplateId(settings.defaultTemplateId));
+    setSelectedTemplateId(resolveSelectableTemplateId(settings.defaultTemplateId, settings));
   }, [settings]);
 
   const resumeMeetingRecording = async (): Promise<void> => {
@@ -275,7 +283,7 @@ export default function App(): JSX.Element {
         return;
       }
 
-      const selectedTemplate = getBuiltInTemplateById(selectedTemplateId);
+      const selectedTemplate = resolveTemplateDefinition(selectedTemplateId, settings);
       if (!selectedTemplate) {
         setErrorMessage('Selected template is unavailable.');
         return;
@@ -597,6 +605,11 @@ export default function App(): JSX.Element {
     setMeetingId(nextMeetingId);
   };
 
+  const onEditTemplates = (): void => {
+    setActivePage('settings');
+    setSidebarOpen(true);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#262321] pt-8 text-[#f3eee8]">
       <div
@@ -750,11 +763,13 @@ export default function App(): JSX.Element {
                 transcriptionStatus={transcriptionStatus}
                 templateOptions={availableTemplates}
                 selectedTemplateId={selectedTemplateId}
+                showEditTemplatesOption
                 onToggleTranscript={() => setTranscriptOpen((previous) => !previous)}
                 onPrimaryAction={() => void onPrimaryAction()}
                 onSecondaryAction={() => void onSecondaryAction()}
                 onEnhanceAction={() => void onEnhanceAction()}
                 onTemplateChange={setSelectedTemplateId}
+                onEditTemplates={onEditTemplates}
                 secondaryActionLabel={
                   meetingState === 'enhance_failed'
                     ? 'Dismiss'
@@ -815,9 +830,23 @@ function SettingsIcon(): JSX.Element {
   );
 }
 
-function resolveSelectableTemplateId(templateId?: TemplateId): TemplateId {
-  const resolvedTemplate = templateId ? getBuiltInTemplateById(templateId) : undefined;
+function resolveSelectableTemplateId(
+  templateId: TemplateId | undefined,
+  settings?: Settings | null
+): TemplateId {
+  const resolvedTemplate = resolveTemplateDefinition(templateId, settings);
   return resolvedTemplate?.id ?? 'auto';
+}
+
+function resolveTemplateDefinition(
+  templateId: TemplateId | undefined,
+  settings?: Settings | null
+) {
+  if (templateId === 'custom') {
+    return getCustomTemplateDefinition(settings?.customTemplate);
+  }
+
+  return templateId ? getBuiltInTemplateById(templateId) : getBuiltInTemplateById('auto');
 }
 
 function shouldConfirmReenhancement({

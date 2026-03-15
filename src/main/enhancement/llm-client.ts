@@ -11,6 +11,7 @@ export type EnhancementErrorCode =
 
 export interface EnhancementInvocationOptions {
   templateId?: TemplateId;
+  templateName?: string;
   templateInstructions?: string;
 }
 

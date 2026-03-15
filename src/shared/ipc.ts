@@ -228,9 +228,15 @@ export interface Settings {
   sttProvider: SttProvider;
   llmProvider: LlmProvider;
   defaultTemplateId?: TemplateId;
+  customTemplate?: CustomTemplateSettings;
   deepgramApiKeySet: boolean;
   openaiApiKeySet: boolean;
   anthropicApiKeySet: boolean;
+}
+
+export interface CustomTemplateSettings {
+  name: string;
+  instructions: string;
 }
 
 export interface SettingsSaveRequest {
@@ -238,6 +244,7 @@ export interface SettingsSaveRequest {
   sttProvider?: SttProvider;
   llmProvider?: LlmProvider;
   defaultTemplateId?: TemplateId;
+  customTemplate?: CustomTemplateSettings;
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
@@ -303,6 +310,20 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
   }
   if (candidate.defaultTemplateId !== undefined && !isTemplateId(candidate.defaultTemplateId)) {
     return false;
+  }
+  if (candidate.customTemplate !== undefined) {
+    if (!candidate.customTemplate || typeof candidate.customTemplate !== 'object') {
+      return false;
+    }
+
+    const customTemplate = candidate.customTemplate as Partial<CustomTemplateSettings>;
+    if (
+      typeof customTemplate.name !== 'string' ||
+      typeof customTemplate.instructions !== 'string' ||
+      customTemplate.instructions.length > MAX_TEMPLATE_INSTRUCTIONS_LENGTH
+    ) {
+      return false;
+    }
   }
   return (
     (candidate.deepgramApiKey === undefined || typeof candidate.deepgramApiKey === 'string') &&

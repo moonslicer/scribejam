@@ -68,10 +68,10 @@ export class EnhancementOrchestrator {
         : undefined;
       this.meetingRecordsService.recordMeetingEnhancementCompleted(
         completedSnapshot,
-        appliedTemplate
+        appliedTemplate || options?.templateName
           ? {
-              id: appliedTemplate.id,
-              name: appliedTemplate.name
+              id: options?.templateId ?? appliedTemplate?.id ?? 'auto',
+              name: options?.templateName ?? appliedTemplate?.name ?? 'Auto'
             }
           : undefined
       );

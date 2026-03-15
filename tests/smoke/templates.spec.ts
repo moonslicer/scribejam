@@ -132,3 +132,70 @@ test('re-enhancing edited enhanced notes requires confirmation', async () => {
     await context.close();
   }
 });
+
+test('custom templates persist through settings and enhancement uses the saved custom instructions', async () => {
+  const userDataDir = mkdtempSync(join(tmpdir(), 'scribejam-pw-custom-template-'));
+  const first = await launchApp({ userDataDir });
+
+  try {
+    await completeFirstRunSetup(first.page);
+    await openSettingsPage(first.page);
+    await first.page.getByTestId('settings-input-custom-template-name').fill('Customer interview');
+    await first.page
+      .getByTestId('settings-input-custom-template-instructions')
+      .fill('Focus on pain points and requests.');
+    await first.page.getByTestId('settings-input-default-template').selectOption('custom');
+    await first.page.getByTestId('settings-save-button').click();
+  } finally {
+    await first.close();
+  }
+
+  const second = await launchApp({ userDataDir });
+
+  try {
+    await expect(second.page.getByTestId('setup-wizard')).toHaveCount(0);
+    await openSettingsPage(second.page);
+    await expect(second.page.getByTestId('settings-input-default-template')).toHaveValue('custom');
+    await expect(second.page.getByTestId('settings-input-custom-template-name')).toHaveValue(
+      'Customer interview'
+    );
+    await second.page.getByRole('button', { name: /back/i }).click();
+
+    await installMeetingEventCapture(second.page);
+    await second.page.getByTestId('meeting-activity-toggle').click();
+    await expect(second.page.getByTestId('meeting-state-value')).toHaveText('recording');
+
+    const editor = second.page.getByTestId('notepad-editor-input');
+    await editor.click();
+    await editor.type('Customer call notes');
+    await sendMicFrames(second.page, { count: 12, amplitude: 9000 });
+
+    const meetingId = await getLastMeetingId(second.page);
+    expect(meetingId).not.toBeNull();
+
+    await second.page.evaluate(async (id) => {
+      await window.scribejam.stopMeeting({ meetingId: id });
+    }, meetingId ?? '');
+    await expect(second.page.getByTestId('meeting-state-value')).toHaveText('stopped');
+    await expect(second.page.getByTestId('meeting-template-select')).toHaveValue('custom');
+    await expect(
+      second.page.locator('[data-testid="meeting-template-select"] option[value="custom"]')
+    ).toHaveText('Custom: Customer interview');
+
+    await second.page.getByTestId('generate-notes-button').click();
+    await expect(second.page.getByTestId('meeting-state-value')).toHaveText('done');
+    await expect(second.page.getByTestId('notepad-template-badge')).toContainText('Customer interview');
+
+    const meeting = (await getMeeting(second.page, meetingId ?? '')) as {
+      lastTemplateId?: string;
+      lastTemplateName?: string;
+    } | null;
+
+    expect(meeting?.lastTemplateId).toBe('custom');
+    expect(meeting?.lastTemplateName).toBe('Customer interview');
+    assertNoFatalRendererErrors(second.pageErrors, second.consoleErrors);
+  } finally {
+    await second.close();
+    rmSync(userDataDir, { recursive: true, force: true });
+  }
+});

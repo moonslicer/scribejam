@@ -1,4 +1,8 @@
-import type { TemplateId } from './ipc';
+import {
+  MAX_TEMPLATE_INSTRUCTIONS_LENGTH,
+  type CustomTemplateSettings,
+  type TemplateId
+} from './ipc';
 
 export interface TemplateDefinition {
   id: TemplateId;
@@ -75,3 +79,34 @@ export function getBuiltInTemplateById(id: TemplateId): TemplateDefinition | und
   return BUILT_IN_TEMPLATES.find((template) => template.id === id);
 }
 
+export function getCustomTemplateDefinition(
+  template?: CustomTemplateSettings
+): TemplateDefinition | undefined {
+  if (!template) {
+    return undefined;
+  }
+
+  const name = template.name.trim();
+  const instructions = template.instructions.trim();
+  if (
+    name.length === 0 ||
+    instructions.length === 0 ||
+    instructions.length > MAX_TEMPLATE_INSTRUCTIONS_LENGTH
+  ) {
+    return undefined;
+  }
+
+  return {
+    id: 'custom',
+    name,
+    instructions
+  };
+}
+
+export function getTemplatePickerLabel(template: TemplateDefinition): string {
+  if (template.id === 'custom') {
+    return `Custom: ${template.name}`;
+  }
+
+  return template.name;
+}

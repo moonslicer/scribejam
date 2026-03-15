@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
 import { TEMPLATE_IDS, type Settings, type SettingsSaveRequest } from '../../shared/ipc';
+import { getCustomTemplateDefinition } from '../../shared/templates';
 import { SecureSecrets } from './secure-secrets';
 
 interface PersistedSettings {
@@ -9,6 +10,7 @@ interface PersistedSettings {
   sttProvider: Settings['sttProvider'];
   llmProvider: Settings['llmProvider'];
   defaultTemplateId: NonNullable<Settings['defaultTemplateId']>;
+  customTemplate?: Settings['customTemplate'];
 }
 
 const DEFAULT_SETTINGS: PersistedSettings = {
@@ -35,6 +37,7 @@ export class SettingsStore {
       sttProvider: persisted.sttProvider,
       llmProvider: persisted.llmProvider,
       defaultTemplateId: persisted.defaultTemplateId,
+      ...(persisted.customTemplate ? { customTemplate: persisted.customTemplate } : {}),
       deepgramApiKeySet: this.secrets.has('deepgramApiKey'),
       openaiApiKeySet: this.secrets.has('openaiApiKey'),
       anthropicApiKeySet: this.secrets.has('anthropicApiKey')
@@ -55,6 +58,17 @@ export class SettingsStore {
     }
     if (update.defaultTemplateId !== undefined) {
       next.defaultTemplateId = update.defaultTemplateId;
+    }
+    if (update.customTemplate !== undefined) {
+      const normalizedTemplate = getCustomTemplateDefinition(update.customTemplate);
+      if (normalizedTemplate) {
+        next.customTemplate = {
+          name: normalizedTemplate.name,
+          instructions: normalizedTemplate.instructions
+        };
+      } else {
+        delete next.customTemplate;
+      }
     }
     if (update.deepgramApiKey !== undefined) {
       this.secrets.set('deepgramApiKey', update.deepgramApiKey);
@@ -85,6 +99,7 @@ export class SettingsStore {
       const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
       const defaultTemplateId =
         parsed.defaultTemplateId === undefined ? DEFAULT_SETTINGS.defaultTemplateId : parsed.defaultTemplateId;
+      const customTemplate = getCustomTemplateDefinition(parsed.customTemplate);
       if (
         typeof parsed.firstRunAcknowledged !== 'boolean' ||
         parsed.sttProvider !== 'deepgram' ||
@@ -98,7 +113,15 @@ export class SettingsStore {
         firstRunAcknowledged: parsed.firstRunAcknowledged,
         sttProvider: parsed.sttProvider,
         llmProvider: parsed.llmProvider,
-        defaultTemplateId
+        defaultTemplateId,
+        ...(customTemplate
+          ? {
+              customTemplate: {
+                name: customTemplate.name,
+                instructions: customTemplate.instructions
+              }
+            }
+          : {})
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

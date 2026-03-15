@@ -45,6 +45,7 @@ import {
   TranscriptRepository
 } from './storage/repositories';
 import { TranscriptionService } from './transcription/transcription-service';
+import { getCustomTemplateDefinition } from '../shared/templates';
 
 interface HandlerContext {
   window: BrowserWindow;
@@ -276,10 +277,14 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
 
     const request = payload as EnhanceMeetingRequest;
     const meetingId = request.meetingId;
+    const customTemplate = getCustomTemplateDefinition(services.settingsStore.getSettings().customTemplate);
 
     try {
       const response = await services.enhancementOrchestrator.enhanceMeeting(meetingId, {
         ...(request.templateId ? { templateId: request.templateId } : {}),
+        ...(request.templateId === 'custom' && customTemplate
+          ? { templateName: customTemplate.name }
+          : {}),
         ...(request.templateInstructions
           ? { templateInstructions: request.templateInstructions }
           : {})

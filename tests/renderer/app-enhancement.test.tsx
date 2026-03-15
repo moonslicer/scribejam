@@ -614,6 +614,63 @@ describe('App enhancement flow', () => {
     await waitFor(() => expect(screen.getByTestId('meeting-template-select')).toHaveValue('auto'));
   });
 
+  it('shows the saved custom template in the picker and uses its instructions', async () => {
+    const user = userEvent.setup();
+    api.getSettings.mockResolvedValueOnce({
+      firstRunAcknowledged: true,
+      sttProvider: 'deepgram',
+      llmProvider: 'openai',
+      defaultTemplateId: 'custom',
+      customTemplate: {
+        name: 'Customer interview',
+        instructions: 'Focus on pain points and requests.'
+      },
+      deepgramApiKeySet: true,
+      openaiApiKeySet: false,
+      anthropicApiKeySet: false
+    });
+
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('meeting-template-select')).toHaveValue('custom'));
+    expect(screen.getByRole('option', { name: 'Custom: Customer interview' })).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('generate-notes-button'));
+
+    await waitFor(() =>
+      expect(api.enhanceMeeting).toHaveBeenCalledWith({
+        meetingId: 'meeting-1',
+        templateId: 'custom',
+        templateInstructions: 'Focus on pain points and requests.'
+      })
+    );
+  });
+
+  it('opens settings when the picker edit option is selected', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByTestId('meeting-bar');
+    await act(async () => {
+      stateListener?.({
+        state: 'stopped',
+        meetingId: 'meeting-1'
+      });
+    });
+
+    await user.selectOptions(screen.getByTestId('meeting-template-select'), '__edit_templates__');
+
+    expect(await screen.findByTestId('settings-page')).toBeInTheDocument();
+  });
+
   it('confirms before re-enhancing when a persisted enhanced note was edited after enhancement', async () => {
     const user = userEvent.setup();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
