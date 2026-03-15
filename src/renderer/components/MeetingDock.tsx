@@ -49,7 +49,7 @@ export function MeetingDock({
   const systemPercent = Math.round(clampLevel(systemLevel) * 100);
   const isRecording = meetingState === 'recording';
 
-  const showTranscriptToggle = meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done';
+  const showTranscriptToggle = meetingState === 'recording' || meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done';
 
   let centerContent: JSX.Element | null = null;
   if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
@@ -62,18 +62,6 @@ export function MeetingDock({
         className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-[#7ea218] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#8db61c] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {meetingState === 'enhance_failed' ? '✦ Retry notes' : '✦ Generate notes'}
-      </button>
-    );
-  } else if (isRecording) {
-    centerContent = (
-      <button
-        type="button"
-        onClick={onToggleTranscript}
-        aria-label={transcriptOpen ? 'Hide transcript' : 'Show transcript'}
-        className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/8 bg-[#37322e]/60 px-4 py-2.5 text-sm text-[#9a9085] transition hover:border-white/15 hover:text-[#d8d1c6]"
-      >
-        <ChevronIcon expanded={transcriptOpen} />
-        <span>{transcriptOpen ? 'Hide transcript' : 'Show transcript'}</span>
       </button>
     );
   } else if (meetingState === 'enhancing') {
@@ -100,7 +88,7 @@ export function MeetingDock({
       <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
         <div
           data-testid="meeting-dock"
-          className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl"
+          className={`pointer-events-auto flex items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl ${centerContent ? 'w-full max-w-3xl' : ''}`}
         >
           {/* Left: record/activity button (+ transcript toggle when applicable) */}
           <div
@@ -144,9 +132,11 @@ export function MeetingDock({
           </div>
 
           {/* Center: context-aware action area */}
-          <div className="min-w-0 flex-1">
-            {centerContent}
-          </div>
+          {centerContent ? (
+            <div className="min-w-0 flex-1">
+              {centerContent}
+            </div>
+          ) : null}
         </div>
       </div>
 
