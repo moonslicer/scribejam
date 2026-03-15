@@ -52,7 +52,6 @@ export function MeetingDock({
   const showTranscriptToggle = meetingState === 'recording' || meetingState === 'stopped' || meetingState === 'enhance_failed' || meetingState === 'done';
 
   let centerContent: JSX.Element | null = null;
-  let centerFullWidth = false;
   if (meetingState === 'stopped' || meetingState === 'enhance_failed') {
     centerContent = (
       <button
@@ -67,10 +66,10 @@ export function MeetingDock({
       </button>
     );
   } else if (meetingState === 'enhancing') {
-    centerFullWidth = true;
     centerContent = (
-      <div className="flex w-full items-center justify-center gap-2 rounded-[1.2rem] border border-white/6 bg-[#37322e]/40 px-4 py-2.5 text-sm text-[#8b8074]">
-        <span className="animate-pulse">Enhancing notes…</span>
+      <div className="flex items-center gap-2 rounded-[1.4rem] border border-white/6 bg-[#37322e]/40 px-3 py-2.5 text-sm text-[#8b8074]">
+        <SparkleIcon />
+        <span className="animate-pulse">Enhancing…</span>
       </div>
     );
   } else if (meetingState === 'done' && secondaryActionLabel && onSecondaryAction) {
@@ -91,7 +90,7 @@ export function MeetingDock({
       <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
         <div
           data-testid="meeting-dock"
-          className={`pointer-events-auto flex items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl ${centerFullWidth ? 'w-full max-w-3xl' : ''}`}
+          className="pointer-events-auto flex items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl"
         >
           {/* Left: record/activity button (+ transcript toggle when applicable) */}
           <div
@@ -135,11 +134,7 @@ export function MeetingDock({
           </div>
 
           {/* Center: context-aware action area */}
-          {centerContent ? (
-            <div className={centerFullWidth ? 'min-w-0 flex-1' : ''}>
-              {centerContent}
-            </div>
-          ) : null}
+          {centerContent ?? null}
         </div>
       </div>
 
