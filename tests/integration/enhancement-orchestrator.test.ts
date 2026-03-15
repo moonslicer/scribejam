@@ -165,6 +165,88 @@ describe('EnhancementOrchestrator', () => {
     harness.db.close();
   });
 
+  it('re-enhances a done meeting and persists the newest result', async () => {
+    let summariesServed = 0;
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async () => {
+          summariesServed += 1;
+          return {
+            blocks: [{ source: 'ai', content: `Enhancement run ${summariesServed}` }],
+            actionItems: [],
+            decisions: [],
+            summary: `Summary ${summariesServed}`
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Weekly sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+
+    const firstResponse = await harness.orchestrator.enhanceMeeting(started.meetingId ?? '');
+    const secondResponse = await harness.orchestrator.enhanceMeeting(started.meetingId ?? '');
+    const persistedEnhancement = harness.enhancedOutputs.getLatestByMeetingId(started.meetingId ?? '');
+
+    expect(firstResponse.output.summary).toBe('Summary 1');
+    expect(secondResponse.output.summary).toBe('Summary 2');
+    expect(persistedEnhancement?.content).toContain('Summary 2');
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
+
+  it('hydrates a persisted done meeting before re-enhancement after app reload', async () => {
+    let summariesServed = 0;
+    const harness = createHarness({
+      getLlmClient: () => ({
+        enhance: async () => {
+          summariesServed += 1;
+          return {
+            blocks: [{ source: 'ai', content: `Enhancement run ${summariesServed}` }],
+            actionItems: [],
+            decisions: [],
+            summary: `Summary ${summariesServed}`
+          };
+        }
+      })
+    });
+    const started = harness.stateMachine.start('Weekly sync');
+    harness.meetingRecords.recordMeetingStarted(started);
+    const stopped = harness.stateMachine.stop(started.meetingId ?? '');
+    harness.meetingRecords.recordMeetingStopped(stopped);
+    await harness.orchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    const reloadedStateMachine = new MeetingStateMachine();
+    const reloadedOrchestrator = new EnhancementOrchestrator(
+      reloadedStateMachine,
+      harness.meetingRecords,
+      harness.artifacts,
+      harness.enhancedOutputs,
+      harness.enhancedNoteDocuments,
+      () => ({
+        enhance: async () => ({
+          blocks: [{ source: 'ai', content: 'Reloaded enhancement' }],
+          actionItems: [],
+          decisions: [],
+          summary: 'Reloaded summary'
+        })
+      }),
+      {
+        retryDelayMs: 1,
+        sleep: async () => {}
+      }
+    );
+
+    const response = await reloadedOrchestrator.enhanceMeeting(started.meetingId ?? '');
+
+    expect(response.output.summary).toBe('Reloaded summary');
+    expect(harness.meetingRecords.getMeeting(started.meetingId ?? '')?.state).toBe('done');
+
+    harness.db.close();
+  });
+
   it('enhances against compacted finalized transcript context', async () => {
     const harness = createHarness();
     const started = harness.stateMachine.start('Weekly sync');

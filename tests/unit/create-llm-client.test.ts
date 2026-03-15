@@ -7,7 +7,8 @@ describe('createLlmClient', () => {
   it('creates an OpenAI client when the provider and key are configured', () => {
     const client = createLlmClient({
       provider: 'openai',
-      getOpenAIApiKey: () => 'sk-openai-test'
+      getOpenAIApiKey: () => 'sk-openai-test',
+      getAnthropicApiKey: () => undefined
     });
 
     expect(client).toBeInstanceOf(OpenAIEnhancementClient);
@@ -17,14 +18,16 @@ describe('createLlmClient', () => {
     expect(() =>
       createLlmClient({
         provider: 'openai',
-        getOpenAIApiKey: () => ''
+        getOpenAIApiKey: () => '',
+        getAnthropicApiKey: () => undefined
       })
     ).toThrowError(EnhancementProviderError);
 
     try {
       createLlmClient({
         provider: 'openai',
-        getOpenAIApiKey: () => ''
+        getOpenAIApiKey: () => '',
+        getAnthropicApiKey: () => undefined
       });
     } catch (error) {
       expect((error as EnhancementProviderError).code).toBe('invalid_api_key');
@@ -34,9 +37,10 @@ describe('createLlmClient', () => {
   it('fails clearly for unsupported providers', () => {
     expect(() =>
       createLlmClient({
-        provider: 'anthropic',
-        getOpenAIApiKey: vi.fn()
+        provider: 'unsupported' as unknown as 'openai' | 'anthropic',
+        getOpenAIApiKey: vi.fn(),
+        getAnthropicApiKey: vi.fn()
       })
-    ).toThrowError('Unsupported enhancement provider: anthropic.');
+    ).toThrowError('Unsupported enhancement provider: unsupported.');
   });
 });

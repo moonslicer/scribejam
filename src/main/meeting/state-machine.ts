@@ -97,7 +97,10 @@ export class MeetingStateMachine {
   }
 
   public beginEnhancement(meetingId: string): MeetingSnapshot {
-    if (this.snapshot.state !== 'stopped' || this.snapshot.meetingId !== meetingId) {
+    if (
+      (this.snapshot.state !== 'stopped' && this.snapshot.state !== 'done') ||
+      this.snapshot.meetingId !== meetingId
+    ) {
       throw new Error('Cannot begin enhancement from current state.');
     }
 

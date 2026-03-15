@@ -80,6 +80,19 @@ describe('MeetingStateMachine', () => {
     expect(resumed.title).toBe(started.title);
   });
 
+  it('allows re-enhancement after a meeting is already done', () => {
+    const machine = new MeetingStateMachine();
+
+    const started = machine.start('Weekly sync');
+    const stopped = machine.stop(started.meetingId ?? '');
+    const firstEnhancement = machine.beginEnhancement(stopped.meetingId ?? '');
+    const done = machine.completeEnhancement(firstEnhancement.meetingId ?? '');
+    const secondEnhancement = machine.beginEnhancement(done.meetingId ?? '');
+
+    expect(secondEnhancement.state).toBe('enhancing');
+    expect(secondEnhancement.meetingId).toBe(started.meetingId);
+  });
+
   it('primes a persisted meeting so it can resume after app reload', () => {
     const machine = new MeetingStateMachine();
 

@@ -12,7 +12,9 @@ describe('toEnhancementArtifacts', () => {
         createdAt: '2026-03-13T00:00:00.000Z',
         updatedAt: '2026-03-13T00:05:00.000Z',
         durationMs: 300000,
-        archivedAt: null
+        archivedAt: null,
+        lastTemplateId: null,
+        lastTemplateName: null
       },
       note: {
         id: 'meeting-1-note',
@@ -70,7 +72,9 @@ describe('toEnhancementArtifacts', () => {
         createdAt: '2026-03-13T00:00:00.000Z',
         updatedAt: '2026-03-13T00:05:00.000Z',
         durationMs: 300000,
-        archivedAt: null
+        archivedAt: null,
+        lastTemplateId: null,
+        lastTemplateName: null
       },
       note: {
         id: 'meeting-2-note',

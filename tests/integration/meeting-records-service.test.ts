@@ -300,6 +300,84 @@ describe('MeetingRecordsService', () => {
     db.close();
   });
 
+  it('exposes template metadata and overwrite-confirmation timestamps for enhanced meetings', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
+    tempDirs.push(dir);
+    const dbPath = join(dir, 'scribejam.sqlite');
+    const db = createStorageDatabase({ dbPath });
+    const meetings = new MeetingsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+    const transcript = new TranscriptRepository(db);
+    const enhancements = new EnhancedOutputsRepository(db);
+    const enhancedNoteDocuments = new EnhancedNoteDocumentsRepository(db);
+    const service = new MeetingRecordsService(meetings, artifacts, transcript);
+
+    meetings.create({
+      id: 'meeting-3',
+      title: '1:1',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z'
+    });
+    db.prepare(
+      `
+        UPDATE meetings
+        SET last_template_id = ?, last_template_name = ?
+        WHERE id = ?
+      `
+    ).run('one-on-one', '1:1 with Direct Report', 'meeting-3');
+    enhancements.save({
+      meetingId: 'meeting-3',
+      content:
+        '{"blocks":[{"source":"human","content":"Follow up"},{"source":"ai","content":"AI expansion"}],"actionItems":[],"decisions":[],"summary":"Quick summary"}',
+      createdAt: '2026-03-12T18:26:00.000Z'
+    });
+    enhancedNoteDocuments.save({
+      id: 'meeting-3-enhanced-note',
+      meetingId: 'meeting-3',
+      content:
+        '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited enhanced note"}]}]}',
+      updatedAt: '2026-03-12T18:27:00.000Z'
+    });
+
+    const meeting = service.getMeeting('meeting-3');
+
+    expect(meeting).toMatchObject({
+      lastTemplateId: 'one-on-one',
+      lastTemplateName: '1:1 with Direct Report',
+      enhancedOutputCreatedAt: '2026-03-12T18:26:00.000Z',
+      enhancedNoteUpdatedAt: '2026-03-12T18:27:00.000Z'
+    });
+
+    db.close();
+  });
+
+  it('drops invalid stored template ids when hydrating a meeting', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
+    tempDirs.push(dir);
+    const dbPath = join(dir, 'scribejam.sqlite');
+    const db = createStorageDatabase({ dbPath });
+    const meetings = new MeetingsRepository(db);
+    const artifacts = new MeetingArtifactsRepository(db);
+    const transcript = new TranscriptRepository(db);
+    const service = new MeetingRecordsService(meetings, artifacts, transcript);
+
+    meetings.create({
+      id: 'meeting-4',
+      title: 'Weekly sync',
+      state: 'done',
+      createdAt: '2026-03-12T18:00:00.000Z',
+      updatedAt: '2026-03-12T18:25:00.000Z'
+    });
+    db.prepare('UPDATE meetings SET last_template_id = ? WHERE id = ?').run('unknown-template', 'meeting-4');
+
+    const meeting = service.getMeeting('meeting-4');
+
+    expect(meeting?.lastTemplateId).toBeUndefined();
+
+    db.close();
+  });
+
   it('drops invalid persisted enhancement payloads instead of coercing them', () => {
     const dir = mkdtempSync(join(tmpdir(), 'scribejam-meeting-records-'));
     tempDirs.push(dir);

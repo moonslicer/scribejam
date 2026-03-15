@@ -83,7 +83,7 @@ export class EnhancementOrchestrator {
     const snapshot = this.stateMachine.getSnapshot();
     const hasLoadedEnhancementCandidate =
       snapshot.meetingId === meeting.id &&
-      (snapshot.state === 'stopped' || snapshot.state === 'enhance_failed');
+      (snapshot.state === 'stopped' || snapshot.state === 'enhance_failed' || snapshot.state === 'done');
 
     if (hasLoadedEnhancementCandidate) {
       return snapshot.state === 'enhance_failed'
@@ -95,7 +95,11 @@ export class EnhancementOrchestrator {
       return this.stateMachine.beginEnhancement(meeting.id);
     }
 
-    if (meeting.state !== 'stopped' && meeting.state !== 'enhance_failed') {
+    if (
+      meeting.state !== 'stopped' &&
+      meeting.state !== 'enhance_failed' &&
+      meeting.state !== 'done'
+    ) {
       throw new Error(`Cannot enhance meeting from ${meeting.state} state.`);
     }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   IPC_CHANNELS,
+  TEMPLATE_IDS,
   isDismissEnhancementFailureRequest,
   isEnhancedNoteSaveRequest,
   isEnhanceMeetingRequest,
@@ -26,6 +27,10 @@ describe('ipc contract validators', () => {
 
   it('defines the meeting list channel constant', () => {
     expect(IPC_CHANNELS.meetingList).toBe('meeting:list');
+  });
+
+  it('defines the supported template ids', () => {
+    expect(TEMPLATE_IDS).toEqual(['auto', 'one-on-one', 'standup', 'tech-review', 'custom']);
   });
 
   it('accepts deepgram key validation payloads', () => {

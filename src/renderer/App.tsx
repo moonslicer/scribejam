@@ -702,7 +702,13 @@ export default function App(): JSX.Element {
                 onPrimaryAction={() => void onPrimaryAction()}
                 onSecondaryAction={() => void onSecondaryAction()}
                 onEnhanceAction={() => void onEnhanceAction()}
-                secondaryActionLabel={meetingState === 'done' && !noteEditedAfterEnhancement ? 'New Meeting' : undefined}
+                secondaryActionLabel={
+                  meetingState === 'enhance_failed'
+                    ? 'Dismiss'
+                    : meetingState === 'done' && !noteEditedAfterEnhancement
+                      ? 'New Meeting'
+                      : undefined
+                }
                 disabled={settings === null || meetingActionPending}
               />
             </div>

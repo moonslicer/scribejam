@@ -1,4 +1,9 @@
-import type { MeetingHistoryItem, TranscriptUpdateEvent } from '../../shared/ipc';
+import {
+  TEMPLATE_IDS,
+  type MeetingHistoryItem,
+  type TemplateId,
+  type TranscriptUpdateEvent
+} from '../../shared/ipc';
 import type { MeetingSnapshot } from '../meeting/state-machine';
 import type { MeetingDetails } from '../../shared/ipc';
 import { safeParseEnhancedOutput } from '../enhancement/parse-enhanced-output';
@@ -128,7 +133,7 @@ export class MeetingRecordsService {
       return null;
     }
 
-    return {
+    const meeting: MeetingDetails = {
       id: persisted.meeting.id,
       title: persisted.meeting.title,
       state: persisted.meeting.state,
@@ -147,6 +152,24 @@ export class MeetingRecordsService {
         isFinal: segment.isFinal
       }))
     };
+
+    if (
+      persisted.meeting.lastTemplateId &&
+      isTemplateId(persisted.meeting.lastTemplateId)
+    ) {
+      meeting.lastTemplateId = persisted.meeting.lastTemplateId;
+    }
+    if (persisted.meeting.lastTemplateName) {
+      meeting.lastTemplateName = persisted.meeting.lastTemplateName;
+    }
+    if (persisted.enhancedOutput?.createdAt) {
+      meeting.enhancedOutputCreatedAt = persisted.enhancedOutput.createdAt;
+    }
+    if (persisted.enhancedNoteDocument?.updatedAt) {
+      meeting.enhancedNoteUpdatedAt = persisted.enhancedNoteDocument.updatedAt;
+    }
+
+    return meeting;
   }
 
   public archiveMeeting(meetingId: string): void {
@@ -156,6 +179,10 @@ export class MeetingRecordsService {
   public listMeetingHistory(query?: string): MeetingHistoryItem[] {
     return this.artifacts.listMeetingHistory(query);
   }
+}
+
+function isTemplateId(value: string): value is TemplateId {
+  return (TEMPLATE_IDS as readonly string[]).includes(value);
 }
 
 function parseDocumentContent(content: string | undefined): MeetingDetails['noteContent'] {

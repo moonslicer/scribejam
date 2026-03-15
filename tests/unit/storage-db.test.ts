@@ -39,7 +39,12 @@ describe('storage database bootstrap', () => {
         'transcript_segments'
       ])
     );
-    expect(db.pragma('user_version', { simple: true })).toBe(3);
+    const columns = db.prepare('PRAGMA table_info(meetings)').all() as Array<{ name: string }>;
+
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(['archived_at', 'last_template_id', 'last_template_name'])
+    );
+    expect(db.pragma('user_version', { simple: true })).toBe(5);
 
     db.close();
   });
@@ -146,10 +151,15 @@ describe('storage database bootstrap', () => {
       .prepare('SELECT id, title, state FROM meetings WHERE id = ?')
       .get('meeting-legacy') as { id: string; title: string; state: string } | undefined;
 
+    const columns = upgradedDb.prepare('PRAGMA table_info(meetings)').all() as Array<{ name: string }>;
+
     expect(tables.map((row) => row.name)).toEqual(
       expect.arrayContaining(['enhanced_note_documents', 'enhanced_outputs'])
     );
-    expect(upgradedDb.pragma('user_version', { simple: true })).toBe(3);
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(['archived_at', 'last_template_id', 'last_template_name'])
+    );
+    expect(upgradedDb.pragma('user_version', { simple: true })).toBe(5);
     expect(persisted).toEqual({
       id: 'meeting-legacy',
       title: 'Legacy sync',

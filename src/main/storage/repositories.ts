@@ -73,6 +73,8 @@ interface MeetingRow {
   updated_at: string;
   duration_ms: number | null;
   archived_at: string | null;
+  last_template_id: string | null;
+  last_template_name: string | null;
 }
 
 interface NoteRow {
@@ -189,6 +191,7 @@ export class MeetingsRepository {
       .prepare(
         `
           SELECT id, title, state, created_at, updated_at, duration_ms, archived_at
+               , last_template_id, last_template_name
           FROM meetings
           WHERE id = ?
         `
@@ -465,7 +468,9 @@ function mapMeetingRow(row: MeetingRow): MeetingRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     durationMs: row.duration_ms,
-    archivedAt: row.archived_at
+    archivedAt: row.archived_at,
+    lastTemplateId: row.last_template_id,
+    lastTemplateName: row.last_template_name
   };
 }
 

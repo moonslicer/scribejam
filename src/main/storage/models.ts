@@ -14,6 +14,8 @@ export interface MeetingRecord {
   updatedAt: string;
   durationMs: number | null;
   archivedAt: string | null;
+  lastTemplateId: string | null;
+  lastTemplateName: string | null;
 }
 
 export interface NoteRecord {

@@ -37,6 +37,8 @@ export type SttProvider = 'deepgram';
 export type SettingsKeyProvider = SttProvider | 'openai' | 'anthropic';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
+export const TEMPLATE_IDS = ['auto', 'one-on-one', 'standup', 'tech-review', 'custom'] as const;
+export type TemplateId = (typeof TEMPLATE_IDS)[number];
 export type TestEnhancementOutcome =
   | 'success'
   | 'invalid_api_key'
@@ -153,6 +155,10 @@ export interface MeetingDetails {
   noteContent: JsonObject | null;
   enhancedNoteContent: JsonObject | null;
   enhancedOutput: EnhancedOutput | null;
+  lastTemplateId?: TemplateId;
+  lastTemplateName?: string;
+  enhancedOutputCreatedAt?: string;
+  enhancedNoteUpdatedAt?: string;
   transcriptSegments: TranscriptSegment[];
 }
 

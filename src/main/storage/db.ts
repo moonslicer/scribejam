@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import Database from 'better-sqlite3';
 import { app } from 'electron';
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 export interface StorageDatabaseOptions {
   dbPath?: string;
@@ -98,6 +98,13 @@ export function migrate(db: Database.Database): void {
     if (currentVersion < 4) {
       db.exec(`
         ALTER TABLE meetings ADD COLUMN archived_at TEXT;
+      `);
+    }
+
+    if (currentVersion < 5) {
+      db.exec(`
+        ALTER TABLE meetings ADD COLUMN last_template_id TEXT;
+        ALTER TABLE meetings ADD COLUMN last_template_name TEXT;
       `);
     }
 
