@@ -59,6 +59,7 @@ export default function App(): JSX.Element {
   const showEnhancedNotes = useMeetingStore((state) => state.showEnhancedNotes);
   const resumeEditingNotes = useMeetingStore((state) => state.resumeEditingNotes);
   const editorInstanceKey = useMeetingStore((state) => state.editorInstanceKey);
+  const setNoteEditedAfterEnhancement = useMeetingStore((state) => state.setNoteEditedAfterEnhancement);
   const setNoteSaveState = useMeetingStore((state) => state.setNoteSaveState);
   const loadHistory = useHistoryStore((state) => state.loadHistory);
   const historyItems = useHistoryStore((state) => state.items);
@@ -680,7 +681,10 @@ export default function App(): JSX.Element {
                         showViewToggle={Boolean(enhancedNoteContent || enhancedOutput)}
                         onShowOriginalNotes={resumeEditingNotes}
                         onShowEnhancedNotes={showEnhancedNotes}
-                        onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : setNoteContent}
+                        onChange={editorMode === 'enhanced' ? setEnhancedNoteContent : (content) => {
+                          setNoteContent(content);
+                          if (meetingState === 'done') setNoteEditedAfterEnhancement(true);
+                        }}
                       />
                     </div>
                   </div>

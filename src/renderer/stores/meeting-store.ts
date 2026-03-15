@@ -42,6 +42,7 @@ export interface MeetingStoreActions {
   setEnhancementProgress: (progress: EnhanceProgressEvent | null) => void;
   showEnhancedNotes: () => void;
   resumeEditingNotes: () => void;
+  setNoteEditedAfterEnhancement: (value: boolean) => void;
   setNoteSaveState: (state: NoteSaveState) => void;
   hydrateMeeting: (meeting: MeetingDetails) => void;
 }
@@ -127,8 +128,7 @@ export const createMeetingStore = () =>
             state.editorMode === 'notes'
               ? cloneJsonObject(noteContent)
               : cloneJsonObject(state.editorContent),
-          noteSaveState: noteContent ? 'dirty' : 'idle',
-          noteEditedAfterEnhancement: state.meetingState === 'done' ? true : state.noteEditedAfterEnhancement
+          noteSaveState: noteContent ? 'dirty' : 'idle'
         };
       }),
     setEnhancedNoteContent: (enhancedNoteContent) =>
@@ -145,8 +145,7 @@ export const createMeetingStore = () =>
             state.editorMode === 'enhanced'
               ? cloneJsonObject(enhancedNoteContent)
               : cloneJsonObject(state.editorContent),
-          noteSaveState: enhancedNoteContent ? 'dirty' : 'idle',
-          noteEditedAfterEnhancement: state.meetingState === 'done' ? true : state.noteEditedAfterEnhancement
+          noteSaveState: enhancedNoteContent ? 'dirty' : 'idle'
         };
       }),
     setEnhancedOutput: (enhancedOutput) =>
@@ -188,6 +187,7 @@ export const createMeetingStore = () =>
         editorContent: cloneJsonObject(state.noteContent),
         editorInstanceKey: state.editorInstanceKey + 1
       })),
+    setNoteEditedAfterEnhancement: (noteEditedAfterEnhancement) => set({ noteEditedAfterEnhancement }),
     setNoteSaveState: (noteSaveState) => set({ noteSaveState }),
     hydrateMeeting: (meeting) =>
       set(() => {
