@@ -567,19 +567,19 @@ export default function App(): JSX.Element {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#262321] pt-7 text-[#f3eee8]">
+    <div className="flex h-screen overflow-hidden bg-[#262321] pt-8 text-[#f3eee8]">
       <div
-        className="fixed inset-x-0 top-0 z-50 flex h-7 items-center justify-between px-3"
+        className="fixed inset-x-0 top-0 z-50 flex h-8 items-center justify-between px-3"
         style={{ WebkitAppRegion: 'drag' } as CSSProperties}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-[78px] flex-shrink-0" />
+        <div className="flex items-center gap-1">
+          <div className="w-[72px] flex-shrink-0" />
           {activePage === 'workspace' ? (
             <button
               type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
               aria-label={sidebarOpen ? 'Close history' : 'Open history'}
-              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-1.5 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
+              className="rounded p-1 text-[#6b6460] transition hover:text-[#c8bfb5]"
               style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
               <MenuIcon />
@@ -588,21 +588,21 @@ export default function App(): JSX.Element {
             <button
               type="button"
               onClick={() => setActivePage('workspace')}
-              className="rounded-full border border-white/10 bg-[#2d2926]/90 px-3 py-1.5 text-xs font-medium text-[#efe9de] transition hover:border-white/20 hover:bg-[#37312d]"
+              className="rounded px-2 py-0.5 text-xs font-medium text-[#6b6460] transition hover:text-[#c8bfb5]"
               style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
-              Back to notes
+              ← Back
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {activePage === 'workspace' ? (
             <button
               data-testid="workspace-settings-button"
               type="button"
               onClick={() => setActivePage('settings')}
-              className="rounded-full border border-white/10 bg-[#2d2926]/90 p-1.5 text-[#d8d1c6] transition hover:border-white/20 hover:bg-[#37312d] hover:text-white"
+              className="rounded p-1 text-[#6b6460] transition hover:text-[#c8bfb5]"
               style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
             >
               <SettingsIcon />
