@@ -5,7 +5,7 @@ interface SettingsPanelProps {
   settings: Settings | null;
   onSave: (payload: SettingsSaveRequest) => Promise<void>;
   onValidateKey: (
-    provider: 'deepgram' | 'openai',
+    provider: 'deepgram' | 'openai' | 'anthropic',
     key: string
   ) => Promise<{ valid: boolean; error?: string }>;
 }
@@ -32,8 +32,10 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   const [saving, setSaving] = useState(false);
   const [validatingDeepgram, setValidatingDeepgram] = useState(false);
   const [validatingOpenAI, setValidatingOpenAI] = useState(false);
+  const [validatingAnthropic, setValidatingAnthropic] = useState(false);
   const [deepgramValidation, setDeepgramValidation] = useState<{ valid: boolean; error?: string } | null>(null);
   const [openaiValidation, setOpenaiValidation] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [anthropicValidation, setAnthropicValidation] = useState<{ valid: boolean; error?: string } | null>(null);
 
   const hasLoaded = useMemo(() => settings !== null, [settings]);
 
@@ -69,29 +71,34 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
     }
   };
 
-  const handleValidate = async (provider: 'deepgram' | 'openai'): Promise<void> => {
+  const handleValidate = async (provider: 'deepgram' | 'openai' | 'anthropic'): Promise<void> => {
     if (provider === 'deepgram') {
       setValidatingDeepgram(true);
-    } else {
+    } else if (provider === 'openai') {
       setValidatingOpenAI(true);
+    } else {
+      setValidatingAnthropic(true);
     }
 
     try {
-      const result = await onValidateKey(
-        provider,
-        provider === 'deepgram' ? deepgramApiKey : openaiApiKey
-      );
+      const key =
+        provider === 'deepgram' ? deepgramApiKey : provider === 'openai' ? openaiApiKey : anthropicApiKey;
+      const result = await onValidateKey(provider, key);
 
       if (provider === 'deepgram') {
         setDeepgramValidation(result);
-      } else {
+      } else if (provider === 'openai') {
         setOpenaiValidation(result);
+      } else {
+        setAnthropicValidation(result);
       }
     } finally {
       if (provider === 'deepgram') {
         setValidatingDeepgram(false);
-      } else {
+      } else if (provider === 'openai') {
         setValidatingOpenAI(false);
+      } else {
+        setValidatingAnthropic(false);
       }
     }
   };
@@ -194,14 +201,33 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
             <span className="text-sm font-medium text-zinc-700">Anthropic</span>
             <KeyStatus isSet={settings?.anthropicApiKeySet ?? false} />
           </div>
-          <input
-            data-testid="settings-input-anthropic"
-            value={anthropicApiKey}
-            onChange={(event) => setAnthropicApiKey(event.target.value)}
-            className="rounded border border-zinc-300 px-3 py-2 text-sm"
-            placeholder={settings?.anthropicApiKeySet ? 'Replace existing key…' : 'Enter API key…'}
-            autoComplete="off"
-          />
+          <div className="flex gap-2">
+            <input
+              data-testid="settings-input-anthropic"
+              value={anthropicApiKey}
+              onChange={(event) => {
+                setAnthropicApiKey(event.target.value);
+                setAnthropicValidation(null);
+              }}
+              className="min-w-0 flex-1 rounded border border-zinc-300 px-3 py-2 text-sm"
+              placeholder={settings?.anthropicApiKeySet ? 'Replace existing key…' : 'Enter API key…'}
+              autoComplete="off"
+            />
+            <button
+              data-testid="settings-validate-anthropic-button"
+              type="button"
+              onClick={() => void handleValidate('anthropic')}
+              disabled={anthropicApiKey.trim().length === 0 || validatingAnthropic}
+              className="shrink-0 rounded bg-zinc-900 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+            >
+              {validatingAnthropic ? 'Validating…' : 'Validate'}
+            </button>
+          </div>
+          {anthropicValidation ? (
+            <p data-testid="settings-validation-anthropic" className={`text-xs ${anthropicValidation.valid ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {anthropicValidation.valid ? 'Key is valid.' : anthropicValidation.error ?? 'Unable to validate key.'}
+            </p>
+          ) : null}
         </div>
       </div>
 

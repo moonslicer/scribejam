@@ -34,7 +34,7 @@ export type AudioSource = 'mic' | 'system';
 export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
-export type SettingsKeyProvider = SttProvider | 'openai';
+export type SettingsKeyProvider = SttProvider | 'openai' | 'anthropic';
 export type TranscriptSpeaker = 'you' | 'them';
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
 export type TestEnhancementOutcome =
@@ -304,7 +304,7 @@ export function isSettingsValidateKeyRequest(value: unknown): value is SettingsV
 
   const candidate = value as Partial<SettingsValidateKeyRequest>;
   return (
-    (candidate.provider === 'deepgram' || candidate.provider === 'openai') &&
+    (candidate.provider === 'deepgram' || candidate.provider === 'openai' || candidate.provider === 'anthropic') &&
     typeof candidate.key === 'string'
   );
 }

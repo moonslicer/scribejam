@@ -26,6 +26,7 @@
     "postinstall": "npm run rebuild-native:electron || echo 'native rebuild skipped'"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@deepgram/sdk": "^5.0.0",
     "@tiptap/core": "^3.20.1",
     "@tiptap/react": "^3.20.1",

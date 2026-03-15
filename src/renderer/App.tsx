@@ -165,6 +165,9 @@ export default function App(): JSX.Element {
         setMeetingId(event.meetingId);
       }
       mainProcessRecordingIdRef.current = event.state === 'recording' && event.meetingId ? event.meetingId : null;
+      if (event.state === 'recording' && event.meetingId && api.listMeetings) {
+        void loadHistory(api.listMeetings, useHistoryStore.getState().searchQuery);
+      }
     });
     const unsubEnhanceProgress = api.onEnhanceProgress((event) => {
       const activeMeetingId = useMeetingStore.getState().meetingId;
@@ -411,7 +414,7 @@ export default function App(): JSX.Element {
   };
 
   const validateProviderKey = async (
-    provider: 'deepgram' | 'openai',
+    provider: 'deepgram' | 'openai' | 'anthropic',
     key: string
   ): Promise<{ valid: boolean; error?: string }> => {
     if (!api) {

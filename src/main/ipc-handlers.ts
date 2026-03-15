@@ -33,6 +33,7 @@ import { EnhancementOrchestrator } from './enhancement/enhancement-orchestrator'
 import { createLlmClient } from './enhancement/create-llm-client';
 import { configureMockEnhancementOutcomes } from './enhancement/mock-llm-client';
 import { validateOpenAIApiKey } from './enhancement/openai-enhancement-client';
+import { validateAnthropicApiKey } from './enhancement/anthropic-enhancement-client';
 import { createStorageDatabase } from './storage/db';
 import { MeetingRecordsService } from './storage/meeting-records-service';
 import {
@@ -91,7 +92,8 @@ export function createMainServices(context: HandlerContext): MainServices {
     () =>
       createLlmClient({
         provider: settingsStore.getSettings().llmProvider,
-        getOpenAIApiKey: () => settingsStore.getSecret('openaiApiKey')
+        getOpenAIApiKey: () => settingsStore.getSecret('openaiApiKey'),
+        getAnthropicApiKey: () => settingsStore.getSecret('anthropicApiKey')
       }),
     undefined,
     (event) => {
@@ -340,6 +342,10 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
 
     if (request.provider === 'openai') {
       return validateOpenAIApiKey(request.key);
+    }
+
+    if (request.provider === 'anthropic') {
+      return validateAnthropicApiKey(request.key);
     }
 
     return {
