@@ -97,7 +97,7 @@ export function MeetingDock({
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center px-4">
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
         <div
           data-testid="meeting-dock"
           className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-[2rem] border border-white/10 bg-[#2d2926]/92 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-xl"
