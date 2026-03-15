@@ -28,6 +28,8 @@ export default function App(): JSX.Element {
   const [errorAction, setErrorAction] = useState<ErrorAction | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [meetingActionPending, setMeetingActionPending] = useState(false);
+  const [noteEditedAfterEnhancement, setNoteEditedAfterEnhancement] = useState(false);
+  const noteContentAtEnhancement = useRef<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePage, setActivePage] = useState<AppPage>('workspace');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
@@ -246,7 +248,7 @@ export default function App(): JSX.Element {
       setErrorAction(null);
       setEnhancementProgress(null);
 
-      if (meetingState !== 'stopped' && meetingState !== 'enhance_failed') {
+      if (meetingState !== 'stopped' && meetingState !== 'enhance_failed' && meetingState !== 'done') {
         return;
       }
       if (!api) {
@@ -258,6 +260,8 @@ export default function App(): JSX.Element {
         return;
       }
 
+      setNoteEditedAfterEnhancement(false);
+      noteContentAtEnhancement.current = null;
       setMeetingState('enhancing');
       try {
         const response = await api.enhanceMeeting({ meetingId });
@@ -524,6 +528,18 @@ export default function App(): JSX.Element {
   }, [api, meetingActionPending, meetingState, onEnhanceAction, setupRequired]);
 
   useEffect(() => {
+    if (meetingState !== 'done') return;
+    const current = JSON.stringify({ noteContent, enhancedNoteContent });
+    if (noteContentAtEnhancement.current === null) {
+      noteContentAtEnhancement.current = current;
+      return;
+    }
+    if (current !== noteContentAtEnhancement.current) {
+      setNoteEditedAfterEnhancement(true);
+    }
+  }, [meetingState, noteContent, enhancedNoteContent]);
+
+  useEffect(() => {
     if (activePage !== 'workspace' && transcriptOpen) {
       setTranscriptOpen(false);
     }
@@ -693,7 +709,7 @@ export default function App(): JSX.Element {
               />
 
               <MeetingDock
-                meetingState={meetingState}
+                meetingState={noteEditedAfterEnhancement && meetingState === 'done' ? 'stopped' : meetingState}
                 transcriptOpen={transcriptOpen}
                 micLevel={levels.mic}
                 systemLevel={levels.system}
@@ -702,7 +718,7 @@ export default function App(): JSX.Element {
                 onPrimaryAction={() => void onPrimaryAction()}
                 onSecondaryAction={() => void onSecondaryAction()}
                 onEnhanceAction={() => void onEnhanceAction()}
-                secondaryActionLabel={meetingState === 'done' ? 'New Meeting' : undefined}
+                secondaryActionLabel={meetingState === 'done' && !noteEditedAfterEnhancement ? 'New Meeting' : undefined}
                 disabled={settings === null || meetingActionPending}
               />
             </div>
