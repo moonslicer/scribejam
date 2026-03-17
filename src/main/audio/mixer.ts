@@ -1,5 +1,9 @@
 import type { MixedAudioFrame, SourceAudioFrame } from './frame-types';
+import { computeRms } from './level-meter';
 import { RingBuffer } from './ring-buffer';
+
+// RMS threshold below which a source is considered silent (roughly -50 dBFS)
+const SIGNAL_THRESHOLD = 0.003;
 
 interface SourceChunk {
   samples: Int16Array;
@@ -117,7 +121,6 @@ export class DeterministicMixer {
         continue;
       }
 
-      hasSignal = true;
       const offset = chunkIdx * this.inputFrameSamples;
       for (let i = 0; i < this.inputFrameSamples; i += 1) {
         const target = offset + i;
@@ -128,6 +131,7 @@ export class DeterministicMixer {
       }
     }
 
+    hasSignal = computeRms(output) >= SIGNAL_THRESHOLD;
     return { samples: output, hasSignal };
   }
 

@@ -28,7 +28,7 @@ export interface NoteRecord {
 export interface TranscriptSegmentRecord {
   id: number;
   meetingId: string;
-  speaker: 'you' | 'them';
+  speaker: string;
   text: string;
   startTs: number;
   endTs: number | null;

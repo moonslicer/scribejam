@@ -10,13 +10,16 @@ export interface TranscriptEntry {
   id: string;
   ts: number;
   text: string;
-  speaker: 'you' | 'them';
+  speaker: string;
   isFinal: boolean;
 }
 
-// Keep source-based labels until diarization gives us a real speaker identity to show.
-export function formatTranscriptSpeakerLabel(speaker: TranscriptEntry['speaker']): string {
-  return speaker === 'you' ? 'Mic' : 'System audio';
+export function formatTranscriptSpeakerLabel(speaker: string): string {
+  const match = /^speaker-(\d+)$/.exec(speaker);
+  if (match) {
+    return `Speaker ${match[1]}`;
+  }
+  return speaker;
 }
 
 export function transcriptEntriesToText(entries: TranscriptEntry[]): string {

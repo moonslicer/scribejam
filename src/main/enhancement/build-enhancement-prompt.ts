@@ -15,7 +15,8 @@ export function buildEnhancementPrompt(
   const transcriptLines = artifacts.transcriptSegments.map((segment) => {
     const relativeMs = segment.startTs - firstTs;
     const ts = `${(relativeMs / 1000).toFixed(1)}s`;
-    const speaker = segment.speaker === 'you' ? 'You' : 'Them';
+    const match = /^speaker-(\d+)$/.exec(segment.speaker);
+    const speaker = match ? `Speaker ${match[1]}` : segment.speaker;
     return `[${ts}] ${speaker}: ${segment.text}`;
   });
 
@@ -43,7 +44,7 @@ export function buildEnhancementPrompt(
       '',
       'ACTION ITEMS:',
       '- Only include tasks where a participant explicitly commits to doing something.',
-      '- Attribute each task to the speaker who stated or accepted it ("You" or their name).',
+      '- Attribute each task to the speaker who stated or accepted it (use the speaker label from the transcript, e.g. "Speaker 0").',
       '- Include a deadline only if one was explicitly stated.',
       '- Do not fabricate action items, decisions, owners, or due dates.',
       '- Return an empty array if no clear commitments were made.',
@@ -66,7 +67,7 @@ export function buildEnhancementPrompt(
     userPrompt: [
       `Meeting title: ${artifacts.meetingTitle || 'Untitled meeting'}`,
       '',
-      'Participants: "You" (the note-taker) and "Them" (other participant(s))',
+      'Participants: Speaker 0, Speaker 1, etc. (numbered by Deepgram diarization — Speaker 0 is typically the first speaker detected)',
       '',
       'User notes — these signal what the user found important; expand on these topics preferentially:',
       formatNoteAnchors(noteAnchors),

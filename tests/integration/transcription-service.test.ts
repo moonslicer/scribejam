@@ -254,11 +254,11 @@ describe('TranscriptionService', () => {
   it('routes websocket auth events to settings', async () => {
     const statusEvents: TranscriptionStatusEvent[] = [];
     const errorEvents: Array<{ message: string; action?: 'open-settings' | 'retry' }> = [];
+    const authFailure = Object.assign(new Error('Unexpected server response: 401'), {
+      type: 'error'
+    });
     const service = new TranscriptionService({
-      sttAdapter: new FailingSttAdapter({
-        message: 'Unexpected server response: 401',
-        type: 'error'
-      } as Error),
+      sttAdapter: new FailingSttAdapter(authFailure),
       events: {
         onTranscript: () => {
           // no-op

@@ -1,5 +1,7 @@
 import {
+  BUILT_IN_TEMPLATE_IDS,
   MAX_TEMPLATE_INSTRUCTIONS_LENGTH,
+  type BuiltInTemplateId,
   type CustomTemplateSettings,
   type TemplateId
 } from './ipc';
@@ -75,10 +77,18 @@ export const BUILT_IN_TEMPLATES: TemplateDefinition[] = [
   }
 ];
 
+export function isBuiltInTemplateId(id: string): id is BuiltInTemplateId {
+  return (BUILT_IN_TEMPLATE_IDS as readonly string[]).includes(id);
+}
+
 export function getBuiltInTemplateById(id: TemplateId): TemplateDefinition | undefined {
   return BUILT_IN_TEMPLATES.find((template) => template.id === id);
 }
 
+/**
+ * Validates and returns a TemplateDefinition for a single custom template entry.
+ * Returns undefined if the entry is incomplete or invalid.
+ */
 export function getCustomTemplateDefinition(
   template?: CustomTemplateSettings
 ): TemplateDefinition | undefined {
@@ -97,16 +107,24 @@ export function getCustomTemplateDefinition(
   }
 
   return {
-    id: 'custom',
+    id: template.id,
     name,
     instructions
   };
 }
 
-export function getTemplatePickerLabel(template: TemplateDefinition): string {
-  if (template.id === 'custom') {
-    return `Custom: ${template.name}`;
-  }
+/**
+ * Returns all valid TemplateDefinitions from an array of custom template settings.
+ */
+export function getCustomTemplatesFromSettings(
+  templates?: CustomTemplateSettings[]
+): TemplateDefinition[] {
+  if (!templates) return [];
+  return templates
+    .map(getCustomTemplateDefinition)
+    .filter((t): t is TemplateDefinition => t !== undefined);
+}
 
+export function getTemplatePickerLabel(template: TemplateDefinition): string {
   return template.name;
 }

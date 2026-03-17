@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type {
-  CustomTemplateSettings,
-  LlmProvider,
-  Settings,
-  SettingsSaveRequest
-} from '../../shared/ipc';
-import { MAX_TEMPLATE_INSTRUCTIONS_LENGTH } from '../../shared/ipc';
-import { BUILT_IN_TEMPLATES, getCustomTemplateDefinition } from '../../shared/templates';
+import type { LlmProvider, Settings, SettingsSaveRequest } from '../../shared/ipc';
 
 interface SettingsPanelProps {
   settings: Settings | null;
@@ -36,9 +29,6 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('openai');
-  const [defaultTemplateId, setDefaultTemplateId] = useState<NonNullable<Settings['defaultTemplateId']>>('auto');
-  const [customTemplateName, setCustomTemplateName] = useState('');
-  const [customTemplateInstructions, setCustomTemplateInstructions] = useState('');
   const [saving, setSaving] = useState(false);
   const [validatingDeepgram, setValidatingDeepgram] = useState(false);
   const [validatingOpenAI, setValidatingOpenAI] = useState(false);
@@ -52,48 +42,14 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
   useEffect(() => {
     if (settings) {
       setLlmProvider(settings.llmProvider);
-      setDefaultTemplateId(settings.defaultTemplateId ?? 'auto');
-      setCustomTemplateName(settings.customTemplate?.name ?? '');
-      setCustomTemplateInstructions(settings.customTemplate?.instructions ?? '');
     }
   }, [settings]);
-
-  const normalizedCustomTemplate = getCustomTemplateDefinition({
-    name: customTemplateName,
-    instructions: customTemplateInstructions
-  });
-  const hasCustomTemplateInput =
-    customTemplateName.trim().length > 0 || customTemplateInstructions.trim().length > 0;
-  const hasPartialCustomTemplate =
-    hasCustomTemplateInput &&
-    (!normalizedCustomTemplate || customTemplateInstructions.trim().length > MAX_TEMPLATE_INSTRUCTIONS_LENGTH);
-  const isCustomTemplateTooLong =
-    customTemplateInstructions.length > MAX_TEMPLATE_INSTRUCTIONS_LENGTH;
-  const customCharacterCount = `${customTemplateInstructions.length}/${MAX_TEMPLATE_INSTRUCTIONS_LENGTH}`;
-
-  useEffect(() => {
-    if (!normalizedCustomTemplate && defaultTemplateId === 'custom') {
-      setDefaultTemplateId('auto');
-    }
-  }, [defaultTemplateId, normalizedCustomTemplate]);
 
   const handleSave = async (): Promise<void> => {
     setSaving(true);
     try {
       const payload: SettingsSaveRequest = {
-        llmProvider,
-        defaultTemplateId:
-          defaultTemplateId === 'custom' && !normalizedCustomTemplate ? 'auto' : defaultTemplateId,
-        ...(settings?.customTemplate !== undefined || hasCustomTemplateInput
-          ? {
-              customTemplate: normalizedCustomTemplate
-                ? {
-                    name: normalizedCustomTemplate.name,
-                    instructions: normalizedCustomTemplate.instructions
-                  }
-                : ({ name: '', instructions: '' } satisfies CustomTemplateSettings)
-            }
-          : {})
+        llmProvider
       };
 
       if (deepgramApiKey.trim().length > 0) {
@@ -168,84 +124,6 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
           >
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
-          </select>
-        </div>
-
-        <div className="mb-3 grid gap-2 border-t border-zinc-100 pt-3">
-          <div>
-            <h3 className="text-sm font-medium text-zinc-700">Custom template</h3>
-            <p className="text-xs text-zinc-500">
-              Natural-language instructions that shape enhancement for your recurring meeting type.
-            </p>
-          </div>
-
-          <div className="grid gap-1">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="settings-custom-template-name-input">
-              Template name
-            </label>
-            <input
-              id="settings-custom-template-name-input"
-              data-testid="settings-input-custom-template-name"
-              value={customTemplateName}
-              onChange={(event) => setCustomTemplateName(event.target.value)}
-              className="rounded border border-zinc-300 px-3 py-2 text-sm"
-              placeholder="e.g. Customer interview"
-            />
-          </div>
-
-          <div className="grid gap-1">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="settings-custom-template-instructions-input">
-              Instructions
-            </label>
-            <textarea
-              id="settings-custom-template-instructions-input"
-              data-testid="settings-input-custom-template-instructions"
-              value={customTemplateInstructions}
-              onChange={(event) => setCustomTemplateInstructions(event.target.value)}
-              className="min-h-32 rounded border border-zinc-300 px-3 py-2 text-sm"
-              placeholder="Describe what matters in this meeting type, how blocks should be structured, and when action items or decisions should stay empty."
-            />
-            <div className="flex items-center justify-between text-xs">
-              <span
-                data-testid="settings-custom-template-char-count"
-                className={isCustomTemplateTooLong ? 'text-rose-700' : 'text-zinc-500'}
-              >
-                {customCharacterCount}
-              </span>
-              {isCustomTemplateTooLong ? (
-                <span data-testid="settings-custom-template-validation" className="text-rose-700">
-                  Keep instructions at or under {MAX_TEMPLATE_INSTRUCTIONS_LENGTH} characters.
-                </span>
-              ) : hasPartialCustomTemplate ? (
-                <span data-testid="settings-custom-template-validation" className="text-rose-700">
-                  Add both a name and instructions to save a custom template.
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-3 grid gap-1 border-t border-zinc-100 pt-3">
-          <label className="text-sm font-medium text-zinc-700" htmlFor="settings-default-template-input">
-            Default enhancement template
-          </label>
-          <select
-            id="settings-default-template-input"
-            data-testid="settings-input-default-template"
-            value={defaultTemplateId}
-            onChange={(event) =>
-              setDefaultTemplateId(event.target.value as NonNullable<Settings['defaultTemplateId']>)
-            }
-            className="rounded border border-zinc-300 px-3 py-2 text-sm"
-          >
-            {BUILT_IN_TEMPLATES.filter((template) => template.id !== 'custom').map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-            {normalizedCustomTemplate ? (
-              <option value="custom">Custom: {normalizedCustomTemplate.name}</option>
-            ) : null}
           </select>
         </div>
 
@@ -358,7 +236,7 @@ export function SettingsPanel({ settings, onSave, onValidateKey }: SettingsPanel
           data-testid="settings-save-button"
           type="button"
           onClick={() => void handleSave()}
-          disabled={!hasLoaded || saving || hasPartialCustomTemplate || isCustomTemplateTooLong}
+          disabled={!hasLoaded || saving}
           className="w-fit rounded bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
         >
           {saving ? 'Saving…' : 'Save Settings'}

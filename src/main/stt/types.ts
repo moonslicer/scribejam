@@ -5,6 +5,7 @@ export interface SttTranscriptEvent {
   text: string;
   isFinal: boolean;
   latencyMs: number;
+  speakerId?: number;
 }
 
 export interface KeyValidationResult {

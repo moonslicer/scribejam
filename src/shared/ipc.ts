@@ -35,10 +35,14 @@ export type ErrorAction = 'open-settings' | 'retry';
 export type LlmProvider = 'openai' | 'anthropic';
 export type SttProvider = 'deepgram';
 export type SettingsKeyProvider = SttProvider | 'openai' | 'anthropic';
-export type TranscriptSpeaker = 'you' | 'them';
+export type TranscriptSpeaker = string;
 export type TranscriptionStatus = 'idle' | 'connecting' | 'streaming' | 'reconnecting' | 'paused';
-export const TEMPLATE_IDS = ['auto', 'one-on-one', 'standup', 'tech-review', 'custom'] as const;
-export type TemplateId = (typeof TEMPLATE_IDS)[number];
+export const BUILT_IN_TEMPLATE_IDS = ['auto', 'one-on-one', 'standup', 'tech-review'] as const;
+export type BuiltInTemplateId = (typeof BUILT_IN_TEMPLATE_IDS)[number];
+/** Built-in template ID or an opaque custom-template ID such as `cust_lp0rkjf`. */
+export type TemplateId = string;
+/** @deprecated Use BUILT_IN_TEMPLATE_IDS */
+export const TEMPLATE_IDS = BUILT_IN_TEMPLATE_IDS;
 export const MAX_TEMPLATE_INSTRUCTIONS_LENGTH = 4000;
 export type TestEnhancementOutcome =
   | 'success'
@@ -228,13 +232,15 @@ export interface Settings {
   sttProvider: SttProvider;
   llmProvider: LlmProvider;
   defaultTemplateId?: TemplateId;
-  customTemplate?: CustomTemplateSettings;
+  customTemplates?: CustomTemplateSettings[];
   deepgramApiKeySet: boolean;
   openaiApiKeySet: boolean;
   anthropicApiKeySet: boolean;
 }
 
 export interface CustomTemplateSettings {
+  /** Stable opaque ID, e.g. `cust_lp0rkjf`. Generated client-side. */
+  id: string;
   name: string;
   instructions: string;
 }
@@ -244,7 +250,7 @@ export interface SettingsSaveRequest {
   sttProvider?: SttProvider;
   llmProvider?: LlmProvider;
   defaultTemplateId?: TemplateId;
-  customTemplate?: CustomTemplateSettings;
+  customTemplates?: CustomTemplateSettings[];
   deepgramApiKey?: string;
   openaiApiKey?: string;
   anthropicApiKey?: string;
@@ -311,18 +317,22 @@ export function isSettingsSaveRequest(value: unknown): value is SettingsSaveRequ
   if (candidate.defaultTemplateId !== undefined && !isTemplateId(candidate.defaultTemplateId)) {
     return false;
   }
-  if (candidate.customTemplate !== undefined) {
-    if (!candidate.customTemplate || typeof candidate.customTemplate !== 'object') {
+  if (candidate.customTemplates !== undefined) {
+    if (!Array.isArray(candidate.customTemplates)) {
       return false;
     }
-
-    const customTemplate = candidate.customTemplate as Partial<CustomTemplateSettings>;
-    if (
-      typeof customTemplate.name !== 'string' ||
-      typeof customTemplate.instructions !== 'string' ||
-      customTemplate.instructions.length > MAX_TEMPLATE_INSTRUCTIONS_LENGTH
-    ) {
-      return false;
+    for (const t of candidate.customTemplates) {
+      if (!t || typeof t !== 'object') return false;
+      const ct = t as Partial<CustomTemplateSettings>;
+      if (
+        typeof ct.id !== 'string' ||
+        ct.id.length === 0 ||
+        typeof ct.name !== 'string' ||
+        typeof ct.instructions !== 'string' ||
+        ct.instructions.length > MAX_TEMPLATE_INSTRUCTIONS_LENGTH
+      ) {
+        return false;
+      }
     }
   }
   return (
@@ -458,5 +468,5 @@ function isJsonObject(value: unknown): value is JsonObject {
 }
 
 function isTemplateId(value: unknown): value is TemplateId {
-  return typeof value === 'string' && (TEMPLATE_IDS as readonly string[]).includes(value);
+  return typeof value === 'string' && value.length > 0 && value.length <= 100;
 }

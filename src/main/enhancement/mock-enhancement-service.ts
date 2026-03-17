@@ -121,7 +121,8 @@ function buildSummary(noteAnchors: string[], transcriptLines: string[]): string 
 }
 
 function formatSpeaker(speaker: TranscriptSegment['speaker']): string {
-  return speaker === 'you' ? 'You' : 'Them';
+  const match = /^speaker-(\d+)$/.exec(speaker);
+  return match ? `Speaker ${match[1]}` : speaker;
 }
 
 const ACTION_ITEM_PATTERN = /\b(send|share|follow up|ship|review|draft|action|next step)\b/i;

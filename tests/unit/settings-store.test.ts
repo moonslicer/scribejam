@@ -127,21 +127,28 @@ describe('SettingsStore', () => {
 
     const secrets = new SecureSecrets(join(dir, 'secrets.enc.json'), fakeSafeStorage);
     const store = new SettingsStore({ baseDir: dir, secrets });
+    const templateId = 'cust_customer_interview';
 
     store.saveSettings({
-      defaultTemplateId: 'custom',
-      customTemplate: {
-        name: 'Customer interview',
-        instructions: 'Focus on pain points and requests.'
-      }
+      defaultTemplateId: templateId,
+      customTemplates: [
+        {
+          id: templateId,
+          name: 'Customer interview',
+          instructions: 'Focus on pain points and requests.'
+        }
+      ]
     });
 
     expect(store.getSettings()).toMatchObject({
-      defaultTemplateId: 'custom',
-      customTemplate: {
-        name: 'Customer interview',
-        instructions: 'Focus on pain points and requests.'
-      }
+      defaultTemplateId: templateId,
+      customTemplates: [
+        {
+          id: templateId,
+          name: 'Customer interview',
+          instructions: 'Focus on pain points and requests.'
+        }
+      ]
     });
   });
 
@@ -175,9 +182,8 @@ describe('SettingsStore', () => {
       firstRunAcknowledged: true,
       sttProvider: 'deepgram',
       llmProvider: 'anthropic',
-      defaultTemplateId: 'custom'
+      defaultTemplateId: 'auto'
     });
-    expect(store.getSettings().customTemplate).toBeUndefined();
+    expect(store.getSettings().customTemplates).toBeUndefined();
   });
-
 });

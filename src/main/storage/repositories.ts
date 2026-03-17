@@ -50,7 +50,7 @@ export interface SaveNotesInput {
 
 export interface AppendTranscriptSegmentInput {
   meetingId: string;
-  speaker: 'you' | 'them';
+  speaker: string;
   text: string;
   startTs: number;
   endTs?: number;
@@ -92,7 +92,7 @@ interface NoteRow {
 interface TranscriptSegmentRow {
   id: number;
   meeting_id: string;
-  speaker: 'you' | 'them';
+  speaker: string;
   text: string;
   start_ts: number;
   end_ts: number | null;

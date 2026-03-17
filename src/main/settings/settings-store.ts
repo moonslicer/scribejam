@@ -1,16 +1,27 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
-import { TEMPLATE_IDS, type Settings, type SettingsSaveRequest } from '../../shared/ipc';
-import { getCustomTemplateDefinition } from '../../shared/templates';
+import {
+  MAX_TEMPLATE_INSTRUCTIONS_LENGTH,
+  type CustomTemplateSettings,
+  type Settings,
+  type SettingsSaveRequest,
+  type TemplateId
+} from '../../shared/ipc';
+import { isBuiltInTemplateId } from '../../shared/templates';
 import { SecureSecrets } from './secure-secrets';
 
 interface PersistedSettings {
   firstRunAcknowledged: boolean;
   sttProvider: Settings['sttProvider'];
   llmProvider: Settings['llmProvider'];
-  defaultTemplateId: NonNullable<Settings['defaultTemplateId']>;
-  customTemplate?: Settings['customTemplate'];
+  defaultTemplateId: TemplateId;
+  customTemplates?: CustomTemplateSettings[];
+}
+
+/** Shape of the old on-disk format before multi-template support. */
+interface LegacyPersistedSettings extends PersistedSettings {
+  customTemplate?: { name: string; instructions: string };
 }
 
 const DEFAULT_SETTINGS: PersistedSettings = {
@@ -37,7 +48,9 @@ export class SettingsStore {
       sttProvider: persisted.sttProvider,
       llmProvider: persisted.llmProvider,
       defaultTemplateId: persisted.defaultTemplateId,
-      ...(persisted.customTemplate ? { customTemplate: persisted.customTemplate } : {}),
+      ...(persisted.customTemplates && persisted.customTemplates.length > 0
+        ? { customTemplates: persisted.customTemplates }
+        : {}),
       deepgramApiKeySet: this.secrets.has('deepgramApiKey'),
       openaiApiKeySet: this.secrets.has('openaiApiKey'),
       anthropicApiKeySet: this.secrets.has('anthropicApiKey')
@@ -59,15 +72,24 @@ export class SettingsStore {
     if (update.defaultTemplateId !== undefined) {
       next.defaultTemplateId = update.defaultTemplateId;
     }
-    if (update.customTemplate !== undefined) {
-      const normalizedTemplate = getCustomTemplateDefinition(update.customTemplate);
-      if (normalizedTemplate) {
-        next.customTemplate = {
-          name: normalizedTemplate.name,
-          instructions: normalizedTemplate.instructions
-        };
+    if (update.customTemplates !== undefined) {
+      const valid = update.customTemplates.filter(
+        (t) =>
+          typeof t.id === 'string' &&
+          t.id.length > 0 &&
+          t.name.trim().length > 0 &&
+          t.instructions.trim().length > 0 &&
+          t.instructions.trim().length <= MAX_TEMPLATE_INSTRUCTIONS_LENGTH
+      );
+      if (valid.length > 0) {
+        next.customTemplates = valid;
       } else {
-        delete next.customTemplate;
+        delete next.customTemplates;
+      }
+
+      // If the default points to a template that was just removed, fall back.
+      if (!isBuiltInTemplateId(next.defaultTemplateId) && !valid.some((t) => t.id === next.defaultTemplateId)) {
+        next.defaultTemplateId = 'auto';
       }
     }
     if (update.deepgramApiKey !== undefined) {
@@ -96,17 +118,68 @@ export class SettingsStore {
 
     try {
       const raw = readFileSync(this.settingsPath, 'utf8');
-      const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-      const defaultTemplateId =
-        parsed.defaultTemplateId === undefined ? DEFAULT_SETTINGS.defaultTemplateId : parsed.defaultTemplateId;
-      const customTemplate = getCustomTemplateDefinition(parsed.customTemplate);
+      const parsed = JSON.parse(raw) as Partial<LegacyPersistedSettings>;
+
       if (
         typeof parsed.firstRunAcknowledged !== 'boolean' ||
         parsed.sttProvider !== 'deepgram' ||
-        (parsed.llmProvider !== 'openai' && parsed.llmProvider !== 'anthropic') ||
-        !TEMPLATE_IDS.includes(defaultTemplateId as (typeof TEMPLATE_IDS)[number])
+        (parsed.llmProvider !== 'openai' && parsed.llmProvider !== 'anthropic')
       ) {
         return { ...DEFAULT_SETTINGS };
+      }
+
+      // ── Migrate custom templates ──────────────────────────────────────────
+      let customTemplates: CustomTemplateSettings[] | undefined;
+      let defaultTemplateId: TemplateId =
+        parsed.defaultTemplateId ?? DEFAULT_SETTINGS.defaultTemplateId;
+
+      if (Array.isArray(parsed.customTemplates) && parsed.customTemplates.length > 0) {
+        // New format — validate each entry
+        customTemplates = parsed.customTemplates.filter(
+          (t) =>
+            t &&
+            typeof t === 'object' &&
+            typeof t.id === 'string' &&
+            t.id.length > 0 &&
+            typeof t.name === 'string' &&
+            t.name.trim().length > 0 &&
+            typeof t.instructions === 'string' &&
+            t.instructions.trim().length > 0 &&
+            t.instructions.trim().length <= MAX_TEMPLATE_INSTRUCTIONS_LENGTH
+        );
+      } else if (
+        parsed.customTemplate &&
+        typeof parsed.customTemplate === 'object' &&
+        typeof parsed.customTemplate.name === 'string' &&
+        typeof parsed.customTemplate.instructions === 'string' &&
+        parsed.customTemplate.name.trim().length > 0 &&
+        parsed.customTemplate.instructions.trim().length > 0
+      ) {
+        // Legacy single-template format — migrate to array and write back immediately
+        // so subsequent reads use the new format and the ID stays stable.
+        const migratedId = 'cust_' + Date.now().toString(36);
+        customTemplates = [
+          {
+            id: migratedId,
+            name: parsed.customTemplate.name.trim(),
+            instructions: parsed.customTemplate.instructions.trim()
+          }
+        ];
+        if (defaultTemplateId === 'custom') {
+          defaultTemplateId = migratedId;
+        }
+        this.writeSettings({
+          firstRunAcknowledged: parsed.firstRunAcknowledged,
+          sttProvider: parsed.sttProvider,
+          llmProvider: parsed.llmProvider,
+          defaultTemplateId,
+          customTemplates
+        });
+      }
+
+      // ── Validate defaultTemplateId ────────────────────────────────────────
+      if (!isBuiltInTemplateId(defaultTemplateId) && !customTemplates?.some((t) => t.id === defaultTemplateId)) {
+        defaultTemplateId = DEFAULT_SETTINGS.defaultTemplateId;
       }
 
       return {
@@ -114,14 +187,7 @@ export class SettingsStore {
         sttProvider: parsed.sttProvider,
         llmProvider: parsed.llmProvider,
         defaultTemplateId,
-        ...(customTemplate
-          ? {
-              customTemplate: {
-                name: customTemplate.name,
-                instructions: customTemplate.instructions
-              }
-            }
-          : {})
+        ...(customTemplates && customTemplates.length > 0 ? { customTemplates } : {})
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

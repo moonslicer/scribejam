@@ -277,14 +277,17 @@ export function registerIpcHandlers(context: HandlerContext, services: MainServi
 
     const request = payload as EnhanceMeetingRequest;
     const meetingId = request.meetingId;
-    const customTemplate = getCustomTemplateDefinition(services.settingsStore.getSettings().customTemplate);
+    const customTemplateEntry = request.templateId
+      ? services.settingsStore.getSettings().customTemplates?.find(
+          (t) => t.id === request.templateId
+        )
+      : undefined;
+    const customTemplate = getCustomTemplateDefinition(customTemplateEntry);
 
     try {
       const response = await services.enhancementOrchestrator.enhanceMeeting(meetingId, {
         ...(request.templateId ? { templateId: request.templateId } : {}),
-        ...(request.templateId === 'custom' && customTemplate
-          ? { templateName: customTemplate.name }
-          : {}),
+        ...(customTemplate ? { templateName: customTemplate.name } : {}),
         ...(request.templateInstructions
           ? { templateInstructions: request.templateInstructions }
           : {})

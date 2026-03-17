@@ -1,10 +1,12 @@
 import type { CSSProperties } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ErrorAction, Settings, TemplateId, TranscriptionStatusEvent } from '../shared/ipc';
 import {
   BUILT_IN_TEMPLATES,
   getBuiltInTemplateById,
-  getCustomTemplateDefinition
+  getCustomTemplateDefinition,
+  getCustomTemplatesFromSettings,
+  type TemplateDefinition
 } from '../shared/templates';
 import { useMicCapture } from './audio/useMicCapture';
 import { MeetingBar } from './components/MeetingBar';
@@ -226,11 +228,11 @@ export default function App(): JSX.Element {
   }, [api, applyTranscriptUpdate, loadHistory, setEnhancementProgress, setMeetingId, setMeetingState]);
 
   const setupRequired = settings !== null && !settings.firstRunAcknowledged;
-  const customTemplate = getCustomTemplateDefinition(settings?.customTemplate);
-  const availableTemplates = [
-    ...BUILT_IN_TEMPLATES.filter((template) => template.id !== 'custom'),
-    ...(customTemplate ? [customTemplate] : [])
-  ];
+  const availableTemplates = useMemo(
+    () => [...BUILT_IN_TEMPLATES, ...getCustomTemplatesFromSettings(settings?.customTemplates)],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings?.customTemplates]
+  );
 
   useEffect(() => {
     if (!settings) {
@@ -837,12 +839,14 @@ function resolveSelectableTemplateId(
 function resolveTemplateDefinition(
   templateId: TemplateId | undefined,
   settings?: Settings | null
-) {
-  if (templateId === 'custom') {
-    return getCustomTemplateDefinition(settings?.customTemplate);
-  }
+): TemplateDefinition | undefined {
+  if (!templateId) return getBuiltInTemplateById('auto');
 
-  return templateId ? getBuiltInTemplateById(templateId) : getBuiltInTemplateById('auto');
+  const builtIn = getBuiltInTemplateById(templateId);
+  if (builtIn) return builtIn;
+
+  const custom = settings?.customTemplates?.find((t) => t.id === templateId);
+  return custom ? getCustomTemplateDefinition(custom) : undefined;
 }
 
 function shouldConfirmReenhancement({
