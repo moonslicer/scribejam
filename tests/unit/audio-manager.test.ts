@@ -64,7 +64,7 @@ describe('AudioManager', () => {
           reason: 'module_load_failed',
           moduleName: 'audiotee',
           error: new Error(
-            "The module '/Users/tester/Projects/scribejam/node_modules/audiotee/build/Release/audiotee.node' was compiled against a different Node.js version using NODE_MODULE_VERSION 127."
+            "The module '<path>/node_modules/audiotee/build/Release/audiotee.node' was compiled against a different Node.js version using NODE_MODULE_VERSION 127."
           )
         });
       },
@@ -77,9 +77,8 @@ describe('AudioManager', () => {
 
     expect(events.onErrorDisplay).toHaveBeenCalledWith({
       message:
-        'System audio module failed to load (audiotee). Recording microphone only. Detail: The module \'<path>\' was compiled against a different Node.js version using NODE_MODULE_VERSION 127.'
+        'System audio module failed to load (audiotee). Recording microphone only. Detail: The module \'<path>/node_modules/audiotee/build/Release/audiotee.node\' was compiled against a different Node.js version using NODE_MODULE_VERSION 127.'
     });
   });
 
 });
-

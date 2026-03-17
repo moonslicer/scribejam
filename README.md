@@ -144,6 +144,7 @@ Milestone details and acceptance notes live in [PLAN.md](./PLAN.md).
 Useful milestone evidence:
 - [docs/m0-spike-report.md](./docs/m0-spike-report.md)
 - [docs/m1-exit-report.md](./docs/m1-exit-report.md)
+- [docs/m0-m1-verification.md](./docs/m0-m1-verification.md)
 - [docs/m2-exit-report.md](./docs/m2-exit-report.md)
 - [docs/m5-verification.md](./docs/m5-verification.md)
 
@@ -151,5 +152,5 @@ Useful milestone evidence:
 
 The original M0 harness is still available for low-level audio and STT validation. See:
 - [spike/m0-harness/README.md](./spike/m0-harness/README.md)
-- [docs/m0/runbook.md](./docs/m0/runbook.md)
-- [docs/m0/test-plan.md](./docs/m0/test-plan.md)
+- [docs/m0-spike-report.md](./docs/m0-spike-report.md)
+- [docs/m0-m1-verification.md](./docs/m0-m1-verification.md)

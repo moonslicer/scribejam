@@ -1,13 +1,13 @@
 # M0 Harness Bootstrap
 
-This harness is the executable bootstrap for `M0-04` in `docs/m0/task-breakdown.md`.
+This harness is the executable bootstrap that powered the original `M0` audio spike.
 
 ## Purpose
 
 - Generate framed system/mic audio events (mock by default).
 - Mix frames on deterministic cadence.
 - Stream mixed frames to an STT adapter boundary.
-- Emit run artifacts compatible with `docs/m0` verification:
+- Emit local run artifacts for audit/debugging:
   - `metadata.json`
   - `metrics.json`
   - `events.ndjson`
@@ -43,6 +43,7 @@ npm start -- \
 ```
 
 The run writes artifacts under `docs/m0/runs/<run-id>/`.
+Generated run artifacts are intentionally not committed to the public repository.
 
 Validate artifacts:
 
