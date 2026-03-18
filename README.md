@@ -117,6 +117,12 @@ Expected degraded behavior:
 
 The repo currently includes milestone work spanning the technical spike through the polish/packaging phase. The product philosophy and invariants live in [AGENTS.md](./AGENTS.md), and the current execution plan lives in [PLAN.md](./PLAN.md).
 
+## Open Source
+
+Scribejam is being built in the open for learning, iteration, and community sharing. Focused issues and pull requests are welcome, especially when they preserve the notepad-first UX, local capture model, and no-raw-audio-to-disk privacy guarantees.
+
+Before contributing, read [AGENTS.md](./AGENTS.md), [PLAN.md](./PLAN.md), and [CONTRIBUTING.md](./CONTRIBUTING.md) so changes stay aligned with the project's product invariants, milestone order, and collaboration rules. The project metadata currently declares the repository under the MIT license in [`package.json`](./package.json).
+
 ## Learn More
 
 - [AGENTS.md](./AGENTS.md)
