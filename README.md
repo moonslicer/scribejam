@@ -1,156 +1,126 @@
 # Scribejam
 
-Scribejam is a notepad-first AI meeting app for macOS. It captures system audio and microphone audio locally, streams transcript audio to a speech-to-text provider, and lets you enhance your typed notes after the meeting without sending raw audio to disk.
+Scribejam is an open-source, notepad-first AI meeting app for macOS. It captures system audio and microphone audio locally, lets you take notes during the meeting, and then turns your notes plus transcript into an enhanced document without ever writing raw audio to disk.
 
-## Product Rules
+![Scribejam workspace with history sidebar](docs/screenshots/github-workspace-sidebar.svg)
 
-These are hard project invariants:
-- no meeting bot joins calls
-- system audio + mic capture run locally on device
-- raw audio stays in memory only
-- human notes stay the anchor
-- human and AI authorship remain visually distinct
-- first-run setup must disclose provider data flow before cloud features are used
+## What This Project Is
 
-Authoritative project docs:
-- product philosophy and invariants: [AGENTS.md](./AGENTS.md)
-- milestone sequencing and implementation plan: [PLAN.md](./PLAN.md)
-- local setup and permissions: [docs/setup.md](./docs/setup.md)
-- contribution workflow: [CONTRIBUTING.md](./CONTRIBUTING.md)
+Scribejam is built around a simple idea: your notes should lead, and AI should help after the fact.
 
-## MVP Workflow
+Instead of joining meetings with a bot, Scribejam runs locally on your Mac, listens to system audio plus your mic, and gives you a quiet workspace for typing notes while the meeting is happening. After the meeting, you can enhance those notes with transcript context while keeping human and AI authorship visually distinct.
 
-The current MVP path is:
-1. Open the app and complete first-run disclosure
-2. Add Deepgram and OpenAI keys if you want real provider-backed flows
-3. Start a meeting manually
-4. Type notes while transcript audio is processed
-5. Stop the meeting
-6. Run Enhance Notes to merge your notes with the transcript
-7. Reopen saved meetings from history later
+## What Makes It Different
 
-Standard editor clipboard shortcuts such as `Cmd/Ctrl+C` and `Cmd/Ctrl+V` are available in the notes workspace.
+- No meeting bot joins the call.
+- System audio and microphone capture happen locally on-device.
+- Raw audio stays in memory only and is not persisted to disk.
+- Human notes remain the anchor; AI augments rather than replaces them.
+- Human and AI text stay visually distinct in the editor.
+- First-run setup explicitly discloses provider data flow before cloud features are enabled.
 
-Scribejam is intentionally not a surveillance product. The app should feel like a fast notepad with optional AI augmentation, not like a hidden recorder.
+## Current Capabilities
 
-## Data Flow and Privacy
+- Local macOS capture for system audio plus microphone input
+- Live transcription via Deepgram
+- Rich meeting notepad built with Tiptap
+- Saved meeting history in local SQLite
+- Post-meeting note enhancement with OpenAI or Anthropic
+- Template-driven enhancement workflows
+- Resume, re-enhance, and revisit past meetings from the desktop app
+- Graceful degradation when keys are missing, system audio is unavailable, or network/provider issues occur
 
-Cloud-assisted MVP behavior:
-- live meeting audio is streamed to Deepgram for transcription
-- saved notes and transcript text are sent to OpenAI only when you explicitly trigger enhancement
+## How Data Flows
 
-Local persistence:
-- meeting title and lifecycle metadata
-- note content
-- transcript text
-- enhanced output
-- settings
+Cloud-assisted mode today works like this:
 
-Not persisted:
-- raw audio buffers
-- provider API keys in plaintext
+1. Scribejam captures system audio and microphone audio locally on your Mac.
+2. Audio is streamed to Deepgram for live transcription.
+3. When you click `Generate notes`, your saved notes and transcript text are sent to the selected LLM provider for enhancement.
+4. Meeting metadata, notes, transcript text, enhanced output, and settings are stored locally in SQLite.
 
-More setup detail is documented in [docs/setup.md](./docs/setup.md).
+What is not persisted:
 
-## Requirements
+- Raw audio
+- Plaintext provider API keys
+
+## Build It Yourself
+
+### Requirements
 
 - macOS
 - Node.js 22+
 - npm
-- Electron native build tooling available through the project dependencies
 
-Optional for real provider-backed runs:
-- Deepgram API key
-- OpenAI API key
-- macOS System Audio Recording permission
-- macOS Microphone permission
-
-## Install and Run
-
-Install dependencies:
+### Install
 
 ```bash
 npm install
+npm run rebuild-native:electron
 ```
 
-Run the desktop app in development:
+`rebuild-native:electron` matters because Scribejam depends on Electron-native modules such as `audiotee` and `better-sqlite3`.
+
+### Run In Development
 
 ```bash
 npm run dev
 ```
 
-Build the main and renderer bundles:
+### Build Production Assets
 
 ```bash
 npm run build
 ```
 
-Typecheck the workspace:
+### Package A macOS Build
+
+```bash
+npm run package:mac
+```
+
+## Verify Your Setup
 
 ```bash
 npm run typecheck
-```
-
-Run tests:
-
-```bash
 npm test
-```
-
-Run the startup smoke check:
-
-```bash
 npm run smoke
+npm run smoke:playwright
 ```
 
-## Native Dependencies
+## First Run
 
-This project depends on native Electron modules. After install and before packaging, rebuild native dependencies for the pinned Electron version:
+On first launch:
 
-```bash
-npm run rebuild-native:electron
-```
+- Complete the disclosure flow before recording/transcription is enabled
+- Add a Deepgram key for real live transcription
+- Add an OpenAI or Anthropic key if you want note enhancement
+- Grant macOS System Audio Recording and Microphone permissions when prompted
 
-This is especially important for:
-- `audiotee`
-- `better-sqlite3`
+Expected degraded behavior:
+
+- If system audio capture is unavailable, Scribejam falls back to mic-only mode.
+- If a provider key is invalid, only the affected feature is blocked.
+- If the network drops, note-taking continues while cloud features pause or retry.
 
 ## Project Layout
 
-- `src/main/`: Electron main-process orchestration, storage, provider integration, native shell wiring
-- `src/preload/`: typed `contextBridge` API
-- `src/renderer/`: React UI, editor, history, transcript, settings
-- `src/shared/`: IPC contracts and shared types
-- `tests/`: unit, renderer, integration, and smoke coverage
-- `docs/`: milestone evidence, setup notes, and verification artifacts
-- `spike/m0-harness/`: the original M0 technical spike harness
+- `src/main/`: Electron main-process orchestration, audio pipeline, storage, providers
+- `src/preload/`: typed `contextBridge` APIs
+- `src/renderer/`: React UI, editor, transcript, settings, history
+- `src/shared/`: shared IPC contracts and types
+- `tests/`: unit, integration, renderer, and smoke coverage
+- `docs/`: setup notes and milestone verification artifacts
+- `spike/m0-harness/`: original technical spike harness
 
-## Milestone Status
+## Status
 
-The repo contains milestone work from:
-- M0: technical spike and baseline validation
-- M1: scaffold, capture shell, settings shell
-- M2: transcription pipeline
-- M3: persistence and notepad foundation
-- M4: enhancement foundation
-- M5: OpenAI-backed enhancement
-- M6: enhancement UX and authorship behavior
-- M7: polish and packaging work in progress
+The repo currently includes milestone work spanning the technical spike through the polish/packaging phase. The product philosophy and invariants live in [AGENTS.md](./AGENTS.md), and the current execution plan lives in [PLAN.md](./PLAN.md).
 
-Milestone details and acceptance notes live in [PLAN.md](./PLAN.md).
+## Learn More
 
-## Verification References
-
-Useful milestone evidence:
-- [docs/m0-spike-report.md](./docs/m0-spike-report.md)
-- [docs/m1-exit-report.md](./docs/m1-exit-report.md)
-- [docs/m0-m1-verification.md](./docs/m0-m1-verification.md)
-- [docs/m2-exit-report.md](./docs/m2-exit-report.md)
-- [docs/m5-verification.md](./docs/m5-verification.md)
-
-## M0 Harness
-
-The original M0 harness is still available for low-level audio and STT validation. See:
-- [spike/m0-harness/README.md](./spike/m0-harness/README.md)
-- [docs/m0-spike-report.md](./docs/m0-spike-report.md)
-- [docs/m0-m1-verification.md](./docs/m0-m1-verification.md)
+- [AGENTS.md](./AGENTS.md)
+- [PLAN.md](./PLAN.md)
+- [docs/setup.md](./docs/setup.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [docs/m7-verification.md](./docs/m7-verification.md)
